@@ -26,6 +26,12 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+try:
+    from tqdm import tqdm
+except ImportError:          # graceful fallback
+    def tqdm(it, **_kw):     # type: ignore[misc]
+        return it
+
 # Resolve project root so `python -m src.prompt_pipeline.generate` works
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
@@ -75,6 +81,7 @@ def generate_dataset(
     output_path: str,
     llm=None,
     seed: int = 42,
+    batch_size: int = 1,
 ):
     rng = random.Random(seed)
 
@@ -97,75 +104,100 @@ def generate_dataset(
     logger.info("Scene pool: %d scenes", len(scene_pool))
     logger.info("Frequency dict: %d words", len(text_gen.words))
     logger.info("LLM: %s", "enabled" if llm else "disabled (fallback mode)")
+    if batch_size > 1:
+        logger.info("Batch size: %d", batch_size)
 
     # --- Content-type quota ---
     ct_names = list(CONTENT_TYPES.keys())
     ct_weights = list(CONTENT_TYPES.values())
 
+    # Pre-sample metadata so we can process in chunks
+    meta: list[tuple[str, int, str, str]] = []
+    for _ in range(n):
+        ct = rng.choices(ct_names, ct_weights, k=1)[0]
+        tier = text_gen.sample_tier(ct)
+        case = text_gen.sample_case()
+        lang = "ru" if rng.random() < LANG_RU_RATIO else "en"
+        meta.append((ct, tier, case, lang))
+
     records: list[dict] = []
     seen_hashes: set[str] = set()
     llm_calls = 0
 
-    for i in range(n):
-        content_type = rng.choices(ct_names, ct_weights, k=1)[0]
-        tier = text_gen.sample_tier(content_type)
-        case = text_gen.sample_case()
-        lang = "ru" if rng.random() < LANG_RU_RATIO else "en"
+    pbar = tqdm(total=n, desc="Generating", unit="prompt")
+    pos = 0
 
-        # --- Generate target text ---
-        if tier <= 2:
-            target_text = text_gen.generate_text(tier, case)
-        elif llm is not None:
-            must_include = text_gen.get_must_include_words(tier)
-            target_text = llm.generate_phrase(tier, must_include, content_type)
-            llm_calls += 1
-        else:
-            target_text = text_gen.generate_text_fallback(tier, case)
+    while pos < n:
+        chunk_end = min(pos + batch_size, n)
+        chunk = meta[pos:chunk_end]
 
-        # Occasionally append a number (15% chance for posters/social)
-        if content_type in ("poster", "social_media", "product") and rng.random() < 0.15:
-            target_text = f"{target_text} {text_gen.generate_number_text()}"
+        # --- Phase 1: generate target texts (batch LLM calls) ---
+        texts: dict[int, str] = {}      # local index -> text
+        llm_jobs: list[tuple[int, int, list[str], str]] = []  # (j, tier, words, ct)
 
-        # --- Deduplicate ---
-        h = f"{target_text}|{content_type}"
-        if h in seen_hashes:
-            # Retry with different text (simple approach)
-            target_text += f" {text_gen.generate_number_text()}"
-            h = f"{target_text}|{content_type}"
-        seen_hashes.add(h)
+        for j, (ct, tier, case, lang) in enumerate(chunk):
+            if tier <= 2:
+                texts[j] = text_gen.generate_text(tier, case)
+            elif llm is not None:
+                must_include = text_gen.get_must_include_words(tier)
+                llm_jobs.append((j, tier, must_include, ct))
+            else:
+                texts[j] = text_gen.generate_text_fallback(tier, case)
 
-        # --- Scene & style ---
-        scene = scene_pool.sample(content_type, lang)
-        style = style_gen.sample(content_type)
-
-        # --- Assemble prompt ---
-        prompt = assembler.assemble(target_text, scene, style, content_type, lang)
-
-        # --- Char coverage ---
-        text_gen.update_coverage(target_text)
-        char_cov = {}
-        for ch in target_text.lower():
-            if ch in CYRILLIC_LOWER:
-                char_cov[ch] = char_cov.get(ch, 0) + 1
-
-        record = {
-            "id": f"p_{i:05d}",
-            "prompt": prompt,
-            "target_text": target_text,
-            "tier": tier,
-            "content_type": content_type,
-            "scene_id": scene["id"],
-            "style": style,
-            "lang": lang,
-            "char_coverage": char_cov,
-        }
-        records.append(record)
-
-        if (i + 1) % 1000 == 0:
-            logger.info(
-                "  [%d/%d] llm_calls=%d  unique_chars=%d",
-                i + 1, n, llm_calls, len(text_gen.char_counts),
+        if llm_jobs:
+            batch_results = llm.generate_phrases_batch(
+                [(tier, mi, ct) for _, tier, mi, ct in llm_jobs]
             )
+            for (j, _tier, _mi, _ct), txt in zip(llm_jobs, batch_results):
+                texts[j] = txt
+            llm_calls += len(llm_jobs)
+
+        # --- Phase 2: assemble records ---
+        for j, (content_type, tier, case, lang) in enumerate(chunk):
+            i = pos + j
+            target_text = texts[j]
+
+            # Occasionally append a number (15% chance for posters/social)
+            if content_type in ("poster", "social_media", "product") and rng.random() < 0.15:
+                target_text = f"{target_text} {text_gen.generate_number_text()}"
+
+            # --- Deduplicate ---
+            h = f"{target_text}|{content_type}"
+            if h in seen_hashes:
+                target_text += f" {text_gen.generate_number_text()}"
+                h = f"{target_text}|{content_type}"
+            seen_hashes.add(h)
+
+            # --- Scene & style ---
+            scene = scene_pool.sample(content_type, lang)
+            style = style_gen.sample(content_type)
+
+            # --- Assemble prompt ---
+            prompt = assembler.assemble(target_text, scene, style, content_type, lang)
+
+            # --- Char coverage ---
+            text_gen.update_coverage(target_text)
+            char_cov = {}
+            for ch in target_text.lower():
+                if ch in CYRILLIC_LOWER:
+                    char_cov[ch] = char_cov.get(ch, 0) + 1
+
+            records.append({
+                "id": f"p_{i:05d}",
+                "prompt": prompt,
+                "target_text": target_text,
+                "tier": tier,
+                "content_type": content_type,
+                "scene_id": scene["id"],
+                "style": style,
+                "lang": lang,
+                "char_coverage": char_cov,
+            })
+
+        pbar.update(chunk_end - pos)
+        pos = chunk_end
+
+    pbar.close()
 
     # --- Write output ---
     out = Path(output_path)
@@ -202,8 +234,10 @@ def main():
     parser.add_argument("--model", type=str, default="Qwen/Qwen3.5-4B",
                         help="HuggingFace model ID for phrase generation")
     parser.add_argument("--backend", type=str, default="transformers",
-                        choices=["transformers", "mlx"],
-                        help="LLM backend")
+                        choices=["transformers", "mlx", "vllm"],
+                        help="LLM backend (vllm enables FP8 + batch inference)")
+    parser.add_argument("--batch-size", type=int, default=1,
+                        help="LLM batch size (>1 useful with vllm backend)")
     parser.add_argument("--expand-scenes", type=int, default=0,
                         help="Generate N additional scenes per content type before main run")
     parser.add_argument("--temperature", type=float, default=0.7)
@@ -237,6 +271,7 @@ def main():
         output_path=args.output,
         llm=llm,
         seed=args.seed,
+        batch_size=args.batch_size,
     )
 
 
