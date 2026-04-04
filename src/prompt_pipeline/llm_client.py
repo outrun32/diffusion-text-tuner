@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Thin wrapper around a local text-generation model."""
 
-    def __init__(self, model_id: str = "Qwen/Qwen3-4B",
+    def __init__(self, model_id: str = "Qwen/Qwen3.5-4B",
                  backend: str = "transformers",
                  max_new_tokens: int = 128,
                  temperature: float = 0.7,

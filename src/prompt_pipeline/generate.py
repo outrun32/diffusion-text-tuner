@@ -7,13 +7,13 @@ Usage
   python -m src.prompt_pipeline.generate --n 100 --no-llm --output data/prompts_test.jsonl
 
 # Full generation with local LLM on GPU:
-  python -m src.prompt_pipeline.generate --n 30000 --model Qwen/Qwen3-4B --output data/prompts.jsonl
+  python -m src.prompt_pipeline.generate --n 30000 --model Qwen/Qwen3.5-4B --output data/prompts.jsonl
 
 # With MLX backend (Apple Silicon):
-  python -m src.prompt_pipeline.generate --n 30000 --model mlx-community/Qwen3-4B-MLX-4bit --backend mlx
+  python -m src.prompt_pipeline.generate --n 30000 --model mlx-community/Qwen3.5-4B-MLX-4bit --backend mlx
 
 # Expand scene pool before generating:
-  python -m src.prompt_pipeline.generate --expand-scenes 50 --model Qwen/Qwen3-4B
+  python -m src.prompt_pipeline.generate --expand-scenes 50 --model Qwen/Qwen3.5-4B
 """
 
 from __future__ import annotations
@@ -199,7 +199,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-llm", action="store_true",
                         help="Disable LLM, use algorithmic fallback for all tiers")
-    parser.add_argument("--model", type=str, default="Qwen/Qwen3-4B",
+    parser.add_argument("--model", type=str, default="Qwen/Qwen3.5-4B",
                         help="HuggingFace model ID for phrase generation")
     parser.add_argument("--backend", type=str, default="transformers",
                         choices=["transformers", "mlx"],
