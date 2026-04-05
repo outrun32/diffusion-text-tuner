@@ -1,0 +1,2 @@
+- FLUX2Klein pipeline uses Qwen3 text encoder (text-only).
+- Qwen3.5 series is vision-capable (omni); do not describe it as text-only.
