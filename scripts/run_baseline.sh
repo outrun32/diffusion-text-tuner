@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generate baseline images and evaluate rewards.
 # Run on VPS / GPU machine with CUDA.
-set -euo pipefail
+set -eu pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -11,8 +11,8 @@ cd "$PROJECT_DIR"
 PROMPTS="${PROMPTS:-data/prompts_llm.jsonl}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs/baseline}"
 MODEL="${MODEL:-black-forest-labs/FLUX.2-klein-4B}"
-NUM_SAMPLES="${NUM_SAMPLES:-500}"
-BATCH_SIZE="${BATCH_SIZE:-1}"
+NUM_SAMPLES="${NUM_SAMPLES:-100}"
+BATCH_SIZE="${BATCH_SIZE:-4}"
 SEED="${SEED:-42}"
 
 # ── Step 1: Generate baseline images ───────────────────────────────────────

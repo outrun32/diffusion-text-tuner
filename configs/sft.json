@@ -1,0 +1,35 @@
+{
+  "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+
+  "latents_dir": "outputs/generated/latents",
+  "text_embeds_dir": "outputs/generated/text_embeds",
+  "scores_csv": "outputs/generated/scores.csv",
+  "score_threshold": 0.3,
+
+  "num_training_steps": 1000,
+  "batch_size": 8,
+  "gradient_accumulation_steps": 1,
+  "lr": 2e-5,
+  "weight_decay": 0.0,
+  "max_grad_norm": 1.0,
+  "warmup_steps": 100,
+  "seed": 42,
+
+  "num_train_timesteps": 1000,
+  "shift": 3.0,
+  "resolution": 512,
+
+  "lora": {
+    "r": 64,
+    "lora_alpha": 64,
+    "target_modules": ["to_k", "to_q", "to_v", "to_out.0"]
+  },
+
+  "log_interval": 10,
+  "save_interval": 200,
+  "output_dir": "outputs/sft",
+  "experiment_name": "sft_v1",
+
+  "gradient_checkpointing": true,
+  "mixed_precision": "bf16"
+}

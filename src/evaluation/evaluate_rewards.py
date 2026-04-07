@@ -105,6 +105,7 @@ class QwenYesProbReward:
 
         text = self.processor.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True,
+            enable_thinking=False,
         )
         # Process image + text into model inputs
         image = Image.open(image_path).convert("RGB")
@@ -209,7 +210,7 @@ def parse_args():
                     choices=["qwen_yes_prob", "paddleocr", "all"],
                     default=["all"],
                     help="Which reward(s) to compute")
-    p.add_argument("--vlm-model", type=str, default="Qwen/Qwen3.5-4B",
+    p.add_argument("--vlm-model", type=str, default="Qwen/Qwen3.5-9B",
                     help="HuggingFace VLM model ID for yes-prob reward")
     p.add_argument("--start-idx", type=int, default=0,
                     help="Resume from this index")

@@ -168,6 +168,51 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+# ── Project-specific ────────────────────────────────────────────────────────
+
+# Outputs (model checkpoints, generated images, embeddings, logs)
+outputs/
+runs/
+
+# Large data files (prompts pushed to HuggingFace)
+data/prompts_llm.jsonl
+data/prompts_simple.jsonl
+data/prompts.jsonl
+
+# Model weights & tensors
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+
+# Images generated during training/eval
+*.png
+*.jpg
+*.jpeg
+!experiments/assets/*.png
+!experiments/assets/*.jpg
+
+# Training logs
+*.log
+wandb/
+tensorboard/
+
+# Old ReFL configs (superseded by configs/*.json)
+configs/train_base.json
+configs/train_v4_highLR.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
