@@ -62,7 +62,27 @@ Cross-cutting constraints:
   3. User can rely on documented canonical paths and schema/version metadata for prompts, generated images, latents, embeddings, masks, scores, selected samples, preference pairs, checkpoints, logs, eval outputs, and manifests.
   4. User can preflight key artifacts and resume or inspect long-running stages using consistent manifest and output conventions without committing generated tensors, images, checkpoints, logs, or private outputs.
   5. User can use shared runtime helpers for config I/O, path resolution, seeds, manifests, and preflight validation across pipeline stages.
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 02-01-PLAN.md — Add shared validated config-loading contracts for SFT, DPO, and masked-SFT.
+- [ ] 02-02-PLAN.md — Define canonical runtime paths, artifact schemas, preflight validators, and generated-artifact safety docs.
+
+**Wave 2** *(blocked on Wave 1 config/artifact contracts)*
+- [ ] 02-03-PLAN.md — Add local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands.
+
+**Wave 3** *(blocked on runtime helpers and manifests)*
+- [ ] 02-04-PLAN.md — Wire trainer config loaders to shared validation and expose a CPU-safe preflight CLI.
+
+**Wave 4** *(blocked on manifest/preflight command implementations)*
+- [ ] 02-05-PLAN.md — Publish config-family organization, manifest/preflight command docs, Makefile aliases, and README links.
+
+Cross-cutting constraints:
+- Runtime helpers and preflight commands stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER.
+- Generated images, tensors, checkpoints, logs, private outputs, and run directories stay ignored unless intentionally tiny fixtures or documentation assets.
+- Existing root config files and documented local/SLURM commands remain runnable while new experiment variants gain organized family homes.
 
 ### Phase 3: Data Curriculum and Dataset Quality
 **Goal**: Users can create and assess multilingual text-rendering datasets with explicit curriculum, provenance, quality checks, and versioned training selections.  
@@ -126,7 +146,7 @@ Cross-cutting constraints:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
-| 2. Runtime Contracts and Run Provenance | 0/TBD | Not started | - |
+| 2. Runtime Contracts and Run Provenance | 0/5 | Planned | - |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
