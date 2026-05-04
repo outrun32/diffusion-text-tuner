@@ -23,6 +23,10 @@ from src.runtime.reproducibility import (
 MANIFEST_SCHEMA_VERSION = "run-manifest/v1"
 CONFIG_SNAPSHOT_FILENAME = "config_snapshot.json"
 MANIFEST_FILENAME = "manifest.json"
+TRAINING_STAGES = frozenset({"sft", "dpo", "masked_sft"})
+MANIFEST_STAGES = frozenset(
+    {"generate", "score", "sft", "dpo", "masked_sft", "synthetic", "evaluation"}
+)
 
 
 class ManifestError(ValueError):
@@ -80,7 +84,7 @@ class RunManifest:
 def create_run_manifest(
     *,
     stage: str,
-    config_path: str | Path,
+    config_path: str | Path | None = None,
     command: str | list[str],
     run_root: str | Path = "runs",
     slug: str | None = None,
@@ -92,11 +96,11 @@ def create_run_manifest(
 ) -> RunManifest:
     """Create a local ignored run directory with manifest and immutable config snapshot."""
 
+    stage = _normalize_stage(stage)
     root_path = (Path.cwd() if root is None else Path(root)).resolve()
     run_root_path = _validate_run_root(run_root)
-    config_path = Path(config_path)
-    config = load_stage_config(stage, config_path)
-    config_snapshot = resolve_config_snapshot(config)
+    normalized_config_path = Path(config_path) if config_path is not None else None
+    config_snapshot = _resolve_manifest_config_snapshot(stage, normalized_config_path)
     run_id = _allocate_run_id(stage=stage, run_root=run_root_path, slug=slug)
     run_dir = run_root_path / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
@@ -105,7 +109,7 @@ def create_run_manifest(
 
     merged_inputs = _sort_mapping(
         {
-            "config_path": str(config_path),
+            **({"config_path": str(normalized_config_path)} if normalized_config_path else {}),
             **_path_like_config_values(config_snapshot, include_outputs=False),
             **(inputs or {}),
         }
@@ -252,6 +256,41 @@ def _validate_run_root(run_root: str | Path) -> Path:
     return resolved
 
 
+def _normalize_stage(stage: str) -> str:
+    normalized = stage.replace("-", "_")
+    if normalized not in MANIFEST_STAGES:
+        allowed = ", ".join(sorted(MANIFEST_STAGES))
+        raise ManifestError(f"unsupported manifest stage {stage!r}; expected one of: {allowed}")
+    return normalized
+
+
+def _resolve_manifest_config_snapshot(
+    stage: str, config_path: Path | None
+) -> dict[str, Any]:
+    if stage in TRAINING_STAGES:
+        if config_path is None:
+            raise ManifestError(f"{stage}: --config is required for training-stage manifests")
+        config = load_stage_config(stage, config_path)
+        return resolve_config_snapshot(config)
+    if config_path is None:
+        return {"schema_version": "runtime-config/v1", "stage": stage}
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ManifestError(f"{config_path}: malformed config JSON") from exc
+    except OSError as exc:
+        raise ManifestError(f"{config_path}: could not read config") from exc
+    if not isinstance(payload, dict):
+        raise ManifestError(f"{config_path}: config snapshot must be a JSON object")
+    return _sort_mapping(
+        {
+            "schema_version": "runtime-config/v1",
+            "stage": stage,
+            "raw_config": payload,
+        }
+    )
+
+
 def _allocate_run_id(*, stage: str, run_root: Path, slug: str | None) -> str:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     suffix = _slugify(slug or stage)
@@ -280,14 +319,18 @@ def _path_like_config_values(
 ) -> dict[str, Any]:
     result: dict[str, Any] = {}
     output_keys = {"output_dir", "outputs_dir", "samples_dir", "checkpoints_dir", "logs_dir"}
-    for key, value in config_snapshot.items():
+    input_keys = {"prompts", "images", "latents", "text_embeds", "scores"}
+    source = config_snapshot.get("raw_config")
+    if not isinstance(source, dict):
+        source = config_snapshot
+    for key, value in source.items():
         if not isinstance(value, str):
             continue
         if key in output_keys:
             if include_outputs:
                 result[key] = value
             continue
-        if key.endswith(("_dir", "_path", "_csv", "_jsonl")):
+        if key in input_keys or key.endswith(("_dir", "_path", "_csv", "_jsonl")):
             result[key] = value
     return result
 

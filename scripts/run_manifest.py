@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from src.runtime.manifests import (
+    MANIFEST_STAGES,
     ManifestError,
     create_run_manifest,
     load_run_manifest,
@@ -53,8 +54,8 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command_name", required=True)
 
     init_parser = subparsers.add_parser("init", help="Create a run manifest directory.")
-    init_parser.add_argument("--stage", required=True, choices=("sft", "dpo", "masked_sft"))
-    init_parser.add_argument("--config", required=True, type=Path)
+    init_parser.add_argument("--stage", required=True, choices=tuple(sorted(MANIFEST_STAGES)))
+    init_parser.add_argument("--config", type=Path)
     init_parser.add_argument("--command", required=True)
     init_parser.add_argument("--run-root", default=Path("runs"), type=Path)
 

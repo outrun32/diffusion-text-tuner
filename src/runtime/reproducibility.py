@@ -78,7 +78,8 @@ def collect_model_revisions(config_snapshot: dict[str, Any]) -> dict[str, Any]:
     """Extract configured model IDs and optional revisions from a resolved config snapshot."""
 
     models: dict[str, Any] = {}
-    for key, value in sorted(_flatten_mapping(config_snapshot).items()):
+    source = _metadata_source(config_snapshot)
+    for key, value in sorted(_flatten_mapping(source).items()):
         if key.endswith("model_id") and isinstance(value, str):
             models[key] = value
         if key.endswith("model_revision") and (isinstance(value, str) or value is None):
@@ -92,7 +93,8 @@ def collect_seeds(config_snapshot: dict[str, Any]) -> dict[str, Any]:
     """Extract seed-like scalar fields from a resolved config snapshot."""
 
     seeds: dict[str, Any] = {}
-    for key, value in sorted(_flatten_mapping(config_snapshot).items()):
+    source = _metadata_source(config_snapshot)
+    for key, value in sorted(_flatten_mapping(source).items()):
         if key.endswith("seed") and isinstance(value, int):
             seeds[key] = value
     return seeds
@@ -157,3 +159,8 @@ def _flatten_mapping(value: Any, prefix: str = "") -> dict[str, Any]:
         else:
             flattened[next_key] = item
     return flattened
+
+
+def _metadata_source(config_snapshot: dict[str, Any]) -> dict[str, Any]:
+    raw_config = config_snapshot.get("raw_config")
+    return raw_config if isinstance(raw_config, dict) else config_snapshot

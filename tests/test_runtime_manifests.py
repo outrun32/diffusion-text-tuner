@@ -178,6 +178,92 @@ def test_run_manifest_cli_init_inspect_note_and_metrics(tmp_path, monkeypatch, c
     assert "Notes: 1" in stdout
 
 
+def test_create_manifest_for_non_training_stage_without_trainer_config(tmp_path, monkeypatch):
+    monkeypatch.setattr(manifests, "collect_git_state", lambda root: {"commit": "abc1234"})
+
+    manifest = manifests.create_run_manifest(
+        stage="generate",
+        config_path=None,
+        command=["python", "-m", "scripts.generate_images"],
+        run_root=tmp_path / "runs",
+        inputs={"prompts": "data/prompts_simple.jsonl"},
+        outputs={"output_dir": "outputs/generated"},
+    )
+
+    payload = json.loads(manifest.manifest_path.read_text(encoding="utf-8"))
+    assert manifest.stage == "generate"
+    assert payload["config_snapshot"] == {
+        "schema_version": "runtime-config/v1",
+        "stage": "generate",
+    }
+    assert payload["inputs"] == {"prompts": "data/prompts_simple.jsonl"}
+    assert payload["outputs"] == {"output_dir": "outputs/generated"}
+    assert payload["models"] == {}
+    assert payload["seeds"] == {}
+
+
+def test_create_manifest_for_non_training_stage_with_raw_config_snapshot(tmp_path, monkeypatch):
+    monkeypatch.setattr(manifests, "collect_git_state", lambda root: {"commit": "abc1234"})
+    config_path = tmp_path / "configs" / "generate.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+                "seed": 42,
+                "prompts": "data/prompts_simple.jsonl",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    manifest = manifests.create_run_manifest(
+        stage="generate",
+        config_path=config_path,
+        command="python -m scripts.generate_images",
+        run_root=tmp_path / "runs",
+    )
+
+    payload = json.loads(manifest.manifest_path.read_text(encoding="utf-8"))
+    assert payload["config_snapshot"]["stage"] == "generate"
+    assert payload["config_snapshot"]["raw_config"]["seed"] == 42
+    assert payload["inputs"] == {
+        "config_path": str(config_path),
+        "prompts": "data/prompts_simple.jsonl",
+    }
+    assert payload["models"] == {
+        "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+        "model_revision": None,
+    }
+    assert payload["seeds"] == {"seed": 42}
+
+
+def test_run_manifest_cli_accepts_generation_stage_without_config(tmp_path, monkeypatch, capsys):
+    from scripts import run_manifest
+
+    monkeypatch.setattr(manifests, "collect_git_state", lambda root: {"commit": "abc1234"})
+
+    exit_code = run_manifest.main(
+        [
+            "init",
+            "--stage",
+            "generate",
+            "--command",
+            "python -m scripts.generate_images",
+            "--run-root",
+            str(tmp_path / "runs"),
+        ]
+    )
+
+    assert exit_code == 0
+    manifest_path = Path(capsys.readouterr().out.strip()) / "manifest.json"
+    assert manifest_path.is_file()
+    assert run_manifest.main(["inspect", str(manifest_path)]) == 0
+    stdout = capsys.readouterr().out
+    assert "Stage: generate" in stdout
+    assert "Command: python -m scripts.generate_images" in stdout
+
+
 def test_run_manifest_cli_reports_missing_or_corrupt_manifests(tmp_path, capsys):
     from scripts import run_manifest
 

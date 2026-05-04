@@ -56,11 +56,15 @@ Read [`docs/runtime_contracts.md`](runtime_contracts.md) and [`configs/experimen
 Use `scripts.run_manifest` to create and inspect local provenance under `runs/<run_id>/manifest.json`:
 
 ```bash
+python -m scripts.run_manifest init --stage generate --command "python -m scripts.generate_images --prompts data/prompts_simple.jsonl --output_dir outputs/generated"
 python -m scripts.run_manifest init --stage sft --config configs/sft.json --command "accelerate launch --config_file configs/accelerate/single_gpu.yaml -m src.training.sft_trainer --config configs/sft.json"
+python -m scripts.run_manifest init --stage evaluation --command "python -m src.evaluation.generate_baseline --prompts data/prompts_simple.jsonl --output-dir outputs/baseline"
 python -m scripts.run_manifest inspect runs/<run_id>/manifest.json
 python -m scripts.run_manifest note runs/<run_id>/manifest.json "Prepared inputs and verified runtime contracts before launch"
 python -m scripts.run_manifest metrics runs/<run_id>/manifest.json --json '{"loss": 0.123}'
 ```
+
+Training-stage manifests require `--config` so the runtime can validate and snapshot SFT/DPO/masked-SFT JSON. Non-training stages such as generation, scoring, synthesis, and evaluation can be initialized before a stage-specific config exists; pass `--config` when you have one and the raw JSON will be snapshotted for provenance.
 
 Use `scripts.preflight_runtime` to validate readiness before expensive stages. These examples are safe to run locally; missing generated artifacts are reported as blockers instead of triggering model work.
 
