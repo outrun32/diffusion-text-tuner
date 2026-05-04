@@ -181,3 +181,36 @@ def test_blocking_required_inputs_raise_for_expensive_downstream_stages(tmp_path
 
     with pytest.raises(ArtifactValidationError, match="scores_csv"):
         validate_artifacts("sft", {"scores_csv": missing, "require_ready": True})
+
+
+def test_runtime_contract_docs_cover_required_artifact_families() -> None:
+    docs = Path("docs/runtime_contracts.md").read_text(encoding="utf-8")
+    required_sections = [
+        "## Canonical Runtime Roots",
+        "## Artifact Contract Matrix",
+        "## Local and SLURM Path Guidance",
+        "## Git-Safety Classification",
+        "## Preflight Validator Hooks",
+    ]
+    required_artifacts = [
+        "prompts",
+        "images",
+        "latents",
+        "text embeddings",
+        "masks",
+        "scores",
+        "selected samples",
+        "preference pairs",
+        "checkpoints",
+        "samples",
+        "logs",
+        "eval outputs",
+        "run manifests",
+        "schema_version",
+    ]
+
+    missing_sections = [section for section in required_sections if section not in docs]
+    missing_artifacts = [artifact for artifact in required_artifacts if artifact not in docs]
+
+    assert not missing_sections
+    assert not missing_artifacts
