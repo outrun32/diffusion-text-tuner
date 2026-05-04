@@ -110,3 +110,53 @@ def test_exposes_required_data_01_stage_families(tmp_path):
     assert generator_settings["content_type_weights"]["poster"] > 0
     assert generator_settings["tier_weights"][1] > 0
     assert generator_settings["case_weights"]["upper"] > 0
+
+
+def test_committed_simple_full_and_curriculum_configs_load():
+    configs = {
+        "simple": load_prompt_generation_config("configs/prompts/simple.json"),
+        "full": load_prompt_generation_config("configs/prompts/full.json"),
+        "curriculum": load_prompt_generation_config("configs/prompts/curriculum.json"),
+    }
+
+    assert configs["simple"].mode == "simple"
+    assert configs["simple"].generation.no_llm is True
+    assert configs["simple"].output_path == Path("data/prompts/simple.jsonl")
+    assert {stage.family for stage in configs["simple"].curriculum_stages} >= {
+        "single_letters",
+        "short_words",
+    }
+
+    full = configs["full"]
+    assert full.mode == "full"
+    assert full.generation.model == "Qwen/Qwen3.5-4B"
+    assert full.generation.backend == "transformers"
+    assert full.generation.no_llm is False
+    assert {stage.family for stage in full.curriculum_stages} >= {"phrases", "style", "scene"}
+
+    curriculum = configs["curriculum"]
+    assert curriculum.mode == "curriculum"
+    assert curriculum.allocate_stage_samples()["single_letters"] > 0
+    assert curriculum.stage_families() == {
+        "single_letters",
+        "short_words",
+        "phrases",
+        "digits",
+        "punctuation",
+        "mixed_case",
+        "multiline",
+        "style",
+        "scene",
+    }
+
+
+def test_committed_configs_include_required_contract_fields():
+    for path in sorted(Path("configs/prompts").glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["schema_version"] == "prompt-generation/v1"
+        assert payload["mode"] in {"simple", "full", "curriculum"}
+        assert isinstance(payload["seed"], int)
+        assert payload["output_path"].startswith("data/prompts/")
+        assert "generation" in payload
+        assert "curriculum_stages" in payload and payload["curriculum_stages"]
+        assert "validation_thresholds" in payload
