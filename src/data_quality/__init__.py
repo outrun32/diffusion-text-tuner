@@ -8,6 +8,14 @@ from .curriculum import (
     load_prompt_generation_config,
 )
 from .prompt_validation import PromptQualityReport, validate_prompt_dataset
+from .manifests import (
+    DatasetManifest,
+    DatasetManifestError,
+    create_dataset_manifest,
+    hash_source_file,
+    load_dataset_manifest,
+    write_dataset_manifest,
+)
 
 __all__ = [
     "CurriculumConfigError",
@@ -15,6 +23,12 @@ __all__ = [
     "GenerationSettings",
     "PromptGenerationConfig",
     "PromptQualityReport",
+    "DatasetManifest",
+    "DatasetManifestError",
+    "create_dataset_manifest",
+    "hash_source_file",
     "load_prompt_generation_config",
+    "load_dataset_manifest",
     "validate_prompt_dataset",
+    "write_dataset_manifest",
 ]
