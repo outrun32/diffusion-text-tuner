@@ -26,8 +26,8 @@ The paths below remain useful for investigation and thesis history, but they are
 
 | Path | Purpose | Why non-default | Expected prerequisites |
 | --- | --- | --- | --- |
-| `scripts/test_gradient_flow.py` | Checks whether gradients flow through a generated/training sample path. | It is a manual CUDA/model diagnostic named like a test and can load heavyweight model or tensor artifacts at import/runtime. | CUDA-capable environment plus locally generated embeddings/artifacts matching the script assumptions. |
-| `scripts/test_grad_magnitude.py` | Inspects gradient magnitudes for generated/training artifacts. | It is a manual CUDA/model diagnostic, not a formal isolated unit test. | CUDA-capable environment plus local generated tensors. |
+| `scripts/diagnose_gradient_flow.py` | Checks whether gradients flow through a generated/training sample path. | It is a manual CUDA/model diagnostic with a guarded entry point and can load heavyweight model or tensor artifacts when run explicitly. | CUDA-capable environment plus locally generated embeddings/artifacts matching the script assumptions. |
+| `scripts/diagnose_grad_magnitude.py` | Inspects gradient magnitudes for generated/training artifacts. | It is a manual CUDA/model diagnostic, not a formal isolated unit test. | CUDA-capable environment plus local generated tensors. |
 | `experiments/ocr_reward_tests/test_qwen_yes_prob.py` | Probes Qwen yes-probability reward behavior on OCR/VLM experiment assets. | It depends on local model/backend availability and has historically included workstation-specific paths. | Qwen/VLM runtime, local assets, and any backend-specific setup. |
 | `experiments/ocr_reward_tests/test_paddleocr.py` | Probes PaddleOCR behavior on experiment assets. | It is an OCR experiment, not a CPU-safe default test. | PaddleOCR installation, local OCR model/cache availability, and experiment assets. |
 
