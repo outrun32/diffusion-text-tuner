@@ -134,70 +134,71 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INV-01 | TBD | Pending |
-| INV-02 | TBD | Pending |
-| INV-03 | TBD | Pending |
-| INV-04 | TBD | Pending |
-| ENV-01 | TBD | Pending |
-| ENV-02 | TBD | Pending |
-| ENV-03 | TBD | Pending |
-| ENV-04 | TBD | Pending |
-| ENV-05 | TBD | Pending |
-| ENV-06 | TBD | Pending |
-| DATA-01 | TBD | Pending |
-| DATA-02 | TBD | Pending |
-| DATA-03 | TBD | Pending |
-| DATA-04 | TBD | Pending |
-| DATA-05 | TBD | Pending |
-| DATA-06 | TBD | Pending |
-| DATA-07 | TBD | Pending |
-| TRN-01 | TBD | Pending |
-| TRN-02 | TBD | Pending |
-| TRN-03 | TBD | Pending |
-| TRN-04 | TBD | Pending |
-| TRN-05 | TBD | Pending |
-| TRN-06 | TBD | Pending |
-| TRN-07 | TBD | Pending |
-| EVAL-01 | TBD | Pending |
-| EVAL-02 | TBD | Pending |
-| EVAL-03 | TBD | Pending |
-| EVAL-04 | TBD | Pending |
-| EVAL-05 | TBD | Pending |
-| EVAL-06 | TBD | Pending |
-| EVAL-07 | TBD | Pending |
-| EVAL-08 | TBD | Pending |
-| RUN-01 | TBD | Pending |
-| RUN-02 | TBD | Pending |
-| RUN-03 | TBD | Pending |
-| RUN-04 | TBD | Pending |
-| RUN-05 | TBD | Pending |
-| CFG-01 | TBD | Pending |
-| CFG-02 | TBD | Pending |
-| CFG-03 | TBD | Pending |
-| CFG-04 | TBD | Pending |
-| ART-01 | TBD | Pending |
-| ART-02 | TBD | Pending |
-| ART-03 | TBD | Pending |
-| ART-04 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
-| TEST-04 | TBD | Pending |
-| TEST-05 | TBD | Pending |
-| TEST-06 | TBD | Pending |
-| TEST-07 | TBD | Pending |
-| STR-01 | TBD | Pending |
-| STR-02 | TBD | Pending |
-| STR-03 | TBD | Pending |
-| STR-04 | TBD | Pending |
-| STR-05 | TBD | Pending |
-| STR-06 | TBD | Pending |
+| INV-01 | Phase 1 | Pending |
+| INV-02 | Phase 1 | Pending |
+| INV-03 | Phase 1 | Pending |
+| INV-04 | Phase 1 | Pending |
+| ENV-01 | Phase 1 | Pending |
+| ENV-02 | Phase 1 | Pending |
+| ENV-03 | Phase 1 | Pending |
+| ENV-04 | Phase 1 | Pending |
+| ENV-05 | Phase 1 | Pending |
+| ENV-06 | Phase 1 | Pending |
+| DATA-01 | Phase 3 | Pending |
+| DATA-02 | Phase 3 | Pending |
+| DATA-03 | Phase 3 | Pending |
+| DATA-04 | Phase 3 | Pending |
+| DATA-05 | Phase 3 | Pending |
+| DATA-06 | Phase 3 | Pending |
+| DATA-07 | Phase 3 | Pending |
+| TRN-01 | Phase 4 | Pending |
+| TRN-02 | Phase 5 | Pending |
+| TRN-03 | Phase 5 | Pending |
+| TRN-04 | Phase 5 | Pending |
+| TRN-05 | Phase 5 | Pending |
+| TRN-06 | Phase 5 | Pending |
+| TRN-07 | Phase 5 | Pending |
+| EVAL-01 | Phase 6 | Pending |
+| EVAL-02 | Phase 6 | Pending |
+| EVAL-03 | Phase 6 | Pending |
+| EVAL-04 | Phase 6 | Pending |
+| EVAL-05 | Phase 6 | Pending |
+| EVAL-06 | Phase 6 | Pending |
+| EVAL-07 | Phase 6 | Pending |
+| EVAL-08 | Phase 6 | Pending |
+| RUN-01 | Phase 2 | Pending |
+| RUN-02 | Phase 5 | Pending |
+| RUN-03 | Phase 2 | Pending |
+| RUN-04 | Phase 2 | Pending |
+| RUN-05 | Phase 6 | Pending |
+| CFG-01 | Phase 2 | Pending |
+| CFG-02 | Phase 2 | Pending |
+| CFG-03 | Phase 2 | Pending |
+| CFG-04 | Phase 2 | Pending |
+| ART-01 | Phase 2 | Pending |
+| ART-02 | Phase 2 | Pending |
+| ART-03 | Phase 2 | Pending |
+| ART-04 | Phase 2 | Pending |
+| TEST-01 | Phase 4 | Pending |
+| TEST-02 | Phase 4 | Pending |
+| TEST-03 | Phase 4 | Pending |
+| TEST-04 | Phase 4 | Pending |
+| TEST-05 | Phase 4 | Pending |
+| TEST-06 | Phase 1 | Pending |
+| TEST-07 | Phase 1 | Pending |
+| STR-01 | Phase 7 | Pending |
+| STR-02 | Phase 2 | Pending |
+| STR-03 | Phase 6 | Pending |
+| STR-04 | Phase 5 | Pending |
+| STR-05 | Phase 7 | Pending |
+| STR-06 | Phase 7 | Pending |
 
 **Coverage:**
-- v1 requirements: 57 total
-- Mapped to phases: 0
-- Unmapped: 57
+- v1 requirements: 58 total
+- Mapped to phases: 58
+- Unmapped: 0
+- Note: the previous count said 57, but the v1 section contains 58 listed requirement IDs; all listed IDs are mapped exactly once.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after pipeline audit feedback*
+*Last updated: 2026-05-04 after roadmap creation*
