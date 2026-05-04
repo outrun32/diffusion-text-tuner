@@ -9,6 +9,7 @@ from src.data_quality.curriculum import (
     CurriculumConfigError,
     load_prompt_generation_config,
 )
+from src.prompt_pipeline import generate
 
 
 def _write_config(path: Path, **overrides) -> Path:
@@ -160,3 +161,87 @@ def test_committed_configs_include_required_contract_fields():
         assert "generation" in payload
         assert "curriculum_stages" in payload and payload["curriculum_stages"]
         assert "validation_thresholds" in payload
+
+
+def test_generate_cli_uses_config_values_without_llm_import(monkeypatch, tmp_path):
+    output_path = Path("data/prompts/cli_config_test.jsonl")
+    config_path = _write_config(
+        tmp_path / "cli_config.json",
+        mode="cli-config-test",
+        output_path=str(output_path),
+        generation={
+            "n": 7,
+            "no_llm": True,
+            "model": "Qwen/Qwen3.5-4B",
+            "backend": "transformers",
+            "batch_size": 3,
+            "temperature": 0.2,
+            "expand_scenes": 0,
+        },
+    )
+    captured = {}
+
+    def fake_generate_dataset(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(generate, "generate_dataset", fake_generate_dataset)
+    before = set(sys.modules)
+
+    assert generate.main(["--config", str(config_path)]) == 0
+
+    assert captured["n"] == 7
+    assert captured["output_path"] == str(output_path)
+    assert captured["seed"] == 123
+    assert captured["batch_size"] == 3
+    assert captured["prompt_config"].mode == "cli-config-test"
+    assert "src.prompt_pipeline.llm_client" not in (set(sys.modules) - before)
+
+
+def test_generate_cli_preserves_flag_only_defaults(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_generate_dataset(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(generate, "generate_dataset", fake_generate_dataset)
+    output = tmp_path / "legacy.jsonl"
+
+    assert generate.main(["--n", "5", "--output", str(output), "--seed", "77", "--no-llm"]) == 0
+
+    assert captured["n"] == 5
+    assert captured["output_path"] == str(output)
+    assert captured["seed"] == 77
+    assert captured["batch_size"] == 1
+    assert captured["prompt_config"] is None
+
+
+def test_invalid_config_path_fails_before_heavy_llm_import(capsys):
+    before = set(sys.modules)
+
+    status = generate.main(["--config", "configs/prompts/missing.json"])
+    captured = capsys.readouterr()
+
+    assert status == 2
+    assert "config" in captured.err
+    assert "configs/prompts/missing.json" in captured.err
+    assert "src.prompt_pipeline.llm_client" not in (set(sys.modules) - before)
+
+
+def test_generate_dataset_tags_records_with_config_stage_provenance(tmp_path):
+    config = load_prompt_generation_config("configs/prompts/simple.json")
+    output = tmp_path / "prompts.jsonl"
+
+    generate.generate_dataset(
+        n=4,
+        output_path=str(output),
+        llm=None,
+        seed=config.seed,
+        batch_size=1,
+        prompt_config=config,
+    )
+
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 4
+    assert {record["prompt_mode"] for record in records} == {"simple"}
+    assert {record["curriculum_stage"] for record in records} <= {"single_letters", "short_words"}
+    assert all(record["curriculum_family"] in {"single_letters", "short_words"} for record in records)
