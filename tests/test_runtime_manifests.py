@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from src.runtime import manifests
 from src.runtime.reproducibility import collect_environment_summary
 
