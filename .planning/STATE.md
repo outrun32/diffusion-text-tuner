@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 2 - Runtime Contracts and Run Provenance
-current_plan: 02-02-PLAN.md — canonical runtime paths, artifact schemas, and preflight validators
+current_plan: 02-03-PLAN.md — local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands
 status: in-progress
-last_updated: "2026-05-04T14:03:49Z"
+last_updated: "2026-05-04T14:12:02Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 5
-  completed_plans: 1
-  percent: 20
+  completed_plans: 2
+  percent: 40
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 2 Plan 01 execution
+**Last updated:** 2026-05-04 after Phase 2 Plan 02 execution
 
 ## Project Reference
 
@@ -31,16 +31,16 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 2 - Runtime Contracts and Run Provenance  
-**Current Plan:** 02-02-PLAN.md — canonical runtime paths, artifact schemas, and preflight validators  
+**Current Plan:** 02-03-PLAN.md — local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands  
 **Status:** Phase 2 in progress
-**Progress:** [████----------------] 20%
+**Progress:** [████████------------] 40%
 
 ## Phase Status
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
-| 2. Runtime Contracts and Run Provenance | In progress | 1/5 plans complete; shared config validation and path policy helpers are in place. |
+| 2. Runtime Contracts and Run Provenance | In progress | 2/5 plans complete; shared config validation, canonical paths, artifact validators, and runtime contract docs are in place. |
 | 3. Data Curriculum and Dataset Quality | Not started | Prompt/synthetic curricula, validators, manifests, selected sample artifacts. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
@@ -51,9 +51,9 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 plus CFG-01, CFG-04, and STR-02 complete | 100% mapped; complete remaining Phase 2 runtime requirements |
+| v1 requirement coverage | 58/58 mapped; Phase 1 plus CFG-01, CFG-04, ART-01, ART-02, ART-03, ART-04, RUN-03, and STR-02 complete | 100% mapped; complete remaining Phase 2 runtime requirements |
 | Roadmap phases planned | 7 total, Phase 1 plan 04 complete | 6-8 standard-granularity phases |
-| Default test posture | 34 CPU-safe pytest tests including smoke CLI, tensor-loss, and runtime config validation; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 43 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, and runtime artifact contracts; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
 | Run tracking | Ad hoc filesystem outputs | Local manifests after Phase 2 |
 
@@ -75,6 +75,9 @@ progress:
 - Return existing trainer-facing `SFTConfig`, `DPOConfig`, and `MaskedSFTConfig` dataclasses from shared runtime config loaders; trainer wiring is deferred to Phase 2 Plan 04.
 - Keep `src.runtime.config_io` CPU/import-safe by validating JSON and path strings only, without artifact existence checks or CUDA/model/OCR work.
 - Use secret-safe `RuntimeConfigError` messages with config path and field context but without echoing raw user-provided config values.
+- Keep artifact validators CPU-safe and model-download-free by inspecting only JSONL, CSV, directory names, file presence, and tiny trusted local tensor dictionaries with `torch.load(..., map_location="cpu", weights_only=True)`.
+- Return aggregate `ArtifactReport` errors by default so users can fix all visible contract problems before expensive jobs, while allowing `require_ready=True` to raise `ArtifactValidationError` at blocking preflight gates.
+- Classify generated runtime roots, checkpoints, logs, tensors, and generated images as non-committable by default, with narrow fixture exceptions for `experiments/assets/` and `tests/fixtures/`.
 
 ### Important Caveats
 
@@ -87,12 +90,12 @@ progress:
 - Expensive diagnostics named like tests can accidentally trigger CUDA/model downloads.
 - Trainer modules combine many responsibilities; refactor only after characterization tests exist.
 - Reward logic is duplicated across scoring, training, evaluation, and experiments, creating drift risk.
-- Artifact/path/tensor contracts are hidden and should be made explicit before GPU-heavy stages.
+- Artifact/path/tensor contracts are now explicit for Phase 2 core families, but later data-selection/evaluation plans still need materialized selected-sample, preference-pair, and eval schemas.
 - Hardcoded personal paths and unpinned model revisions can break reproducibility.
 
 ### Open Todos
 
-- Execute Phase 2 Plan 02 for canonical runtime paths, artifact schemas, preflight validators, and generated-artifact safety docs.
+- Execute Phase 2 Plan 03 for local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -102,7 +105,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 2 Plan 02 for canonical runtime paths and artifact contracts.
+**Next Recommended Action:** Execute Phase 2 Plan 03 for local run manifests and reproducibility metadata.
 
 **Files Created/Updated:**
 
@@ -139,6 +142,11 @@ progress:
 - `pyproject.toml`
 - `uv.lock`
 - `.planning/phases/02-runtime-contracts-and-run-provenance/02-01-SUMMARY.md`
+- `tests/test_runtime_artifacts.py`
+- `src/runtime/paths.py`
+- `src/runtime/artifacts.py`
+- `docs/runtime_contracts.md`
+- `.planning/phases/02-runtime-contracts-and-run-provenance/02-02-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 

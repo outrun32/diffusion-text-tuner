@@ -58,7 +58,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 - [ ] **RUN-01**: User can create a local run directory with a manifest containing command, timestamp, git state, resolved config, environment summary, seeds, model IDs/revisions, input paths, output paths, metrics, and notes.
 - [ ] **RUN-02**: User can compare two local run manifests to see changed configs, data sources, rewards, seeds, inference settings, metrics, and artifacts.
-- [ ] **RUN-03**: User can record long-running pipeline stage outputs in a consistent artifact layout without committing generated tensors, images, checkpoints, or logs.
+- [x] **RUN-03**: User can record long-running pipeline stage outputs in a consistent artifact layout without committing generated tensors, images, checkpoints, or logs.
 - [ ] **RUN-04**: User can resume or inspect long-running generation, scoring, training, and evaluation stages using documented manifest and output conventions.
 - [ ] **RUN-05**: User can map thesis plots/results back to the exact run manifests and artifacts that produced them.
 
@@ -68,10 +68,10 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [ ] **CFG-02**: User can organize experiment configs by stage/family with consistent naming for SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
 - [ ] **CFG-03**: User can capture the resolved config used for a run as an immutable snapshot in that run's manifest directory.
 - [x] **CFG-04**: User can define local and SLURM-compatible path settings without hardcoded personal absolute paths.
-- [ ] **ART-01**: User can validate prompt JSONL, generated image directories, latent/text-embedding tensors, scores CSV files, masks, synthetic dataset indexes, selected sample manifests, DPO pair manifests, and checkpoint paths before GPU-heavy stages run.
-- [ ] **ART-02**: User can rely on documented canonical paths for prompts, generated images, latents, text embeddings, masks, scores, selected samples, preference pairs, checkpoints, samples, logs, eval outputs, and run manifests.
-- [ ] **ART-03**: User can see schema/version metadata for key generated artifacts and score files.
-- [ ] **ART-04**: User can keep generated artifacts out of git while preserving small fixtures needed by tests and documentation.
+- [x] **ART-01**: User can validate prompt JSONL, generated image directories, latent/text-embedding tensors, scores CSV files, masks, synthetic dataset indexes, selected sample manifests, DPO pair manifests, and checkpoint paths before GPU-heavy stages run.
+- [x] **ART-02**: User can rely on documented canonical paths for prompts, generated images, latents, text embeddings, masks, scores, selected samples, preference pairs, checkpoints, samples, logs, eval outputs, and run manifests.
+- [x] **ART-03**: User can see schema/version metadata for key generated artifacts and score files.
+- [x] **ART-04**: User can keep generated artifacts out of git while preserving small fixtures needed by tests and documentation.
 
 ### Testing and Diagnostics
 
@@ -168,17 +168,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVAL-08 | Phase 6 | Pending |
 | RUN-01 | Phase 2 | Pending |
 | RUN-02 | Phase 5 | Pending |
-| RUN-03 | Phase 2 | Pending |
+| RUN-03 | Phase 2 | Complete |
 | RUN-04 | Phase 2 | Pending |
 | RUN-05 | Phase 6 | Pending |
 | CFG-01 | Phase 2 | Complete |
 | CFG-02 | Phase 2 | Pending |
 | CFG-03 | Phase 2 | Pending |
 | CFG-04 | Phase 2 | Complete |
-| ART-01 | Phase 2 | Pending |
-| ART-02 | Phase 2 | Pending |
-| ART-03 | Phase 2 | Pending |
-| ART-04 | Phase 2 | Pending |
+| ART-01 | Phase 2 | Complete |
+| ART-02 | Phase 2 | Complete |
+| ART-03 | Phase 2 | Complete |
+| ART-04 | Phase 2 | Complete |
 | TEST-01 | Phase 4 | Pending |
 | TEST-02 | Phase 4 | Pending |
 | TEST-03 | Phase 4 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after Phase 2 Plan 01 execution*
+*Last updated: 2026-05-04 after Phase 2 Plan 02 execution*

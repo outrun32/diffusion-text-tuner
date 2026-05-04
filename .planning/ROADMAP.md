@@ -68,7 +68,7 @@ Plans:
 
 **Wave 1**
 - [x] 02-01-PLAN.md — Add shared validated config-loading contracts for SFT, DPO, and masked-SFT.
-- [ ] 02-02-PLAN.md — Define canonical runtime paths, artifact schemas, preflight validators, and generated-artifact safety docs.
+- [x] 02-02-PLAN.md — Define canonical runtime paths, artifact schemas, preflight validators, and generated-artifact safety docs.
 
 **Wave 2** *(blocked on Wave 1 config/artifact contracts)*
 - [ ] 02-03-PLAN.md — Add local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands.
@@ -146,7 +146,7 @@ Cross-cutting constraints:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
-| 2. Runtime Contracts and Run Provenance | 1/5 | In progress | 02-01 |
+| 2. Runtime Contracts and Run Provenance | 2/5 | In progress | 02-01, 02-02 |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
