@@ -19,7 +19,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **ENV-01**: User can install the project from a committed dependency manifest for Python 3.11.
 - [x] **ENV-02**: User can choose optional dependency groups for GPU training, OCR/reward scoring, synthesis, vLLM/MLX backends, tests, linting, plotting, and analysis.
 - [x] **ENV-03**: User can run a standard CPU-safe test command without downloading large models or requiring CUDA.
-- [ ] **ENV-04**: User can run documented smoke commands that validate key imports, CUDA availability, model access, PaddleOCR availability, and expected cache/runtime paths before launching long jobs.
+- [x] **ENV-04**: User can run documented smoke commands that validate key imports, CUDA availability, model access, PaddleOCR availability, and expected cache/runtime paths before launching long jobs.
 - [x] **ENV-05**: User can format and lint the repository with standard documented commands.
 - [ ] **ENV-06**: User can run local and SLURM variants of supported commands through documented, comparable entry points.
 
@@ -81,7 +81,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [ ] **TEST-04**: User can run automated tests for deterministic prompt generation behavior under fixed seeds.
 - [ ] **TEST-05**: User can run automated tests for reward wrapper behavior using fakes/mocks rather than loading Qwen, PaddleOCR, or other large models.
 - [x] **TEST-06**: User can distinguish default CPU tests from marked slow, GPU, model, OCR, integration, and manual diagnostic checks.
-- [ ] **TEST-07**: User can run optional diagnostic commands for gradient flow, generated sample quality, reward calibration, synthetic data validation, and eval contact sheets without confusing them with CI-safe tests.
+- [x] **TEST-07**: User can run optional diagnostic commands for gradient flow, generated sample quality, reward calibration, synthetic data validation, and eval contact sheets without confusing them with CI-safe tests.
 
 ### Structure and Refactoring
 
@@ -141,7 +141,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENV-01 | Phase 1 | Complete |
 | ENV-02 | Phase 1 | Complete |
 | ENV-03 | Phase 1 | Complete |
-| ENV-04 | Phase 1 | Pending |
+| ENV-04 | Phase 1 | Complete |
 | ENV-05 | Phase 1 | Complete |
 | ENV-06 | Phase 1 | Pending |
 | DATA-01 | Phase 3 | Pending |
@@ -185,7 +185,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-04 | Phase 4 | Pending |
 | TEST-05 | Phase 4 | Pending |
 | TEST-06 | Phase 1 | Complete |
-| TEST-07 | Phase 1 | Pending |
+| TEST-07 | Phase 1 | Complete |
 | STR-01 | Phase 7 | Pending |
 | STR-02 | Phase 2 | Pending |
 | STR-03 | Phase 6 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after Phase 1 Plan 02 execution*
+*Last updated: 2026-05-04 after Phase 1 Plan 03 execution*
