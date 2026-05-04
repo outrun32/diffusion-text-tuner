@@ -65,7 +65,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 ### Configuration and Artifact Contracts
 
 - [x] **CFG-01**: User can load existing JSON configs through a validated config-loading path that reports missing fields, invalid values, model ID inconsistencies, and path problems before expensive work starts.
-- [ ] **CFG-02**: User can organize experiment configs by stage/family with consistent naming for SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
+- [x] **CFG-02**: User can organize experiment configs by stage/family with consistent naming for SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
 - [x] **CFG-03**: User can capture the resolved config used for a run as an immutable snapshot in that run's manifest directory.
 - [x] **CFG-04**: User can define local and SLURM-compatible path settings without hardcoded personal absolute paths.
 - [x] **ART-01**: User can validate prompt JSONL, generated image directories, latent/text-embedding tensors, scores CSV files, masks, synthetic dataset indexes, selected sample manifests, DPO pair manifests, and checkpoint paths before GPU-heavy stages run.
@@ -172,7 +172,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUN-04 | Phase 2 | Complete |
 | RUN-05 | Phase 6 | Pending |
 | CFG-01 | Phase 2 | Complete |
-| CFG-02 | Phase 2 | Pending |
+| CFG-02 | Phase 2 | Complete |
 | CFG-03 | Phase 2 | Complete |
 | CFG-04 | Phase 2 | Complete |
 | ART-01 | Phase 2 | Complete |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after Phase 2 Plan 04 execution*
+*Last updated: 2026-05-04 after Phase 2 Plan 05 execution*

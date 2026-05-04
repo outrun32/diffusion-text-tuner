@@ -15,7 +15,7 @@
 ## Phases
 
 - [x] **Phase 1: Execution Surface and Pipeline Inventory** - Users can understand what already runs and reproduce the basic command/test surface before deeper changes.
-- [ ] **Phase 2: Runtime Contracts and Run Provenance** - Users can validate configs/artifacts and capture local run manifests before expensive pipeline work starts.
+- [x] **Phase 2: Runtime Contracts and Run Provenance** - Users can validate configs/artifacts and capture local run manifests before expensive pipeline work starts.
 - [ ] **Phase 3: Data Curriculum and Dataset Quality** - Users can define, generate, validate, and compare prompt/synthetic/reward-filtered training data.
 - [ ] **Phase 4: CPU-Safe Characterization Tests** - Users can rely on lightweight fixtures and deterministic tests for fragile config, data, reward, prompt, and objective behavior.
 - [ ] **Phase 5: Training Objective and Pipeline Comparability** - Users can run and compare SFT, DPO, masked-SFT, and combined variants under explicit, controlled choices.
@@ -77,7 +77,7 @@ Plans:
 - [x] 02-04-PLAN.md — Wire trainer config loaders to shared validation and expose a CPU-safe preflight CLI.
 
 **Wave 4** *(blocked on manifest/preflight command implementations)*
-- [ ] 02-05-PLAN.md — Publish config-family organization, manifest/preflight command docs, Makefile aliases, and README links.
+- [x] 02-05-PLAN.md — Publish config-family organization, manifest/preflight command docs, Makefile aliases, and README links.
 
 Cross-cutting constraints:
 - Runtime helpers and preflight commands stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER.
@@ -146,7 +146,7 @@ Cross-cutting constraints:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
-| 2. Runtime Contracts and Run Provenance | 4/5 | In progress | 02-01, 02-02, 02-03, 02-04 |
+| 2. Runtime Contracts and Run Provenance | 5/5 | Complete | 02-01, 02-02, 02-03, 02-04, 02-05 |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
