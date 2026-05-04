@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from src.training.selection import materialize_sft_samples
+from src.training.selection import materialize_dpo_pairs, materialize_sft_samples
 
 
 def _write_scores(path: Path, rows: list[dict[str, object]]) -> Path:
@@ -119,3 +119,88 @@ def test_sft_materialization_validates_required_columns_and_numeric_values(
             assert expected in str(exc)
         else:  # pragma: no cover - documents required exception path
             raise AssertionError(f"{path} should have failed validation")
+
+
+def test_dpo_materialization_defaults_to_best_vs_worst_pair_semantics(
+    tmp_path: Path,
+) -> None:
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.20", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.80", "target_text": "Ёж"},
+            {"id": "p1", "version": 3, "score": "0.50", "target_text": "Ёж"},
+            {"id": "p2", "version": 1, "score": "0.30", "target_text": "Жук"},
+            {"id": "p2", "version": 2, "score": "0.55", "target_text": "Жук"},
+            {"id": "p3", "version": 1, "score": "0.10", "target_text": "Цех"},
+        ],
+    )
+    output = tmp_path / "preference_pairs.jsonl"
+
+    summary = materialize_dpo_pairs(scores, output, threshold=0.5, margin=0.1)
+
+    rows = _read_jsonl(output)
+    assert summary["schema_version"] == "preference-pairs/v1"
+    assert summary["pair_construction_mode"] == "best_vs_worst"
+    assert summary["prompt_count"] == 3
+    assert summary["pair_count"] == 2
+    assert summary["filtering_stats"] == {
+        "ambiguous_below_margin": 0,
+        "insufficient_versions": 1,
+        "selected": 2,
+        "winner_below_threshold": 0,
+    }
+    assert [(row["prompt_id"], row["winner_version"], row["loser_version"]) for row in rows] == [
+        ("p1", 2, 1),
+        ("p2", 2, 1),
+    ]
+    assert rows[0]["schema_version"] == "preference-pairs/v1"
+    assert rows[0]["pair_id"] == "dpo:p1:w2:l1:score"
+    assert rows[0]["target_text"] == "Ёж"
+    assert rows[0]["winner_score"] == 0.8
+    assert rows[0]["loser_score"] == 0.2
+    assert rows[0]["margin"] == 0.6
+    assert rows[0]["score_column"] == "score"
+    assert rows[0]["pair_construction_mode"] == "best_vs_worst"
+    assert rows[0]["source_scores_path"] == str(scores)
+    assert len(str(rows[0]["source_scores_sha256"])) == 64
+
+
+def test_dpo_materialization_excludes_ambiguous_pairs_and_low_winners(
+    tmp_path: Path,
+) -> None:
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.51", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.58", "target_text": "Ёж"},
+            {"id": "p2", "version": 1, "score": "0.10", "target_text": "Жук"},
+            {"id": "p2", "version": 2, "score": "0.49", "target_text": "Жук"},
+        ],
+    )
+
+    summary = materialize_dpo_pairs(scores, tmp_path / "pairs.jsonl", threshold=0.5, margin=0.1)
+
+    assert _read_jsonl(tmp_path / "pairs.jsonl") == []
+    assert summary["pair_count"] == 0
+    assert summary["filtering_stats"] == {
+        "ambiguous_below_margin": 1,
+        "insufficient_versions": 0,
+        "selected": 0,
+        "winner_below_threshold": 1,
+    }
+
+
+def test_dpo_materialization_requires_winner_strictly_above_loser(tmp_path: Path) -> None:
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.70", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.70", "target_text": "Ёж"},
+        ],
+    )
+
+    summary = materialize_dpo_pairs(scores, tmp_path / "pairs.jsonl", threshold=0.5, margin=0.0)
+
+    assert summary["pair_count"] == 0
+    assert summary["filtering_stats"]["ambiguous_below_margin"] == 1
