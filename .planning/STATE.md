@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 1 - Execution Surface and Pipeline Inventory
-current_plan: Phase 1 planned — 4 executable plans across 3 waves
+current_plan: 01-02-PLAN.md — Add Python 3.11 uv/pyproject/lock tooling, pytest discovery, and Ruff configuration
 status: executing
-last_updated: "2026-05-04T13:10:54.365Z"
+last_updated: "2026-05-04T13:22:11Z"
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 25
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 1 planning
+**Last updated:** 2026-05-04 after Phase 1 Plan 01 execution
 
 ## Project Reference
 
@@ -31,15 +31,15 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 1 - Execution Surface and Pipeline Inventory  
-**Current Plan:** Phase 1 planned — 4 executable plans across 3 waves  
-**Status:** Ready to execute
-**Progress:** [██------------------] 10%
+**Current Plan:** 01-02-PLAN.md — Add Python 3.11 uv/pyproject/lock tooling, pytest discovery, and Ruff configuration  
+**Status:** Executing Phase 1
+**Progress:** [█████---------------] 25%
 
 ## Phase Status
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1. Execution Surface and Pipeline Inventory | Ready to execute | 4 plans: inventory, uv/tooling, smoke checks, command catalog/diagnostic separation. |
+| 1. Execution Surface and Pipeline Inventory | Executing | 1/4 plans complete: inventory done; uv/tooling, smoke checks, and command catalog/diagnostic separation remain. |
 | 2. Runtime Contracts and Run Provenance | Not started | Config validation, artifact contracts, manifests, runtime helpers. |
 | 3. Data Curriculum and Dataset Quality | Not started | Prompt/synthetic curricula, validators, manifests, selected sample artifacts. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
@@ -52,7 +52,7 @@ progress:
 | Metric | Current | Target |
 |--------|---------|--------|
 | v1 requirement coverage | 58/58 mapped | 100% |
-| Roadmap phases planned | 7 total, Phase 1 plan files created | 6-8 standard-granularity phases |
+| Roadmap phases planned | 7 total, Phase 1 plan 01 complete | 6-8 standard-granularity phases |
 | Default test posture | Existing limited tests only | CPU-safe standard command |
 | Reproducible environment | Missing manifest/lock | Committed dependency manifest and lock after Phase 1 |
 | Run tracking | Ad hoc filesystem outputs | Local manifests after Phase 2 |
@@ -66,6 +66,7 @@ progress:
 - Stabilize environment and command discovery before runtime contracts, tests, trainer/reward refactors, and evaluation claims.
 - Use simple local run manifests first; defer MLflow, Weights & Biases, DVC, object storage, and plugin frameworks to v2 unless need becomes concrete.
 - Keep generated images, tensors, checkpoints, logs, and large datasets out of git; only tiny fixtures and docs should be committed.
+- Use `docs/pipeline_inventory.md` as the Phase 1 source of truth for supported entry points, non-default diagnostics, historical tracks, and artifact safety boundaries.
 
 ### Important Caveats
 
@@ -83,7 +84,7 @@ progress:
 
 ### Open Todos
 
-- Execute Phase 1 with `/gsd-execute-phase 1`.
+- Continue Phase 1 with 01-02 tooling execution.
 - Validate exact dependency pins and CUDA/module constraints during Phase 1 smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -93,7 +94,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Run `/gsd-execute-phase 1` to implement the execution surface inventory, tooling, smoke checks, and command catalog.
+**Next Recommended Action:** Execute Phase 1 Plan 01-02 to add uv/pyproject/lock tooling, pytest discovery, and Ruff configuration.
 
 **Files Created/Updated:**
 
@@ -107,6 +108,8 @@ progress:
 - `.planning/phases/01-execution-surface-and-pipeline-inventory/01-02-PLAN.md`
 - `.planning/phases/01-execution-surface-and-pipeline-inventory/01-03-PLAN.md`
 - `.planning/phases/01-execution-surface-and-pipeline-inventory/01-04-PLAN.md`
+- `docs/pipeline_inventory.md`
+- `.planning/phases/01-execution-surface-and-pipeline-inventory/01-01-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 

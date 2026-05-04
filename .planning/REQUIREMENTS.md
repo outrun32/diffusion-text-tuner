@@ -9,10 +9,10 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 ### Project Understanding and Pipeline Inventory
 
-- [ ] **INV-01**: User can see a current inventory of all runnable pipelines: prompt generation, baseline image generation, reward scoring, SFT, DPO, masked-SFT, synthetic data, evaluation, plotting, and SLURM launchers.
-- [ ] **INV-02**: User can see what each pipeline optimizes, what data it consumes, what artifacts it produces, and which thesis question it supports.
-- [ ] **INV-03**: User can identify outdated, duplicate, diagnostic, or experimental scripts separately from supported toolkit entry points.
-- [ ] **INV-04**: User can trace the historical experiment tracks: reward-filtered generated-image SFT/DPO, synthetic masked-MSE training, OCR/VLM/product reward variants, and thesis plotting/report flows.
+- [x] **INV-01**: User can see a current inventory of all runnable pipelines: prompt generation, baseline image generation, reward scoring, SFT, DPO, masked-SFT, synthetic data, evaluation, plotting, and SLURM launchers.
+- [x] **INV-02**: User can see what each pipeline optimizes, what data it consumes, what artifacts it produces, and which thesis question it supports.
+- [x] **INV-03**: User can identify outdated, duplicate, diagnostic, or experimental scripts separately from supported toolkit entry points.
+- [x] **INV-04**: User can trace the historical experiment tracks: reward-filtered generated-image SFT/DPO, synthetic masked-MSE training, OCR/VLM/product reward variants, and thesis plotting/report flows.
 
 ### Reproducible Environment and Commands
 
@@ -134,10 +134,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INV-01 | Phase 1 | Pending |
-| INV-02 | Phase 1 | Pending |
-| INV-03 | Phase 1 | Pending |
-| INV-04 | Phase 1 | Pending |
+| INV-01 | Phase 1 | Complete |
+| INV-02 | Phase 1 | Complete |
+| INV-03 | Phase 1 | Complete |
+| INV-04 | Phase 1 | Complete |
 | ENV-01 | Phase 1 | Pending |
 | ENV-02 | Phase 1 | Pending |
 | ENV-03 | Phase 1 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after roadmap creation*
+*Last updated: 2026-05-04 after Phase 1 Plan 01 execution*
