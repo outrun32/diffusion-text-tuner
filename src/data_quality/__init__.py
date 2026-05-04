@@ -16,6 +16,7 @@ from .manifests import (
     write_dataset_manifest,
 )
 from .prompt_validation import PromptQualityReport, validate_prompt_dataset
+from .synthetic_quality import SyntheticQualityReport, inspect_synthetic_dataset
 
 __all__ = [
     "CurriculumConfigError",
@@ -23,6 +24,7 @@ __all__ = [
     "GenerationSettings",
     "PromptGenerationConfig",
     "PromptQualityReport",
+    "SyntheticQualityReport",
     "DatasetManifest",
     "DatasetManifestError",
     "create_dataset_manifest",
@@ -30,5 +32,6 @@ __all__ = [
     "load_prompt_generation_config",
     "load_dataset_manifest",
     "validate_prompt_dataset",
+    "inspect_synthetic_dataset",
     "write_dataset_manifest",
 ]

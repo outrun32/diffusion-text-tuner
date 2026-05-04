@@ -21,20 +21,38 @@ def _write_masked_fixture(root: Path) -> tuple[Path, Path]:
         directory.mkdir(parents=True, exist_ok=True)
 
     rows = [
-        {"id": "sample-1", "resolution": "10", "n_words": "1", "text": "Ёж", "caption": "Render Ёж"},
-        {"id": "sample-2", "resolution": "10", "n_words": "1", "text": "Щит", "caption": "Render Щит"},
+        {
+            "id": "sample-1",
+            "resolution": "10",
+            "n_words": "1",
+            "text": "Ёж",
+            "caption": "Render Ёж",
+        },
+        {
+            "id": "sample-2",
+            "resolution": "10",
+            "n_words": "1",
+            "text": "Щит",
+            "caption": "Render Щит",
+        },
     ]
     with (data_dir / "index.csv").open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["id", "resolution", "n_words", "text", "caption"])
+        writer = csv.DictWriter(
+            handle, fieldnames=["id", "resolution", "n_words", "text", "caption"]
+        )
         writer.writeheader()
         writer.writerows(rows)
     with (data_dir / "prompts.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps({"id": row["id"], "prompt": row["caption"]}, ensure_ascii=False) + "\n")
+            handle.write(
+                json.dumps({"id": row["id"], "prompt": row["caption"]}, ensure_ascii=False) + "\n"
+            )
     with (data_dir / "shapes.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["id", "H", "W"])
         writer.writeheader()
-        writer.writerows([{"id": "sample-1", "H": "2", "W": "2"}, {"id": "sample-2", "H": "2", "W": "2"}])
+        writer.writerows(
+            [{"id": "sample-1", "H": "2", "W": "2"}, {"id": "sample-2", "H": "2", "W": "2"}]
+        )
 
     _write_image_and_mask(data_dir, "sample-1", text_box=(2, 2, 7, 7), fill=240, background=20)
     _write_image_and_mask(data_dir, "sample-2", text_box=(1, 1, 8, 3), fill=120, background=100)
@@ -109,25 +127,34 @@ def test_synthetic_quality_reports_threshold_rejections_and_optional_ocr(tmp_pat
     with ocr_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["id", "target_text", "ocr_text"])
         writer.writeheader()
-        writer.writerows([
-            {"id": "sample-1", "target_text": "Ёж", "ocr_text": "Ёж"},
-            {"id": "sample-2", "target_text": "Щит", "ocr_text": "Шит"},
-        ])
+        writer.writerows(
+            [
+                {"id": "sample-1", "target_text": "Ёж", "ocr_text": "Ёж"},
+                {"id": "sample-2", "target_text": "Щит", "ocr_text": "Шит"},
+            ]
+        )
 
     report = inspect_synthetic_dataset(
         data_dir,
         raw_dir=raw_dir,
         ocr_results=ocr_path,
-        thresholds={"min_mask_area_fraction": 0.2, "min_contrast": 30.0, "min_bbox_height_fraction": 0.3},
+        thresholds={
+            "min_mask_area_fraction": 0.2,
+            "min_contrast": 30.0,
+            "min_bbox_height_fraction": 0.3,
+        },
     )
 
     assert not report.ok
     assert report.accepted_count == 1
     assert report.rejected_count == 1
-    assert report.rejection_reasons == {"bbox_height_fraction_below_min": 1, "contrast_below_min": 1}
+    assert report.rejection_reasons == {
+        "bbox_height_fraction_below_min": 1,
+        "contrast_below_min": 1,
+    }
     assert report.ocr_summary == {
         "count": 2,
         "exact_matches": 1,
         "exact_match_rate": 0.5,
-        "mean_cer": 0.333333,
+        "mean_cer": 0.166667,
     }
