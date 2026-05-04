@@ -43,6 +43,7 @@ from .flux2_utils import (
     bn_normalize,
     patchify_latents,
 )
+from src.runtime import config_io
 
 logger = logging.getLogger(__name__)
 
@@ -309,12 +310,7 @@ def train(cfg: SFTConfig):
 
 
 def load_config(path: str) -> SFTConfig:
-    with open(path, "r") as f:
-        data = json.load(f)
-
-    lora_data = data.pop("lora", {})
-    lora = LoraConfig(**lora_data)
-    return SFTConfig(lora=lora, **data)
+    return config_io.load_stage_config("sft", path)
 
 
 def main():

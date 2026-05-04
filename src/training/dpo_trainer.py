@@ -31,6 +31,7 @@ from tqdm import tqdm
 from .config import DPOConfig, LoraConfig
 from .dataset import DPODataset, dpo_collate_fn
 from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids
+from src.runtime import config_io
 
 logger = logging.getLogger(__name__)
 
@@ -393,12 +394,7 @@ def train(cfg: DPOConfig):
 
 
 def load_config(path: str) -> DPOConfig:
-    with open(path, "r") as f:
-        data = json.load(f)
-
-    lora_data = data.pop("lora", {})
-    lora = LoraConfig(**lora_data)
-    return DPOConfig(lora=lora, **data)
+    return config_io.load_stage_config("dpo", path)
 
 
 def main():
