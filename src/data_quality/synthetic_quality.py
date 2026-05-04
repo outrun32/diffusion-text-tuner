@@ -153,6 +153,42 @@ def inspect_synthetic_dataset(
     )
 
 
+def create_synthetic_contact_sheet(
+    report: SyntheticQualityReport,
+    output_path: str | Path,
+    *,
+    max_samples: int = 12,
+    thumb_size: tuple[int, int] = (160, 160),
+) -> Path:
+    """Create a PIL-only contact sheet from accepted/rejected sample images."""
+
+    selected = _select_contact_sheet_samples(report.samples, max_samples=max_samples)
+    sheet_path = Path(output_path)
+    sheet_path.parent.mkdir(parents=True, exist_ok=True)
+    if not selected:
+        Image.new("RGB", (thumb_size[0], thumb_size[1]), color="white").save(sheet_path)
+        return sheet_path
+
+    label_height = 48
+    columns = min(4, max(1, len(selected)))
+    rows = (len(selected) + columns - 1) // columns
+    cell_width = thumb_size[0]
+    cell_height = thumb_size[1] + label_height
+    sheet = Image.new("RGB", (columns * cell_width, rows * cell_height), color="white")
+
+    for index, sample in enumerate(selected):
+        column = index % columns
+        row = index // columns
+        x = column * cell_width
+        y = row * cell_height
+        thumb = _load_thumbnail(Path(sample["image_path"]), thumb_size)
+        sheet.paste(thumb, (x, y))
+        _draw_contact_label(sheet, sample, x=x, y=y + thumb_size[1], width=cell_width)
+
+    sheet.save(sheet_path)
+    return sheet_path
+
+
 @dataclass(frozen=True)
 class _SampleInspection:
     sample_id: str
@@ -454,6 +490,48 @@ def _load_ocr_summary(path: str | Path) -> dict[str, Any]:
         "exact_match_rate": round(exact_matches / len(rows), 6),
         "mean_cer": round(mean(cer_values), 6),
     }
+
+
+def _select_contact_sheet_samples(
+    samples: Sequence[Mapping[str, Any]],
+    *,
+    max_samples: int,
+) -> list[Mapping[str, Any]]:
+    limit = max(max_samples, 0)
+    rejected = [sample for sample in samples if not sample.get("accepted")]
+    accepted = [sample for sample in samples if sample.get("accepted")]
+    return [*rejected, *accepted][:limit]
+
+
+def _load_thumbnail(path: Path, thumb_size: tuple[int, int]) -> Image.Image:
+    if not path.is_file():
+        return Image.new("RGB", thumb_size, color=(230, 230, 230))
+    with Image.open(path) as raw_image:
+        image = raw_image.convert("RGB")
+        image.thumbnail(thumb_size)
+        canvas = Image.new("RGB", thumb_size, color="white")
+        offset = ((thumb_size[0] - image.width) // 2, (thumb_size[1] - image.height) // 2)
+        canvas.paste(image, offset)
+        return canvas
+
+
+def _draw_contact_label(
+    sheet: Image.Image,
+    sample: Mapping[str, Any],
+    *,
+    x: int,
+    y: int,
+    width: int,
+) -> None:
+    from PIL import ImageDraw
+
+    draw = ImageDraw.Draw(sheet)
+    status = "accepted" if sample.get("accepted") else "rejected"
+    text = str(sample.get("text") or "")[:24]
+    reasons = ",".join(str(reason) for reason in sample.get("rejection_reasons", []))[:36]
+    label = f"{sample.get('id', '')} {status}\n{text}\n{reasons}"
+    draw.rectangle((x, y, x + width, y + 48), fill=(245, 245, 245))
+    draw.text((x + 4, y + 2), label, fill=(0, 0, 0))
 
 
 def _load_ocr_rows(path: Path) -> list[dict[str, Any]]:
