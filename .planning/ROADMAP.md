@@ -94,7 +94,26 @@ Cross-cutting constraints:
   3. User can generate dataset manifests that record config, seeds, git commit, source hashes, model IDs, filtering stats, output counts, and relevant provenance for prompts and synthetic data.
   4. User can inspect synthetic dataset quality using OCR verification, mask/bbox/contrast filters, per-character and per-font coverage, resolution mix, and contact sheets.
   5. User can materialize selected SFT samples and DPO preference pairs as versioned artifacts and compare generated-image reward-filtered data against synthetic masked-SFT data.
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 03-01-PLAN.md — Add explicit prompt curriculum configs and config-driven prompt generation modes.
+- [ ] 03-02-PLAN.md — Add prompt dataset quality validation and dataset manifest tooling.
+- [ ] 03-03-PLAN.md — Add synthetic masked-SFT quality inspection, optional OCR summaries, and contact sheets.
+- [ ] 03-04-PLAN.md — Materialize selected SFT samples and DPO preference pairs as versioned artifacts.
+
+**Wave 2** *(blocked on Wave 1 quality/selection artifacts)*
+- [ ] 03-05-PLAN.md — Compare generated-image reward-filtered data against synthetic masked-SFT data.
+
+**Wave 3** *(blocked on Phase 3 implementation contracts)*
+- [ ] 03-06-PLAN.md — Publish Phase 3 runtime contracts, command aliases, README links, and docs tests.
+
+Cross-cutting constraints:
+- Default automated tests stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER.
+- Generated prompt datasets, synthetic images/masks/tensors, quality reports under runtime roots, contact sheets, selected samples, preference pairs, checkpoints, logs, and run directories stay out of git unless intentionally tiny fixtures or documentation assets.
+- Prompt, synthetic, selection, and comparison artifacts must record provenance through local manifests and source hashes before they are used as thesis evidence.
 
 ### Phase 4: CPU-Safe Characterization Tests
 **Goal**: Users can verify fragile behavior with fast, deterministic tests before reward, trainer, prompt, dataset, or runtime code is moved.  
@@ -147,7 +166,7 @@ Cross-cutting constraints:
 |-------|----------------|--------|-----------|
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
 | 2. Runtime Contracts and Run Provenance | 5/5 | Complete | 02-01, 02-02, 02-03, 02-04, 02-05 |
-| 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
+| 3. Data Curriculum and Dataset Quality | 0/6 | Planned | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
 | 6. Reward and Evaluation Validity | 0/TBD | Not started | - |

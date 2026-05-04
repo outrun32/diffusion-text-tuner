@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 3 - Data Curriculum and Dataset Quality
-current_plan: Phase 3 planning pending
-status: phase-2-verified-complete
-last_updated: "2026-05-04T14:44:08Z"
+current_plan: 03-01-PLAN.md
+status: phase-3-planned
+last_updated: "2026-05-04T15:30:00Z"
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_plans: 6
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 2 verification
+**Last updated:** 2026-05-04 after Phase 3 planning
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 3 - Data Curriculum and Dataset Quality  
-**Current Plan:** Phase 3 planning pending  
-**Status:** Phase 2 verified complete; ready to plan Phase 3
-**Progress:** [████████████████████] 100% for Phase 2
+**Current Plan:** 03-01-PLAN.md  
+**Status:** Phase 3 planned; ready to execute Wave 1
+**Progress:** [░░░░░░░░░░░░░░░░░░░░] 0% for Phase 3
 
 ## Phase Status
 
@@ -41,7 +41,7 @@ progress:
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
-| 3. Data Curriculum and Dataset Quality | Not started | Prompt/synthetic curricula, validators, manifests, selected sample artifacts. |
+| 3. Data Curriculum and Dataset Quality | Planned | 6 plans across 3 waves covering prompt curricula, prompt validation, dataset manifests, synthetic quality inspection, selected sample/pair artifacts, generated-vs-synthetic comparison, and command/runtime docs wiring. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
@@ -51,11 +51,11 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 plus all Phase 2 runtime requirements complete (CFG-01 through CFG-04, ART-01 through ART-04, RUN-01, RUN-03, RUN-04, STR-02) | 100% mapped; proceed to Phase 3 data requirements |
-| Roadmap phases planned | 7 total, Phase 1 plan 04 complete | 6-8 standard-granularity phases |
+| v1 requirement coverage | 58/58 mapped; Phase 1 plus all Phase 2 runtime requirements complete; DATA-01 through DATA-07 are planned in Phase 3 | 100% mapped; execute Phase 3 data requirements |
+| Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
 | Default test posture | 68 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, and runtime preflight CLI behavior; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
-| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, and README/Makefile command aliases | Extend to data manifests in Phase 3 |
+| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, and Phase 3 data-manifest plans | Extend to prompt/synthetic/selection manifests during Phase 3 execution |
 
 ## Accumulated Context
 
@@ -84,6 +84,8 @@ progress:
 - Use `scripts/preflight_runtime.py` as the CPU-safe preflight gate for config, artifact, and manifest readiness before generation, scoring, training, synthetic, or evaluation stages launch.
 - Keep new experiment config variants under `configs/experiments/` using `{stage}_{reward_or_data}_{purpose}.json`, while preserving existing root configs as runnable compatibility entry points.
 - Support run manifests for generation, scoring, synthesis, evaluation, SFT, DPO, and masked-SFT; non-training stages can be initialized without trainer configs, while training manifests still require validated config snapshots.
+- Phase 3 will create six plans in three waves: Wave 1 prompt curriculum/configs, prompt validation/manifests, synthetic quality inspection, and materialized training selections; Wave 2 source comparison; Wave 3 runtime/docs command wiring.
+- Phase 3 research found the existing project research summary's old Phase 3 test-harness framing insufficient for the current roadmap, so `.planning/phases/03-data-curriculum-and-dataset-quality/03-RESEARCH.md` is the Phase 3 planning research source.
 
 ### Important Caveats
 
@@ -101,7 +103,7 @@ progress:
 
 ### Open Todos
 
-- Plan Phase 3 data curriculum and dataset quality work on top of Phase 2 runtime contracts.
+- Execute Phase 3 Wave 1 plans: 03-01, 03-02, 03-03, and 03-04.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -111,7 +113,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Plan Phase 3 data curriculum and dataset quality work.
+**Next Recommended Action:** Execute Phase 3 Wave 1 with `/gsd-execute-phase 3`.
 
 **Files Created/Updated:**
 
@@ -174,6 +176,16 @@ progress:
 - `tests/test_runtime_docs.py`
 - `.planning/phases/02-runtime-contracts-and-run-provenance/02-05-SUMMARY.md`
 - `.planning/phases/02-runtime-contracts-and-run-provenance/VERIFICATION.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-CONTEXT.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-RESEARCH.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-PATTERNS.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-VALIDATION.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-01-PLAN.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-02-PLAN.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-03-PLAN.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-04-PLAN.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-05-PLAN.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-06-PLAN.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
