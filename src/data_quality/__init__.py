@@ -16,6 +16,7 @@ from .manifests import (
     write_dataset_manifest,
 )
 from .prompt_validation import PromptQualityReport, validate_prompt_dataset
+from .source_comparison import DataSourceComparison, compare_data_sources
 from .synthetic_quality import SyntheticQualityReport, inspect_synthetic_dataset
 
 __all__ = [
@@ -27,6 +28,8 @@ __all__ = [
     "SyntheticQualityReport",
     "DatasetManifest",
     "DatasetManifestError",
+    "DataSourceComparison",
+    "compare_data_sources",
     "create_dataset_manifest",
     "hash_source_file",
     "load_prompt_generation_config",
