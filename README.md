@@ -4,6 +4,15 @@ Improving multilingual text rendering in diffusion models via SFT + DPO fine-tun
 
 Targets **FLUX.2-klein-base-4B** with a focus on **Cyrillic/Russian** text accuracy, evaluated by a Qwen3.5-9B VLM reward model.
 
+## Execution Surface
+
+Start with the Phase 1 execution docs before launching experiments:
+
+- [`docs/pipeline_inventory.md`](docs/pipeline_inventory.md) separates supported toolkit entry points from historical experiments and manual diagnostics.
+- [`docs/commands.md`](docs/commands.md) lists setup, CPU-safe tests, lint/format commands, smoke checks, local commands, SLURM variants, manual diagnostics, and generated-artifact safety notes.
+
+Default automated tests are **CPU-safe**. GPU, model-access, OCR, SLURM, and gradient diagnostics are explicit **opt-in** commands so broad test discovery does not accidentally launch expensive work.
+
 ## Pipeline
 
 ```
