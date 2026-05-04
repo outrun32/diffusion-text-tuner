@@ -191,6 +191,26 @@ def test_run_manifest_cli_reports_missing_or_corrupt_manifests(tmp_path, capsys)
     assert "malformed manifest JSON" in capsys.readouterr().err
 
 
+def test_run_manifest_cli_reports_invalid_metrics_payloads(tmp_path, monkeypatch, capsys):
+    from scripts import run_manifest
+
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda root: {"commit": "abc1234"})
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=["python", "train.py"],
+        run_root=tmp_path / "runs",
+    ).manifest_path
+
+    assert run_manifest.main(["metrics", str(manifest), "--json", "[]"]) == 2
+    assert "metrics payload must be a JSON object" in capsys.readouterr().err
+
+    missing_metrics = tmp_path / "missing-metrics.json"
+    assert run_manifest.main(["metrics", str(manifest), "--file", str(missing_metrics)]) == 2
+    assert "could not read metrics file" in capsys.readouterr().err
+
+
 
 def _write_sft_config(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
