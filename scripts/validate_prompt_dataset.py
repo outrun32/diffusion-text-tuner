@@ -9,17 +9,29 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from src.data_quality.manifests import create_dataset_manifest, write_dataset_manifest
-from src.data_quality.prompt_validation import validate_prompt_dataset
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.data_quality.manifests import create_dataset_manifest, write_dataset_manifest  # noqa: E402
+from src.data_quality.prompt_validation import validate_prompt_dataset  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate prompt dataset quality")
     parser.add_argument("--input", required=True, help="Prompt JSONL dataset to validate")
     parser.add_argument("--report", default=None, help="Optional JSON quality report output path")
-    parser.add_argument("--manifest", default=None, help="Optional dataset manifest JSON output path")
+    parser.add_argument(
+        "--manifest",
+        default=None,
+        help="Optional dataset manifest JSON output path",
+    )
     parser.add_argument("--config", default=None, help="Optional prompt generation config JSON")
-    parser.add_argument("--strict-warnings", action="store_true", help="Return nonzero for warnings")
+    parser.add_argument(
+        "--strict-warnings",
+        action="store_true",
+        help="Return nonzero for warnings",
+    )
     parser.add_argument("--min-target-length", type=int, default=None)
     parser.add_argument("--max-target-length", type=int, default=None)
     parser.add_argument("--required-rare-characters", default=None)

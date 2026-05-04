@@ -112,7 +112,9 @@ def validate_prompt_dataset(
                 continue
             if not isinstance(payload, dict):
                 context.malformed_records += 1
-                context.errors.append(f"{dataset_path}: line {line_number}: prompt record must be an object")
+                context.errors.append(
+                    f"{dataset_path}: line {line_number}: prompt record must be an object"
+                )
                 continue
             _validate_record(context, payload, line_number)
 
@@ -145,7 +147,9 @@ class _PromptValidationContext:
         duplicate_examples = [
             text for text, count in sorted(self.target_text_counts.items()) if count > 1
         ][:MAX_DUPLICATE_EXAMPLES]
-        duplicate_records = sum(count - 1 for count in self.target_text_counts.values() if count > 1)
+        duplicate_records = sum(
+            count - 1 for count in self.target_text_counts.values() if count > 1
+        )
         duplicate_rate = duplicate_records / self.valid_records if self.valid_records else 0.0
         style_distribution = {
             key: dict(sorted(values.items())) for key, values in sorted(self.style_values.items())
@@ -247,7 +251,9 @@ def _collect_scripts(context: _PromptValidationContext, target_text: str, line_n
             continue
         if ch in string.punctuation or ch in "—–«»…№":
             continue
-        context.errors.append(f"{context.path}: line {line_number}: illegal character in target_text")
+        context.errors.append(
+            f"{context.path}: line {line_number}: illegal character in target_text"
+        )
         break
 
 
@@ -318,7 +324,8 @@ def _finalize_duplicate_metrics(context: _PromptValidationContext) -> None:
     duplicate_rate = duplicate_records / context.valid_records if context.valid_records else 0.0
     if isinstance(max_duplicate_rate, int | float) and duplicate_rate > float(max_duplicate_rate):
         context.warnings.append(
-            f"duplicate_rate {duplicate_rate:.3f} exceeds max_duplicate_rate {float(max_duplicate_rate):.3f}"
+            "duplicate_rate "
+            f"{duplicate_rate:.3f} exceeds max_duplicate_rate {float(max_duplicate_rate):.3f}"
         )
 
 
@@ -330,7 +337,8 @@ def _finalize_rare_character_metrics(context: _PromptValidationContext) -> None:
     minimum = context.thresholds.get("min_rare_character_coverage")
     if isinstance(minimum, int | float) and coverage < float(minimum):
         context.warnings.append(
-            f"rare_character_coverage {coverage:.3f} below min_rare_character_coverage {float(minimum):.3f}"
+            "rare_character_coverage "
+            f"{coverage:.3f} below min_rare_character_coverage {float(minimum):.3f}"
         )
 
 
@@ -371,7 +379,8 @@ def _apply_expected_distribution(
         ratio = counts.get(str(value), 0) / total
         if ratio < lower or ratio > upper:
             context.warnings.append(
-                f"{label} {value} ratio {ratio:.3f} outside expected range [{lower:.3f}, {upper:.3f}]"
+                f"{label} {value} ratio {ratio:.3f} outside expected range "
+                f"[{lower:.3f}, {upper:.3f}]"
             )
 
 

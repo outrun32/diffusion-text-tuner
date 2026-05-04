@@ -48,7 +48,12 @@ def test_prompt_quality_report_counts_valid_records_and_distributions(tmp_path: 
         tmp_path / "prompts.jsonl",
         [
             _prompt_record("p1", "Ёж Цех", content_type="poster"),
-            _prompt_record("p2", "Шрифт 42!", content_type="typography", style={"font": "gothic", "color": "red"}),
+            _prompt_record(
+                "p2",
+                "Шрифт 42!",
+                content_type="typography",
+                style={"font": "gothic", "color": "red"},
+            ),
             _prompt_record("p3", "Hello Ж readable", content_type="product", lang="en"),
         ],
     )
@@ -94,7 +99,10 @@ def test_prompt_quality_report_aggregates_malformed_rows_missing_fields_and_dupl
     assert report.total_lines == 4
     assert report.valid_records == 2
     assert any("line 2" in error and "malformed JSON" in error for error in report.errors)
-    assert any("line 3" in error and "missing required field: target_text" in error for error in report.errors)
+    assert any(
+        "line 3" in error and "missing required field: target_text" in error
+        for error in report.errors
+    )
     assert report.duplicate_rate == 0.5
     assert report.duplicate_examples == ["Привет"]
     assert any("duplicate_rate" in warning for warning in report.warnings)
