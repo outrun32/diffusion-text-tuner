@@ -10,8 +10,20 @@ Start with the Phase 1 execution docs before launching experiments:
 
 - [`docs/pipeline_inventory.md`](docs/pipeline_inventory.md) separates supported toolkit entry points from historical experiments and manual diagnostics.
 - [`docs/commands.md`](docs/commands.md) lists setup, CPU-safe tests, lint/format commands, smoke checks, local commands, SLURM variants, manual diagnostics, and generated-artifact safety notes.
+- [`docs/runtime_contracts.md`](docs/runtime_contracts.md) defines canonical runtime paths, artifact schemas, manifest expectations, and generated-artifact git safety.
+- [`configs/experiments/README.md`](configs/experiments/README.md) documents the config-family and naming contract for new SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
 
 Default automated tests are **CPU-safe**. GPU, model-access, OCR, SLURM, and gradient diagnostics are explicit **opt-in** commands so broad test discovery does not accidentally launch expensive work.
+
+Run the manifest and preflight steps before long-running GPU/model work: create or inspect a local run manifest, run the appropriate preflight check, and confirm generated artifacts will land under ignored runtime roots such as `outputs/` and `runs/`:
+
+```bash
+python -m scripts.run_manifest init --stage sft --config configs/sft.json --command "accelerate launch --config_file configs/accelerate/single_gpu.yaml -m src.training.sft_trainer --config configs/sft.json"
+python -m scripts.run_manifest inspect runs/<run_id>/manifest.json
+python -m scripts.preflight_runtime --stage sft --config configs/sft.json --manifest runs/<run_id>/manifest.json --json
+```
+
+Preflight validates readiness only; it does not launch generation, scoring, training, synthesis, evaluation, CUDA, model downloads, or OCR work.
 
 ## Pipeline
 

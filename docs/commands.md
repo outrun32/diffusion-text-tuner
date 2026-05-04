@@ -49,6 +49,39 @@ uv run python -m scripts.smoke_environment --check ocr --allow-missing
 uv run python -m scripts.smoke_environment --check cache --allow-missing
 ```
 
+## Runtime contracts
+
+Read [`docs/runtime_contracts.md`](runtime_contracts.md) and [`configs/experiments/README.md`](../configs/experiments/README.md) before launching long-running generation, scoring, training, synthesis, or evaluation jobs. The runtime contract helpers are CPU-safe gates: they validate configs, manifests, and local artifact layout, but they do not launch CUDA, FLUX, Qwen, PaddleOCR, OCR, or SLURM work.
+
+Use `scripts.run_manifest` to create and inspect local provenance under `runs/<run_id>/manifest.json`:
+
+```bash
+python -m scripts.run_manifest init --stage sft --config configs/sft.json --command "accelerate launch --config_file configs/accelerate/single_gpu.yaml -m src.training.sft_trainer --config configs/sft.json"
+python -m scripts.run_manifest inspect runs/<run_id>/manifest.json
+python -m scripts.run_manifest note runs/<run_id>/manifest.json "Prepared inputs and verified runtime contracts before launch"
+python -m scripts.run_manifest metrics runs/<run_id>/manifest.json --json '{"loss": 0.123}'
+```
+
+Use `scripts.preflight_runtime` to validate readiness before expensive stages. These examples are safe to run locally; missing generated artifacts are reported as blockers instead of triggering model work.
+
+```bash
+python -m scripts.preflight_runtime --stage generate --prompts data/prompts_simple.jsonl --output-dir outputs/generated --json
+python -m scripts.preflight_runtime --stage score --images-dir outputs/generated/images --text-embeds-dir outputs/generated/text_embeds --scores-csv outputs/generated/scores.csv --json
+python -m scripts.preflight_runtime --stage sft --config configs/sft.json --manifest runs/<run_id>/manifest.json --json
+python -m scripts.preflight_runtime --stage dpo --config configs/dpo.json --manifest runs/<run_id>/manifest.json --json
+python -m scripts.preflight_runtime --stage masked-sft --config configs/masked_sft.json --manifest runs/<run_id>/manifest.json --json
+python -m scripts.preflight_runtime --stage synthetic --output-dir data/synth_cyrillic/masked_sft --json
+python -m scripts.preflight_runtime --stage evaluation --output-dir outputs/evaluation --manifest runs/<run_id>/manifest.json --json
+```
+
+The same surface is available through Makefile aliases for dry-run review:
+
+```bash
+make -n preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect
+```
+
+Generated artifacts remain non-committable by default. Keep generated images, tensors, scores, checkpoints, logs, and private manifests under ignored roots such as `outputs/`, `runs/`, and generated `data/` subtrees unless they are intentionally tiny reviewed fixtures.
+
 ## Local pipeline commands
 
 Run these from the repository root after installing the appropriate optional dependencies and preparing required model/cache access. Commands write generated artifacts under ignored runtime roots such as `data/`, `outputs/`, and `runs/` unless you choose different paths.
