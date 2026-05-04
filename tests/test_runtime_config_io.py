@@ -12,8 +12,12 @@ from src.runtime.config_io import (
     resolve_config_snapshot,
     validate_path_policy,
 )
-from src.training.config import DPOConfig, MaskedSFTConfig, MultiRankLoraConfig, SFTConfig
-
+from src.training.config import (
+    DPOConfig,
+    MaskedSFTConfig,
+    MultiRankLoraConfig,
+    SFTConfig,
+)
 
 MODEL_ID = "black-forest-labs/FLUX.2-klein-base-4B"
 
@@ -199,7 +203,10 @@ def test_malformed_json_raises_runtime_config_error_with_path(tmp_path: Path) ->
     assert "json" in str(exc_info.value).lower()
 
 
-@pytest.mark.parametrize("allowed", ["configs/sft.json", "data/input.jsonl", "outputs/sft", "runs/demo"])
+@pytest.mark.parametrize(
+    "allowed",
+    ["configs/sft.json", "data/input.jsonl", "outputs/sft", "runs/demo"],
+)
 def test_validate_path_policy_allows_relative_runtime_roots(tmp_path: Path, allowed: str) -> None:
     config_path = tmp_path / "config.json"
 

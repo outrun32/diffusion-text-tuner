@@ -9,6 +9,7 @@ dependencies = [
     "diffusers",
     "peft",
     "pillow",
+    "pydantic>=2,<3",
     "tqdm",
     "transformers",
 ]
