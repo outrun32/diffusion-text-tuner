@@ -238,3 +238,55 @@ def test_readme_links_phase3_data_quality_docs_and_artifact_safety() -> None:
 
     missing = [value for value in required_strings if value not in readme]
     assert missing == []
+
+
+def test_runtime_contracts_document_phase3_artifact_matrix() -> None:
+    docs = _read_repo_file("docs/runtime_contracts.md")
+
+    required_strings = [
+        "dataset manifests",
+        "prompt quality reports",
+        "synthetic quality reports",
+        "contact sheets",
+        "selected samples",
+        "preference pairs",
+        "source comparison reports",
+        "dataset-manifest/v1",
+        "prompt-quality/v1",
+        "synthetic-quality/v1",
+        "selected-samples/v1",
+        "preference-pairs/v1",
+        "data-source-comparison/v1",
+        "scripts/validate_prompt_dataset.py",
+        "scripts/inspect_synthetic_dataset.py",
+        "scripts/materialize_training_data.py",
+        "scripts/compare_data_sources.py",
+        "validate_artifacts(\"dataset_manifest\"",
+        "validate_artifacts(\"prompt_quality_report\"",
+        "validate_artifacts(\"synthetic_quality_report\"",
+        "validate_artifacts(\"data_source_comparison\"",
+        "non-committable runtime output",
+    ]
+
+    missing = [value for value in required_strings if value not in docs]
+    assert missing == []
+
+
+def test_runtime_contracts_document_phase3_required_fields() -> None:
+    docs = _read_repo_file("docs/runtime_contracts.md")
+
+    required_strings = [
+        "dataset_kind",
+        "dataset_paths",
+        "valid_records",
+        "sample_count",
+        "sample_id",
+        "selected_score",
+        "winner_version",
+        "loser_version",
+        "evidence_available",
+        "evidence_missing",
+    ]
+
+    missing = [value for value in required_strings if value not in docs]
+    assert missing == []
