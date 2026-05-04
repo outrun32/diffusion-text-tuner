@@ -75,7 +75,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _load_metrics(args: argparse.Namespace) -> dict[str, Any]:
     if args.json_file is not None:
-        raw = args.json_file.read_text(encoding="utf-8")
+        try:
+            raw = args.json_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ManifestError(f"{args.json_file}: could not read metrics file") from exc
     else:
         raw = args.json_payload
     payload = json.loads(raw)
