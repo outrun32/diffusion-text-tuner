@@ -43,7 +43,7 @@ def test_prompt_quality_report_counts_valid_records_and_distributions(tmp_path: 
         [
             _prompt_record("p1", "Ёж Цех", content_type="poster"),
             _prompt_record("p2", "Шрифт 42!", content_type="typography", style={"font": "gothic", "color": "red"}),
-            _prompt_record("p3", "Hello Ж", content_type="product", lang="en"),
+            _prompt_record("p3", "Hello Ж readable", content_type="product", lang="en"),
         ],
     )
 
