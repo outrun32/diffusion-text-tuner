@@ -1,6 +1,21 @@
-.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect
+.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources
 
 RUN_MANIFEST ?= runs/example/manifest.json
+PROMPT_CONFIG ?= configs/prompts/curriculum.json
+PROMPTS_JSONL ?= data/prompts/curriculum.jsonl
+PROMPT_QUALITY_REPORT ?= runs/prompt-quality/prompt-quality.json
+PROMPT_DATASET_MANIFEST ?= runs/prompt-quality/dataset-manifest.json
+SYNTHETIC_DATA_DIR ?= data/synth_cyrillic/masked_sft
+SYNTHETIC_RAW_DIR ?= data/synth_cyrillic/raw
+SYNTHETIC_QUALITY_REPORT ?= runs/synthetic-quality/synthetic-quality.json
+SYNTHETIC_DATASET_MANIFEST ?= runs/synthetic-quality/dataset-manifest.json
+SYNTHETIC_CONTACT_SHEET ?= runs/synthetic-quality/contact-sheet.png
+GENERATED_SCORES_CSV ?= outputs/generated/scores.csv
+GENERATED_OUTPUT_DIR ?= outputs/generated
+SELECTED_SAMPLES_MANIFEST ?= outputs/generated/selected_samples.manifest.json
+PREFERENCE_PAIRS_MANIFEST ?= outputs/generated/preference_pairs.manifest.json
+DATA_SOURCE_COMPARISON ?= runs/comparisons/generated-vs-synthetic.json
+DATA_SOURCE_COMPARISON_MD ?= runs/comparisons/generated-vs-synthetic.md
 
 setup:
 	uv sync --group dev
@@ -50,3 +65,21 @@ manifest-init-sft:
 # Placeholder form for docs/tests: python -m scripts.run_manifest inspect runs/<run_id>/manifest.json
 manifest-inspect:
 	uv run python -m scripts.run_manifest inspect $(RUN_MANIFEST)
+
+phase3-generate-prompts:
+	uv run python -m src.prompt_pipeline.generate --config $(PROMPT_CONFIG) --no-llm
+
+phase3-validate-prompts:
+	uv run python scripts/validate_prompt_dataset.py --input $(PROMPTS_JSONL) --report $(PROMPT_QUALITY_REPORT) --manifest $(PROMPT_DATASET_MANIFEST) --config $(PROMPT_CONFIG)
+
+phase3-inspect-synthetic:
+	uv run python scripts/inspect_synthetic_dataset.py --data-dir $(SYNTHETIC_DATA_DIR) --raw-dir $(SYNTHETIC_RAW_DIR) --report $(SYNTHETIC_QUALITY_REPORT) --manifest $(SYNTHETIC_DATASET_MANIFEST) --contact-sheet $(SYNTHETIC_CONTACT_SHEET)
+
+phase3-materialize-sft:
+	uv run python scripts/materialize_training_data.py --kind sft --scores-csv $(GENERATED_SCORES_CSV) --output-dir $(GENERATED_OUTPUT_DIR) --manifest $(SELECTED_SAMPLES_MANIFEST)
+
+phase3-materialize-dpo:
+	uv run python scripts/materialize_training_data.py --kind dpo --scores-csv $(GENERATED_SCORES_CSV) --output-dir $(GENERATED_OUTPUT_DIR) --manifest $(PREFERENCE_PAIRS_MANIFEST)
+
+phase3-compare-sources:
+	uv run python scripts/compare_data_sources.py --generated-prompt-quality-report $(PROMPT_QUALITY_REPORT) --selected-samples $(GENERATED_OUTPUT_DIR)/selected_samples.jsonl --preference-pairs $(GENERATED_OUTPUT_DIR)/preference_pairs.jsonl --generated-dataset-manifest $(SELECTED_SAMPLES_MANIFEST) --synthetic-quality-report $(SYNTHETIC_QUALITY_REPORT) --synthetic-manifest $(SYNTHETIC_DATASET_MANIFEST) --output-report $(DATA_SOURCE_COMPARISON) --markdown-summary $(DATA_SOURCE_COMPARISON_MD)

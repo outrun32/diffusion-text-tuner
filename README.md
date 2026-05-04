@@ -12,6 +12,12 @@ Start with the Phase 1 execution docs before launching experiments:
 - [`docs/commands.md`](docs/commands.md) lists setup, CPU-safe tests, lint/format commands, smoke checks, local commands, SLURM variants, manual diagnostics, and generated-artifact safety notes.
 - [`docs/runtime_contracts.md`](docs/runtime_contracts.md) defines canonical runtime paths, artifact schemas, manifest expectations, and generated-artifact git safety.
 - [`configs/experiments/README.md`](configs/experiments/README.md) documents the config-family and naming contract for new SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
+- Phase 3 data curriculum and quality docs cover prompt curriculum configs, prompt dataset validation, synthetic quality inspection, materialized SFT/DPO selections, and generated-vs-synthetic source comparison:
+  [`docs/data_curriculum.md`](docs/data_curriculum.md),
+  [`docs/dataset_quality.md`](docs/dataset_quality.md),
+  [`docs/synthetic_quality.md`](docs/synthetic_quality.md),
+  [`docs/data_selection.md`](docs/data_selection.md), and
+  [`docs/data_source_comparison.md`](docs/data_source_comparison.md).
 
 Default automated tests are **CPU-safe**. GPU, model-access, OCR, SLURM, and gradient diagnostics are explicit **opt-in** commands so broad test discovery does not accidentally launch expensive work.
 
@@ -24,6 +30,8 @@ python -m scripts.preflight_runtime --stage sft --config configs/sft.json --mani
 ```
 
 Preflight validates readiness only; it does not launch generation, scoring, training, synthesis, evaluation, CUDA, model downloads, or OCR work.
+
+Phase 3 report and comparison workflows are CPU-safe by default. generated reports, images, tensors, contact sheets, selections, and comparisons should remain out of git under ignored runtime roots such as `runs/`, `outputs/`, and generated `data/` subtrees unless they are intentionally tiny reviewed fixtures or documentation assets.
 
 ## Pipeline
 

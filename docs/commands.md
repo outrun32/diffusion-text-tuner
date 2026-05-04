@@ -86,6 +86,78 @@ make -n preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manif
 
 Generated artifacts remain non-committable by default. Keep generated images, tensors, scores, checkpoints, logs, and private manifests under ignored roots such as `outputs/`, `runs/`, and generated `data/` subtrees unless they are intentionally tiny reviewed fixtures.
 
+## Phase 3 data curriculum and quality
+
+Phase 3 adds a CPU-safe command surface for prompt curriculum configs, prompt dataset
+validation, synthetic masked-SFT inspection, materialized training selections, and
+generated-vs-synthetic source comparison. These commands are local and SLURM-compatible:
+run them from a checkout or job workspace, keep paths repository-relative, and write outputs to
+ignored runtime roots such as `runs/`, `outputs/`, or generated `data/` subtrees.
+OCR/model-heavy checks are opt-in; default report, manifest, selection, and comparison commands do
+not launch FLUX, Qwen, PaddleOCR, CUDA, SynthTIGER, OCR, or model inference.
+
+Generate prompt datasets from explicit configs instead of monkey-patching prompt constants:
+
+```bash
+python -m src.prompt_pipeline.generate --config configs/prompts/simple.json --no-llm
+python -m src.prompt_pipeline.generate --config configs/prompts/full.json
+python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json
+```
+
+Validate prompt JSONL quality and write a `dataset-manifest/v1` manifest:
+
+```bash
+uv run python scripts/validate_prompt_dataset.py \
+    --input data/prompts/curriculum.jsonl \
+    --report runs/prompt-quality/prompt-quality.json \
+    --manifest runs/prompt-quality/dataset-manifest.json \
+    --config configs/prompts/curriculum.json \
+    --strict-warnings
+```
+
+Inspect synthetic masked-SFT data with PIL/CSV/JSON only. Pass precomputed OCR evidence only when
+you have produced it through a separate opt-in OCR diagnostic or reward workflow:
+
+```bash
+uv run python scripts/inspect_synthetic_dataset.py \
+    --data-dir data/synth_cyrillic/masked_sft \
+    --raw-dir data/synth_cyrillic/raw \
+    --report runs/synthetic-quality/synthetic-quality.json \
+    --manifest runs/synthetic-quality/dataset-manifest.json \
+    --contact-sheet runs/synthetic-quality/contact-sheet.png
+```
+
+Materialize reward-filtered SFT samples and DPO preference pairs before comparison-grade training:
+
+```bash
+uv run python scripts/materialize_training_data.py --kind sft \
+    --scores-csv outputs/generated/scores.csv \
+    --output-dir outputs/generated \
+    --manifest outputs/generated/selected_samples.manifest.json
+
+uv run python scripts/materialize_training_data.py --kind dpo \
+    --scores-csv outputs/generated/scores.csv \
+    --output-dir outputs/generated \
+    --manifest outputs/generated/preference_pairs.manifest.json
+```
+
+Compare generated reward-filtered evidence against synthetic masked-SFT evidence without opening
+generated images or tensors:
+
+```bash
+uv run python scripts/compare_data_sources.py \
+    --generated-prompt-quality-report runs/prompt-quality/prompt-quality.json \
+    --selected-samples outputs/generated/selected_samples.jsonl \
+    --preference-pairs outputs/generated/preference_pairs.jsonl \
+    --generated-dataset-manifest outputs/generated/selected_samples.manifest.json \
+    --synthetic-quality-report runs/synthetic-quality/synthetic-quality.json \
+    --synthetic-manifest runs/synthetic-quality/dataset-manifest.json \
+    --output-report runs/comparisons/generated-vs-synthetic.json \
+    --markdown-summary runs/comparisons/generated-vs-synthetic.md
+```
+
+Generated artifacts remain private by default: generated reports, images, tensors, contact sheets, selections, and comparisons are runtime artifacts. Keep them out of git unless they are intentionally tiny reviewed fixtures or documentation assets.
+
 ## Local pipeline commands
 
 Run these from the repository root after installing the appropriate optional dependencies and preparing required model/cache access. Commands write generated artifacts under ignored runtime roots such as `data/`, `outputs/`, and `runs/` unless you choose different paths.
