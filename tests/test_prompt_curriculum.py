@@ -1,9 +1,9 @@
 import json
 import sys
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
-
 
 from src.data_quality.curriculum import (
     CurriculumConfigError,
@@ -72,7 +72,7 @@ def test_loads_frozen_prompt_generation_config_without_heavy_imports(tmp_path):
 
     heavy_modules = {"diffusers", "transformers", "paddleocr", "vllm", "mlx_lm", "synthtiger"}
     assert not heavy_modules & (after - before)
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         config.seed = 99
 
 
@@ -81,7 +81,11 @@ def test_loads_frozen_prompt_generation_config_without_heavy_imports(tmp_path):
     [
         ("curriculum_stages", [{"name": "bad", "family": "short_words", "weight": 0}], "weight"),
         ("curriculum_stages", [{"name": " ", "family": "short_words", "weight": 1}], "name"),
-        ("curriculum_stages", [{"name": "bad", "family": "short_words", "weight": 1, "scripts": ["emoji"]}], "script"),
+        (
+            "curriculum_stages",
+            [{"name": "bad", "family": "short_words", "weight": 1, "scripts": ["emoji"]}],
+            "script",
+        ),
         ("generation", {"n": -1, "no_llm": True}, "n"),
         ("output_path", "~/private/prompts.jsonl", "output_path"),
     ],
@@ -244,4 +248,7 @@ def test_generate_dataset_tags_records_with_config_stage_provenance(tmp_path):
     assert len(records) == 4
     assert {record["prompt_mode"] for record in records} == {"simple"}
     assert {record["curriculum_stage"] for record in records} <= {"single_letters", "short_words"}
-    assert all(record["curriculum_family"] in {"single_letters", "short_words"} for record in records)
+    assert all(
+        record["curriculum_family"] in {"single_letters", "short_words"}
+        for record in records
+    )

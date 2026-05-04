@@ -14,7 +14,6 @@ from typing import Any
 
 from src.prompt_pipeline.config import CASE_WEIGHTS, CONTENT_TYPES, TIER_WEIGHTS
 
-
 SCHEMA_VERSION = "prompt-generation/v1"
 ALLOWED_BACKENDS = frozenset({"transformers", "mlx", "vllm"})
 ALLOWED_SCRIPTS = frozenset({"cyrillic", "latin", "digits", "punctuation", "mixed"})
@@ -95,7 +94,9 @@ class PromptGenerationConfig:
         if remaining < 0:
             raise CurriculumConfigError("curriculum_stages sample_count exceeds generation.n")
 
-        weighted_stages = [stage for stage in self.curriculum_stages if explicit[stage.name] is None]
+        weighted_stages = [
+            stage for stage in self.curriculum_stages if explicit[stage.name] is None
+        ]
         allocations: dict[str, int] = {
             name: int(count) for name, count in explicit.items() if count is not None
         }
@@ -192,8 +193,15 @@ def _parse_generation(raw: Any) -> GenerationSettings:
     backend = _str_value(raw.get("backend", "transformers"), "generation.backend")
     if backend not in ALLOWED_BACKENDS:
         raise CurriculumConfigError("generation.backend must be one of transformers, mlx, vllm")
-    batch_size = _int_value(raw.get("batch_size", 1), "generation.batch_size", minimum=1, maximum=MAX_BATCH_SIZE)
-    temperature = _float_value(raw.get("temperature", 0.7), "generation.temperature", minimum=0.0)
+    batch_size = _int_value(
+        raw.get("batch_size", 1),
+        "generation.batch_size",
+        minimum=1,
+        maximum=MAX_BATCH_SIZE,
+    )
+    temperature = _float_value(
+        raw.get("temperature", 0.7), "generation.temperature", minimum=0.0
+    )
     expand_scenes = _int_value(raw.get("expand_scenes", 0), "generation.expand_scenes", minimum=0)
     return GenerationSettings(
         n=n,
@@ -237,28 +245,37 @@ def _parse_stage(raw: Any, index: int) -> CurriculumStage:
             maximum=MAX_SAMPLE_COUNT,
         )
 
-    scripts = _tuple_of_strings(raw.get("scripts", ["cyrillic"]), f"curriculum_stages[{index}].scripts")
+    scripts = _tuple_of_strings(
+        raw.get("scripts", ["cyrillic"]), f"curriculum_stages[{index}].scripts"
+    )
     unsupported_scripts = set(scripts) - ALLOWED_SCRIPTS
     if unsupported_scripts:
         raise CurriculumConfigError(
             f"curriculum_stages[{index}].script unsupported: {sorted(unsupported_scripts)[0]}"
         )
 
-    content_types = _tuple_of_strings(raw.get("content_types", []), f"curriculum_stages[{index}].content_types")
+    content_types = _tuple_of_strings(
+        raw.get("content_types", []), f"curriculum_stages[{index}].content_types"
+    )
     unsupported_content_types = set(content_types) - set(CONTENT_TYPES)
     if unsupported_content_types:
         raise CurriculumConfigError(
             f"curriculum_stages[{index}].content_types unsupported: "
             f"{sorted(unsupported_content_types)[0]}"
         )
-    tiers = tuple(_int_value(value, f"curriculum_stages[{index}].tiers", minimum=1, maximum=5) for value in raw.get("tiers", []))
+    tiers = tuple(
+        _int_value(value, f"curriculum_stages[{index}].tiers", minimum=1, maximum=5)
+        for value in raw.get("tiers", [])
+    )
     cases = _tuple_of_strings(raw.get("cases", []), f"curriculum_stages[{index}].cases")
     unsupported_cases = set(cases) - set(CASE_WEIGHTS)
     if unsupported_cases:
         raise CurriculumConfigError(
             f"curriculum_stages[{index}].cases unsupported: {sorted(unsupported_cases)[0]}"
         )
-    languages = _tuple_of_strings(raw.get("languages", ["ru"]), f"curriculum_stages[{index}].languages")
+    languages = _tuple_of_strings(
+        raw.get("languages", ["ru"]), f"curriculum_stages[{index}].languages"
+    )
     unsupported_languages = set(languages) - {"ru", "en"}
     if unsupported_languages:
         raise CurriculumConfigError(
