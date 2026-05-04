@@ -31,20 +31,22 @@ These commands are safe defaults for local automation and broad verification. Th
 
 ```bash
 uv run pytest
-uv run ruff check .
-uv run ruff format --check .
+uv run --extra lint ruff check scripts/smoke_environment.py tests
+uv run --extra lint ruff format --check scripts/smoke_environment.py tests
 ```
+
+The Ruff commands intentionally check the Phase 1 CPU-safe automation surface first. Broader repository lint cleanup is deferred until later structure/refactor phases so existing research scripts are not reformatted before their behavior is characterized.
 
 ## Smoke checks
 
 Smoke checks are explicit preflight commands. The import check should remain lightweight; CUDA, model access, OCR, and cache checks are opt-in diagnostics before long jobs.
 
 ```bash
-python -m scripts.smoke_environment --check imports
-python -m scripts.smoke_environment --check cuda --allow-missing
-python -m scripts.smoke_environment --check model-access --allow-missing
-python -m scripts.smoke_environment --check ocr --allow-missing
-python -m scripts.smoke_environment --check cache --allow-missing
+uv run python -m scripts.smoke_environment --check imports
+uv run python -m scripts.smoke_environment --check cuda --allow-missing
+uv run python -m scripts.smoke_environment --check model-access --allow-missing
+uv run python -m scripts.smoke_environment --check ocr --allow-missing
+uv run python -m scripts.smoke_environment --check cache --allow-missing
 ```
 
 ## Local pipeline commands
@@ -168,6 +170,19 @@ bash scripts/cluster/merge_scores.sh
 sbatch scripts/cluster/sft.sbatch
 sbatch scripts/cluster/dpo.sbatch
 ```
+
+Current SLURM coverage is explicit rather than implied:
+
+| Flow | SLURM status |
+|------|--------------|
+| Image generation | Wrapped by `scripts/cluster/generate_images.sbatch` |
+| Reward scoring | Wrapped by `scripts/cluster/score_images.sbatch` plus `scripts/cluster/merge_scores.sh` |
+| SFT training | Wrapped by `scripts/cluster/sft.sbatch` |
+| DPO training | Wrapped by `scripts/cluster/dpo.sbatch` |
+| Masked-SFT training | Local command documented; no committed SLURM wrapper yet |
+| Synthetic data | Local command documented; no committed SLURM wrapper yet |
+| Evaluation | Local command documented; no committed SLURM wrapper yet |
+| Thesis plotting | Local command documented; no committed SLURM wrapper yet |
 
 ## Manual diagnostics
 

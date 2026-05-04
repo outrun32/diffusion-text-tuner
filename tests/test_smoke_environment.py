@@ -5,7 +5,6 @@ from __future__ import annotations
 import importlib
 import sys
 
-
 HEAVY_MODULES = ("torch", "diffusers", "transformers", "paddleocr", "vllm", "mlx_lm")
 EXPECTED_CHECKS = ("imports", "cuda", "cache", "model-access", "ocr")
 

@@ -12,7 +12,6 @@ import os
 import sys
 from pathlib import Path
 
-
 CHECKS = ("imports", "cuda", "cache", "model-access", "ocr")
 
 _LOCAL_IMPORT_MODULES = (

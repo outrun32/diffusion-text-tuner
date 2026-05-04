@@ -7,22 +7,22 @@ test:
 	uv run pytest
 
 lint:
-	uv run ruff check .
+	uv run --extra lint ruff check scripts/smoke_environment.py tests
 
 format:
-	uv run ruff format --check .
+	uv run --extra lint ruff format --check scripts/smoke_environment.py tests
 
 smoke-imports:
-	python -m scripts.smoke_environment --check imports
+	uv run python -m scripts.smoke_environment --check imports
 
 smoke-cuda:
-	python -m scripts.smoke_environment --check cuda --allow-missing
+	uv run python -m scripts.smoke_environment --check cuda --allow-missing
 
 smoke-model-access:
-	python -m scripts.smoke_environment --check model-access --allow-missing
+	uv run python -m scripts.smoke_environment --check model-access --allow-missing
 
 smoke-ocr:
-	python -m scripts.smoke_environment --check ocr --allow-missing
+	uv run python -m scripts.smoke_environment --check ocr --allow-missing
 
 smoke-cache:
-	python -m scripts.smoke_environment --check cache --allow-missing
+	uv run python -m scripts.smoke_environment --check cache --allow-missing
