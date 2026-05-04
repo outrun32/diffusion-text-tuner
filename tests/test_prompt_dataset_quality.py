@@ -241,3 +241,86 @@ def test_hash_source_file_references_binary_generated_artifacts_by_default(tmp_p
     }
     assert tensor_forced["hashed"] is True
     assert len(tensor_forced["sha256"]) == 64
+
+
+def test_prompt_validation_cli_writes_report_and_manifest(tmp_path: Path) -> None:
+    from scripts.validate_prompt_dataset import main
+
+    prompts = _write_jsonl(tmp_path / "prompts.jsonl", [_prompt_record("p1", "Ёж")])
+    config = _write_json(tmp_path / "config.json", {"seed": 11, "model_id": "Qwen/demo"})
+    report_path = tmp_path / "reports" / "prompt-quality.json"
+    manifest_path = tmp_path / "reports" / "dataset-manifest.json"
+
+    exit_code = main(
+        [
+            "--input",
+            str(prompts),
+            "--report",
+            str(report_path),
+            "--manifest",
+            str(manifest_path),
+            "--config",
+            str(config),
+            "--min-rare-character-coverage",
+            "0.0",
+            "--required-rare-characters",
+            "ё,ж",
+        ]
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert report["schema_version"] == "prompt-quality/v1"
+    assert report["valid_records"] == 1
+    assert manifest["schema_version"] == "dataset-manifest/v1"
+    assert manifest["dataset_kind"] == "prompt"
+    assert manifest["output_counts"] == {"valid_prompts": 1}
+
+
+def test_prompt_validation_cli_exit_codes_for_errors_and_strict_warnings(tmp_path: Path) -> None:
+    from scripts.validate_prompt_dataset import main
+
+    warning_only = _write_jsonl(tmp_path / "warning.jsonl", [_prompt_record("p1", "Афиша")])
+    invalid = _write_jsonl(tmp_path / "invalid.jsonl", [{"id": "p1", "prompt": "missing target"}])
+
+    warning_args = [
+        "--input",
+        str(warning_only),
+        "--min-rare-character-coverage",
+        "1.0",
+        "--required-rare-characters",
+        "ё",
+    ]
+    assert main(warning_args) == 0
+    assert main([*warning_args, "--strict-warnings"]) == 1
+    assert main(["--input", str(invalid)]) == 2
+
+
+def test_prompt_validation_cli_prints_json_stdout_when_no_report_path(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from scripts.validate_prompt_dataset import main
+
+    prompts = _write_jsonl(tmp_path / "prompts.jsonl", [_prompt_record("p1", "Ёж")])
+
+    assert main(["--input", str(prompts)]) == 0
+    stdout = capsys.readouterr().out
+    payload = json.loads(stdout)
+    assert payload["valid_records"] == 1
+
+
+def test_dataset_quality_docs_cover_cli_and_artifact_safety() -> None:
+    docs = Path("docs/dataset_quality.md").read_text(encoding="utf-8")
+    required = [
+        "validate_prompt_dataset.py",
+        "--input data/prompts_simple.jsonl",
+        "--manifest runs/prompt-quality/dataset-manifest.json",
+        "simple prompt datasets",
+        "full prompt datasets",
+        "curriculum prompt datasets",
+        "Generated reports and manifests are runtime artifacts",
+    ]
+    missing = [item for item in required if item not in docs]
+    assert not missing
