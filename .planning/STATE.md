@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 3 - Data Curriculum and Dataset Quality
-current_plan: 03-02-PLAN.md
+current_plan: 03-03-PLAN.md
 status: phase-3-in-progress
-last_updated: "2026-05-04T15:18:51Z"
+last_updated: "2026-05-04T15:29:27Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 3 Plan 01 execution
+**Last updated:** 2026-05-04 after Phase 3 Plan 02 execution
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 3 - Data Curriculum and Dataset Quality  
-**Current Plan:** 03-02-PLAN.md  
-**Status:** Phase 3 in progress; Plan 03-01 complete and ready for remaining Wave 1 plans
-**Progress:** [███░░░░░░░░░░░░░░░░░] 17% for Phase 3
+**Current Plan:** 03-03-PLAN.md  
+**Status:** Phase 3 in progress; Plans 03-01 and 03-02 complete and ready for remaining Wave 1 plans
+**Progress:** [███████░░░░░░░░░░░░░] 33% for Phase 3
 
 ## Phase Status
 
@@ -41,7 +41,7 @@ progress:
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
-| 3. Data Curriculum and Dataset Quality | In progress | 1/6 plans complete. Plan 03-01 added explicit prompt curriculum configs, config validation, config-driven prompt generation, and stage provenance. |
+| 3. Data Curriculum and Dataset Quality | In progress | 2/6 plans complete. Plan 03-01 added explicit prompt curriculum configs, and Plan 03-02 added prompt dataset quality validation plus prompt-side dataset manifests. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
@@ -51,11 +51,11 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 plus all Phase 2 runtime requirements complete; DATA-01 and DATA-03 complete for prompt curriculum/config scope; DATA-02/DATA-04/DATA-05/DATA-06/DATA-07 remain planned in Phase 3 | 100% mapped; execute remaining Phase 3 data requirements |
+| v1 requirement coverage | 58/58 mapped; Phase 1 plus all Phase 2 runtime requirements complete; DATA-01, DATA-02, DATA-03, and prompt-side DATA-04 complete; DATA-05/DATA-06/DATA-07 remain planned in Phase 3 | 100% mapped; execute remaining Phase 3 data requirements |
 | Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
-| Default test posture | 81 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, and prompt curriculum/config CLI tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 92 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, and prompt dataset quality/manifest CLI tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
-| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, and Phase 3 data-manifest plans | Extend to prompt/synthetic/selection manifests during Phase 3 execution |
+| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, and prompt-side dataset manifests | Extend to synthetic/selection manifests during remaining Phase 3 execution |
 
 ## Accumulated Context
 
@@ -88,6 +88,8 @@ progress:
 - Phase 3 research found the existing project research summary's old Phase 3 test-harness framing insufficient for the current roadmap, so `.planning/phases/03-data-curriculum-and-dataset-quality/03-RESEARCH.md` is the Phase 3 planning research source.
 - Use explicit prompt config files (`configs/prompts/simple.json`, `configs/prompts/full.json`, `configs/prompts/curriculum.json`) plus `python -m src.prompt_pipeline.generate --config ...` instead of editing prompt-generation constants for simple/full/curriculum modes.
 - Config-driven prompt records include `prompt_mode`, `curriculum_stage`, and `curriculum_family` provenance fields; legacy flag-only generation remains compatible and does not add those fields.
+- Use pure-Python prompt dataset validators for DATA-02 so malformed JSONL, required fields, length/script/rare-character/duplicate/distribution checks, and naturalness heuristics stay CPU-safe and deterministic.
+- Use `dataset-manifest/v1` for prompt-side DATA-04 manifests, hashing safe small text sources while referencing generated binary tensors/images by path unless explicitly marked safe.
 
 ### Important Caveats
 
@@ -105,7 +107,7 @@ progress:
 
 ### Open Todos
 
-- Execute remaining Phase 3 Wave 1 plans: 03-02, 03-03, and 03-04.
+- Execute remaining Phase 3 Wave 1 plans: 03-03 and 03-04.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -115,7 +117,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 3 Plan 03-02 for prompt dataset validation and dataset manifest tooling.
+**Next Recommended Action:** Execute Phase 3 Plan 03-03 for synthetic masked-SFT quality inspection.
 
 **Files Created/Updated:**
 
@@ -197,6 +199,12 @@ progress:
 - `tests/test_prompt_curriculum.py`
 - `docs/data_curriculum.md`
 - `.planning/phases/03-data-curriculum-and-dataset-quality/03-01-SUMMARY.md`
+- `src/data_quality/prompt_validation.py`
+- `src/data_quality/manifests.py`
+- `scripts/validate_prompt_dataset.py`
+- `tests/test_prompt_dataset_quality.py`
+- `docs/dataset_quality.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-02-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
