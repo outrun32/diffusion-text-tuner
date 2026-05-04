@@ -175,3 +175,74 @@ def test_source_comparison_marks_missing_optional_evidence_without_fabricating_m
     assert payload["counts"]["generated_selected_samples"] is None
     assert payload["rare_character_coverage"]["generated"] == {}
     assert payload["rare_character_coverage"]["synthetic"] == {"щ": 1}
+
+
+def test_compare_data_sources_cli_writes_json_markdown_and_stdout_summary(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from scripts.compare_data_sources import main
+
+    selected_samples = _write_jsonl(
+        tmp_path / "generated" / "selected_samples.jsonl",
+        [
+            {
+                "schema_version": "selected-samples/v1",
+                "prompt_id": "p1",
+                "target_text": "Ёж",
+                "selected_score": 0.8,
+            }
+        ],
+    )
+    synthetic_report = _write_json(
+        tmp_path / "synthetic" / "quality.json",
+        {
+            "schema_version": "synthetic-quality/v1",
+            "sample_count": 1,
+            "accepted_count": 1,
+            "rejected_count": 0,
+            "character_coverage": {"counts": {"ё": 1}},
+        },
+    )
+    output_report = tmp_path / "comparison" / "report.json"
+    markdown_summary = tmp_path / "comparison" / "summary.md"
+
+    exit_code = main(
+        [
+            "--selected-samples",
+            str(selected_samples),
+            "--synthetic-quality-report",
+            str(synthetic_report),
+            "--output-report",
+            str(output_report),
+            "--markdown-summary",
+            str(markdown_summary),
+        ]
+    )
+
+    stdout = capsys.readouterr().out
+    report = json.loads(output_report.read_text(encoding="utf-8"))
+    markdown = markdown_summary.read_text(encoding="utf-8")
+    assert exit_code == 0
+    assert "generated selected samples: 1" in stdout
+    assert "synthetic samples: 1" in stdout
+    assert report["schema_version"] == "data-source-comparison/v1"
+    assert report["evidence_available"] == ["selected_samples", "synthetic_quality_report"]
+    assert "generated_prompt_quality_report" in report["evidence_missing"]
+    assert "# Data Source Comparison" in markdown
+    assert "reward-filtered generated images" in markdown
+    assert "synthetic masked-SFT" in markdown
+
+
+def test_compare_data_sources_cli_handles_missing_optional_inputs(tmp_path: Path) -> None:
+    from scripts.compare_data_sources import main
+
+    output_report = tmp_path / "comparison.json"
+
+    exit_code = main(["--output-report", str(output_report)])
+
+    report = json.loads(output_report.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert report["evidence_available"] == []
+    assert report["counts"]["generated_selected_samples"] is None
+    assert "selected_samples" in report["evidence_missing"]
