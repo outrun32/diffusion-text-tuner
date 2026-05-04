@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 2 - Runtime Contracts and Run Provenance
-current_plan: 02-04-PLAN.md — trainer config loader wiring and CPU-safe preflight CLI
+current_plan: 02-05-PLAN.md — publish runtime preflight and manifest command documentation
 status: in-progress
-last_updated: "2026-05-04T14:28:55Z"
+last_updated: "2026-05-04T14:39:11Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 2 Plan 03 execution
+**Last updated:** 2026-05-04 after Phase 2 Plan 04 execution
 
 ## Project Reference
 
@@ -31,16 +31,16 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 2 - Runtime Contracts and Run Provenance  
-**Current Plan:** 02-04-PLAN.md — trainer config loader wiring and CPU-safe preflight CLI  
+**Current Plan:** 02-05-PLAN.md — publish runtime preflight and manifest command documentation  
 **Status:** Phase 2 in progress
-**Progress:** [████████████--------] 60%
+**Progress:** [████████████████----] 80%
 
 ## Phase Status
 
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
-| 2. Runtime Contracts and Run Provenance | In progress | 3/5 plans complete; shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, reproducibility metadata, and manifest CLI are in place. |
+| 2. Runtime Contracts and Run Provenance | In progress | 4/5 plans complete; shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, and runtime preflight CLI are in place. |
 | 3. Data Curriculum and Dataset Quality | Not started | Prompt/synthetic curricula, validators, manifests, selected sample artifacts. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
@@ -53,9 +53,9 @@ progress:
 |--------|---------|--------|
 | v1 requirement coverage | 58/58 mapped; Phase 1 plus CFG-01, CFG-03, CFG-04, ART-01, ART-02, ART-03, ART-04, RUN-01, RUN-03, RUN-04, and STR-02 complete | 100% mapped; complete remaining Phase 2 runtime requirements |
 | Roadmap phases planned | 7 total, Phase 1 plan 04 complete | 6-8 standard-granularity phases |
-| Default test posture | 49 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, and runtime manifest contracts; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 62 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, and runtime preflight CLI behavior; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
-| Run tracking | Local file-backed manifests with immutable config snapshots and secret-safe reproducibility metadata | Trainer/preflight wiring and docs after Phase 2 |
+| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, and CPU-safe preflight reports | Documentation aliases after Phase 2 Plan 05 |
 
 ## Accumulated Context
 
@@ -81,6 +81,7 @@ progress:
 - Keep run manifests local and file-backed under ignored `runs/` roots, with tests using pytest temporary directories rather than committed runtime artifacts.
 - Serialize secret-related environment variables as boolean presence only, and serialize cache paths as presence flags instead of private machine paths.
 - Back the manifest CLI directly with `src.runtime.manifests` so command behavior remains CPU-safe and import-safe before GPU/model/OCR stages launch.
+- Use `scripts/preflight_runtime.py` as the CPU-safe preflight gate for config, artifact, and manifest readiness before generation, scoring, training, synthetic, or evaluation stages launch.
 
 ### Important Caveats
 
@@ -98,7 +99,7 @@ progress:
 
 ### Open Todos
 
-- Execute Phase 2 Plan 04 for trainer config loader wiring and a CPU-safe preflight CLI.
+- Execute Phase 2 Plan 05 to publish runtime preflight and manifest command docs.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -108,7 +109,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 2 Plan 04 for trainer config loader wiring and a CPU-safe preflight CLI.
+**Next Recommended Action:** Execute Phase 2 Plan 05 to publish runtime preflight and manifest command documentation.
 
 **Files Created/Updated:**
 
@@ -155,6 +156,12 @@ progress:
 - `src/runtime/manifests.py`
 - `scripts/run_manifest.py`
 - `.planning/phases/02-runtime-contracts-and-run-provenance/02-03-SUMMARY.md`
+- `tests/test_runtime_preflight.py`
+- `src/training/sft_trainer.py`
+- `src/training/dpo_trainer.py`
+- `src/training/masked_sft_trainer.py`
+- `scripts/preflight_runtime.py`
+- `.planning/phases/02-runtime-contracts-and-run-provenance/02-04-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
