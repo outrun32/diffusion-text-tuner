@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 3 - Data Curriculum and Dataset Quality
-current_plan: 03-06-PLAN.md
-status: phase-3-complete
+current_phase: Phase 4 - CPU-Safe Characterization Tests
+current_plan: Phase 4 planning pending
+status: phase-3-verified-complete
 last_updated: "2026-05-04T16:05:01Z"
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
   completed_plans: 6
   percent: 100
@@ -17,7 +17,7 @@ progress:
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 3 Plan 06 execution
+**Last updated:** 2026-05-04 after Phase 3 verification
 
 ## Project Reference
 
@@ -30,9 +30,9 @@ progress:
 
 ## Current Position
 
-**Current Phase:** Phase 3 - Data Curriculum and Dataset Quality  
-**Current Plan:** 03-06-PLAN.md  
-**Status:** Phase 3 complete; Plans 03-01 through 03-06 complete with runtime contracts, command docs, README, Makefile, and docs tests wired
+**Current Phase:** Phase 4 - CPU-Safe Characterization Tests  
+**Current Plan:** Phase 4 planning pending  
+**Status:** Phase 3 verified complete; ready to plan Phase 4
 **Progress:** [████████████████████] 100% for Phase 3
 
 ## Phase Status
@@ -41,7 +41,7 @@ progress:
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
-| 3. Data Curriculum and Dataset Quality | Complete | 6/6 plans complete. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
+| 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
@@ -51,7 +51,7 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 and Phase 2 requirements complete; DATA-01 through DATA-07 complete for Phase 3 including runtime/docs command wiring | 100% mapped; proceed to Phase 4 planning/verification |
+| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, and DATA-01 through DATA-07 complete and verified | 100% mapped; proceed to Phase 4 planning/verification |
 | Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
 | Default test posture | 120 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, prompt dataset quality/manifest CLI tests, synthetic quality/manifest/contact-sheet CLI tests, training selection artifact/CLI tests, data source comparison/CLI/docs tests, and Phase 3 data-quality docs/runtime wiring tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
@@ -99,6 +99,7 @@ progress:
 - Keep Phase 3 runtime validators shallow and CPU-safe: validate JSON/JSONL presence, `schema_version`, and required fields without inspecting generated images/tensors or invoking OCR/model stacks.
 - Use `docs/commands.md`, `README.md`, and Makefile aliases as the standard discovery surface for Phase 3 prompt validation, synthetic inspection, selection materialization, and source comparison workflows.
 - Treat generated Phase 3 reports, manifests, contact sheets, selected samples, preference pairs, and comparison outputs as non-committable runtime artifacts by default.
+- Capture synthetic dataset provenance through `scripts/inspect_synthetic_dataset.py` flags for build config, seed, template/runner, model metadata, and word/font/scene/background sources before using synthetic data as thesis evidence.
 
 ### Important Caveats
 
@@ -116,7 +117,7 @@ progress:
 
 ### Open Todos
 
-- Run Phase 3 verification/transition and plan Phase 4 CPU-safe characterization tests.
+- Plan Phase 4 CPU-safe characterization tests.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -126,7 +127,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Verify/transition Phase 3, then plan Phase 4 CPU-safe characterization tests.
+**Next Recommended Action:** Plan Phase 4 CPU-safe characterization tests.
 
 **Files Created/Updated:**
 
@@ -237,6 +238,7 @@ progress:
 - `README.md`
 - `Makefile`
 - `.planning/phases/03-data-curriculum-and-dataset-quality/03-06-SUMMARY.md`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/VERIFICATION.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
