@@ -30,6 +30,14 @@ Run inspection against existing build outputs without requiring OCR or model pac
 uv run python scripts/inspect_synthetic_dataset.py \
   --data-dir data/synth_cyrillic/masked_sft \
   --raw-dir data/synth_cyrillic/raw \
+  --config configs/synth/cyrillic.yaml \
+  --seed 42 \
+  --template scripts/synth/synthtiger_template.py \
+  --runner scripts/synth/build_dataset.py \
+  --model-id black-forest-labs/FLUX.2-klein-base-4B \
+  --word-source data/ru_freq_50k.txt \
+  --font-source data/fonts/font_list.txt \
+  --background-source data/backgrounds/unsplash_meta/photos.tsv \
   --report runs/synthetic-quality/synthetic-quality.json \
   --manifest runs/synthetic-quality/dataset-manifest.json \
   --contact-sheet runs/synthetic-quality/contact-sheet.png \
@@ -75,7 +83,19 @@ Use `--contact-sheet runs/synthetic-quality/contact-sheet.png` to render a PIL-o
 
 ## Manifest provenance
 
-When `--manifest` is provided, the CLI writes a `dataset-manifest/v1` manifest for synthetic data. The manifest records dataset paths, git state, safe source hashes for small CSV/JSONL inputs, referenced generated image/tensor paths, filtering stats, output counts, thresholds, report paths, and contact-sheet paths.
+When `--manifest` is provided, the CLI writes a `dataset-manifest/v1` manifest for synthetic data. The manifest records dataset paths, git state, build config hash/snapshot, `--seed` strategy, `--model-id` and optional `--model-revision`, safe source hashes for small CSV/JSONL/text inputs, referenced generated image/tensor paths, filtering stats, output counts, thresholds, report paths, and contact-sheet paths.
+
+Use provenance flags to capture the synthetic builder inputs that matter for thesis reproducibility:
+
+- `--config`: build config such as `configs/synth/cyrillic.yaml`.
+- `--seed`: synthetic build seed.
+- `--template`: SynthTIGER template path or identifier.
+- `--runner`: builder/runner script path or identifier.
+- `--model-id` / `--model-revision`: model used for latent or text-embedding baking, when applicable.
+- `--word-source`: one or more word/frequency/source text files.
+- `--font-source`: one or more font list or font provenance files.
+- `--scene-source`: one or more scene metadata files.
+- `--background-source`: one or more background manifest/provenance files.
 
 The manifest complements Phase 2 runtime contracts: it lets later training-selection, comparison, and thesis-report steps point back to exact synthetic builder outputs, filter settings, report summaries, source hashes, and local run artifacts without committing generated data.
 

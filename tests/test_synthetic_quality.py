@@ -166,6 +166,17 @@ def test_synthetic_inspection_cli_writes_report_manifest_and_contact_sheet(
     from scripts.inspect_synthetic_dataset import main
 
     data_dir, raw_dir = _write_masked_fixture(tmp_path)
+    config_path = tmp_path / "configs" / "synth.yaml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("seed: 123\nmodel_id: flux-test\n", encoding="utf-8")
+    word_source = tmp_path / "words.txt"
+    font_source = tmp_path / "fonts.txt"
+    scene_source = tmp_path / "scenes.json"
+    background_source = tmp_path / "backgrounds.tsv"
+    word_source.write_text("ёж\nщит\n", encoding="utf-8")
+    font_source.write_text("Serif\nSans\n", encoding="utf-8")
+    scene_source.write_text('{"scenes": []}\n', encoding="utf-8")
+    background_source.write_text("id\turl\n", encoding="utf-8")
     report_path = tmp_path / "reports" / "synthetic-quality.json"
     manifest_path = tmp_path / "reports" / "synthetic-manifest.json"
     contact_sheet_path = tmp_path / "reports" / "contact-sheet.png"
@@ -184,6 +195,24 @@ def test_synthetic_inspection_cli_writes_report_manifest_and_contact_sheet(
             str(contact_sheet_path),
             "--contact-sheet-samples",
             "2",
+            "--config",
+            str(config_path),
+            "--seed",
+            "123",
+            "--template",
+            "scripts/synth/synthtiger_template.py",
+            "--runner",
+            "scripts/synth/build_dataset.py",
+            "--model-id",
+            "black-forest-labs/FLUX.2-klein-base-4B",
+            "--word-source",
+            str(word_source),
+            "--font-source",
+            str(font_source),
+            "--scene-source",
+            str(scene_source),
+            "--background-source",
+            str(background_source),
         ]
     )
 
@@ -194,6 +223,16 @@ def test_synthetic_inspection_cli_writes_report_manifest_and_contact_sheet(
     assert report["sample_count"] == 2
     assert manifest["schema_version"] == "dataset-manifest/v1"
     assert manifest["dataset_kind"] == "synthetic"
+    assert manifest["config"]["path"] == str(config_path)
+    assert manifest["seed_strategy"] == {"seed": 123}
+    assert manifest["models"] == {
+        "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+        "model_revision": None,
+    }
+    assert manifest["metadata"]["template"] == "scripts/synth/synthtiger_template.py"
+    assert manifest["metadata"]["runner"] == "scripts/synth/build_dataset.py"
+    for source in (word_source, font_source, scene_source, background_source):
+        assert manifest["source_hashes"][str(source)]["hashed"] is True
     assert manifest["filtering_stats"]["accepted"] == 2
     assert contact_sheet_path.is_file()
     with Image.open(contact_sheet_path) as sheet:

@@ -33,6 +33,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--contact-sheet-samples", type=int, default=12)
     parser.add_argument("--ocr-results", default=None, help="Optional OCR CSV/JSONL result path")
+    parser.add_argument("--config", default=None, help="Synthetic build config path")
+    parser.add_argument("--seed", type=int, default=None, help="Synthetic build seed")
+    parser.add_argument("--template", default=None, help="SynthTIGER template path/name")
+    parser.add_argument("--runner", default=None, help="Synthetic builder/runner path/name")
+    parser.add_argument("--model-id", default=None, help="Model ID used for latent/text baking")
+    parser.add_argument("--model-revision", default=None, help="Optional model revision")
+    parser.add_argument("--word-source", action="append", default=[], help="Word/source text file")
+    parser.add_argument("--font-source", action="append", default=[], help="Font source file/list")
+    parser.add_argument("--scene-source", action="append", default=[], help="Scene source file")
+    parser.add_argument(
+        "--background-source", action="append", default=[], help="Background source file"
+    )
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--min-mask-area-fraction", type=float, default=None)
     parser.add_argument("--max-mask-area-fraction", type=float, default=None)
@@ -66,7 +78,10 @@ def main(argv: list[str] | None = None) -> int:
         manifest = create_dataset_manifest(
             dataset_kind="synthetic",
             dataset_paths=[data_dir],
-            source_paths=_source_paths(data_dir, raw_dir, args.ocr_results),
+            config_path=args.config,
+            config_snapshot=_config_snapshot(args),
+            seed_strategy=_seed_strategy(args),
+            source_paths=_source_paths(data_dir, raw_dir, args),
             filtering_stats={
                 "accepted": report.accepted_count,
                 "rejected": report.rejected_count,
@@ -74,10 +89,13 @@ def main(argv: list[str] | None = None) -> int:
                 "missing_files": report.missing_files,
             },
             output_counts={"samples": report.sample_count},
+            model_metadata=_model_metadata(args),
             metadata={
                 "quality_report_path": str(args.report),
                 "contact_sheet_path": str(args.contact_sheet) if args.contact_sheet else None,
                 "thresholds": thresholds,
+                "template": args.template,
+                "runner": args.runner,
             },
         )
         write_dataset_manifest(args.manifest, manifest)
@@ -101,12 +119,47 @@ def _thresholds_from_args(args: argparse.Namespace) -> dict[str, Any]:
     return thresholds
 
 
-def _source_paths(data_dir: Path, raw_dir: Path | None, ocr_results: str | None) -> list[Path]:
+def _seed_strategy(args: argparse.Namespace) -> dict[str, Any]:
+    return {"seed": args.seed} if args.seed is not None else {}
+
+
+def _config_snapshot(args: argparse.Namespace) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {}
+    if args.seed is not None:
+        snapshot["seed"] = args.seed
+    if args.template:
+        snapshot["template"] = args.template
+    if args.runner:
+        snapshot["runner"] = args.runner
+    if args.model_id:
+        snapshot["model_id"] = args.model_id
+    if args.model_revision:
+        snapshot["model_revision"] = args.model_revision
+    return snapshot
+
+
+def _model_metadata(args: argparse.Namespace) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    if args.model_id:
+        metadata["model_id"] = args.model_id
+    if args.model_revision:
+        metadata["model_revision"] = args.model_revision
+    return metadata
+
+
+def _source_paths(data_dir: Path, raw_dir: Path | None, args: argparse.Namespace) -> list[Path]:
     paths = [data_dir / "index.csv", data_dir / "prompts.jsonl", data_dir / "shapes.csv"]
     if raw_dir is not None:
         paths.append(raw_dir / "index.jsonl")
-    if ocr_results:
-        paths.append(Path(ocr_results))
+    if args.ocr_results:
+        paths.append(Path(args.ocr_results))
+    for group in (
+        args.word_source,
+        args.font_source,
+        args.scene_source,
+        args.background_source,
+    ):
+        paths.extend(Path(item) for item in group)
     return paths
 
 
