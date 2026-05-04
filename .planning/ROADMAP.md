@@ -40,7 +40,7 @@ Plans:
 
 **Wave 1**
 - [x] 01-01-PLAN.md — Inventory supported pipeline families, diagnostics, experiments, and historical tracks.
-- [ ] 01-02-PLAN.md — Add Python 3.11 uv/pyproject/lock tooling, pytest discovery, and Ruff configuration.
+- [x] 01-02-PLAN.md — Add Python 3.11 uv/pyproject/lock tooling, pytest discovery, and Ruff configuration.
 
 **Wave 2** *(blocked on Wave 1 tooling completion)*
 - [ ] 01-03-PLAN.md — Add tested, import-safe smoke checks for imports, CUDA, cache paths, model access, and OCR.
@@ -125,7 +125,7 @@ Cross-cutting constraints:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Execution Surface and Pipeline Inventory | 1/4 | Executing | 01-01 |
+| 1. Execution Surface and Pipeline Inventory | 2/4 | Executing | 01-01, 01-02 |
 | 2. Runtime Contracts and Run Provenance | 0/TBD | Not started | - |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
