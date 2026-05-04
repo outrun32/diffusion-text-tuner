@@ -158,3 +158,71 @@ def test_synthetic_quality_reports_threshold_rejections_and_optional_ocr(tmp_pat
         "exact_match_rate": 0.5,
         "mean_cer": 0.166667,
     }
+
+
+def test_synthetic_inspection_cli_writes_report_manifest_and_contact_sheet(
+    tmp_path: Path,
+) -> None:
+    from scripts.inspect_synthetic_dataset import main
+
+    data_dir, raw_dir = _write_masked_fixture(tmp_path)
+    report_path = tmp_path / "reports" / "synthetic-quality.json"
+    manifest_path = tmp_path / "reports" / "synthetic-manifest.json"
+    contact_sheet_path = tmp_path / "reports" / "contact-sheet.png"
+
+    exit_code = main(
+        [
+            "--data-dir",
+            str(data_dir),
+            "--raw-dir",
+            str(raw_dir),
+            "--report",
+            str(report_path),
+            "--manifest",
+            str(manifest_path),
+            "--contact-sheet",
+            str(contact_sheet_path),
+            "--contact-sheet-samples",
+            "2",
+        ]
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert report["schema_version"] == "synthetic-quality/v1"
+    assert report["sample_count"] == 2
+    assert manifest["schema_version"] == "dataset-manifest/v1"
+    assert manifest["dataset_kind"] == "synthetic"
+    assert manifest["filtering_stats"]["accepted"] == 2
+    assert contact_sheet_path.is_file()
+    with Image.open(contact_sheet_path) as sheet:
+        assert sheet.size[0] > 10
+        assert sheet.size[1] > 10
+
+
+def test_synthetic_inspection_cli_returns_nonzero_for_blocking_thresholds(
+    tmp_path: Path,
+) -> None:
+    from scripts.inspect_synthetic_dataset import main
+
+    data_dir, raw_dir = _write_masked_fixture(tmp_path)
+    report_path = tmp_path / "quality.json"
+
+    exit_code = main(
+        [
+            "--data-dir",
+            str(data_dir),
+            "--raw-dir",
+            str(raw_dir),
+            "--report",
+            str(report_path),
+            "--min-contrast",
+            "300",
+        ]
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert exit_code == 1
+    assert report["accepted_count"] == 0
+    assert report["rejection_reasons"] == {"contrast_below_min": 2}
