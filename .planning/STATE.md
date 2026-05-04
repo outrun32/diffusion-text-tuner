@@ -4,11 +4,11 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 3 - Data Curriculum and Dataset Quality
 current_plan: Phase 3 planning pending
-status: phase-2-complete
+status: phase-2-verified-complete
 last_updated: "2026-05-04T14:44:08Z"
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
   completed_plans: 5
   percent: 100
@@ -17,7 +17,7 @@ progress:
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 2 Plan 05 execution
+**Last updated:** 2026-05-04 after Phase 2 verification
 
 ## Project Reference
 
@@ -32,7 +32,7 @@ progress:
 
 **Current Phase:** Phase 3 - Data Curriculum and Dataset Quality  
 **Current Plan:** Phase 3 planning pending  
-**Status:** Phase 2 complete; ready to plan Phase 3
+**Status:** Phase 2 verified complete; ready to plan Phase 3
 **Progress:** [████████████████████] 100% for Phase 2
 
 ## Phase Status
@@ -40,7 +40,7 @@ progress:
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
-| 2. Runtime Contracts and Run Provenance | Complete | 5/5 plans complete; shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
+| 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
 | 3. Data Curriculum and Dataset Quality | Not started | Prompt/synthetic curricula, validators, manifests, selected sample artifacts. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
@@ -53,7 +53,7 @@ progress:
 |--------|---------|--------|
 | v1 requirement coverage | 58/58 mapped; Phase 1 plus all Phase 2 runtime requirements complete (CFG-01 through CFG-04, ART-01 through ART-04, RUN-01, RUN-03, RUN-04, STR-02) | 100% mapped; proceed to Phase 3 data requirements |
 | Roadmap phases planned | 7 total, Phase 1 plan 04 complete | 6-8 standard-granularity phases |
-| Default test posture | 62 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, and runtime preflight CLI behavior; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 68 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, and runtime preflight CLI behavior; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
 | Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, and README/Makefile command aliases | Extend to data manifests in Phase 3 |
 
@@ -83,6 +83,7 @@ progress:
 - Back the manifest CLI directly with `src.runtime.manifests` so command behavior remains CPU-safe and import-safe before GPU/model/OCR stages launch.
 - Use `scripts/preflight_runtime.py` as the CPU-safe preflight gate for config, artifact, and manifest readiness before generation, scoring, training, synthetic, or evaluation stages launch.
 - Keep new experiment config variants under `configs/experiments/` using `{stage}_{reward_or_data}_{purpose}.json`, while preserving existing root configs as runnable compatibility entry points.
+- Support run manifests for generation, scoring, synthesis, evaluation, SFT, DPO, and masked-SFT; non-training stages can be initialized without trainer configs, while training manifests still require validated config snapshots.
 
 ### Important Caveats
 
@@ -172,6 +173,7 @@ progress:
 - `configs/experiments/synthesis/README.md`
 - `tests/test_runtime_docs.py`
 - `.planning/phases/02-runtime-contracts-and-run-provenance/02-05-SUMMARY.md`
+- `.planning/phases/02-runtime-contracts-and-run-provenance/VERIFICATION.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
