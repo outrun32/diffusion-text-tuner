@@ -16,7 +16,7 @@
 
 - [x] **Phase 1: Execution Surface and Pipeline Inventory** - Users can understand what already runs and reproduce the basic command/test surface before deeper changes.
 - [x] **Phase 2: Runtime Contracts and Run Provenance** - Users can validate configs/artifacts and capture local run manifests before expensive pipeline work starts.
-- [ ] **Phase 3: Data Curriculum and Dataset Quality** - Users can define, generate, validate, and compare prompt/synthetic/reward-filtered training data. *(3/6 plans complete)*
+- [ ] **Phase 3: Data Curriculum and Dataset Quality** - Users can define, generate, validate, and compare prompt/synthetic/reward-filtered training data. *(4/6 plans complete)*
 - [ ] **Phase 4: CPU-Safe Characterization Tests** - Users can rely on lightweight fixtures and deterministic tests for fragile config, data, reward, prompt, and objective behavior.
 - [ ] **Phase 5: Training Objective and Pipeline Comparability** - Users can run and compare SFT, DPO, masked-SFT, and combined variants under explicit, controlled choices.
 - [ ] **Phase 6: Reward and Evaluation Validity** - Users can produce comparable held-out evaluations, reward diagnostics, and thesis-ready outputs from recorded runs.
@@ -102,7 +102,7 @@ Plans:
 - [x] 03-01-PLAN.md — Add explicit prompt curriculum configs and config-driven prompt generation modes.
 - [x] 03-02-PLAN.md — Add prompt dataset quality validation and dataset manifest tooling.
 - [x] 03-03-PLAN.md — Add synthetic masked-SFT quality inspection, optional OCR summaries, and contact sheets.
-- [ ] 03-04-PLAN.md — Materialize selected SFT samples and DPO preference pairs as versioned artifacts.
+- [x] 03-04-PLAN.md — Materialize selected SFT samples and DPO preference pairs as versioned artifacts.
 
 **Wave 2** *(blocked on Wave 1 quality/selection artifacts)*
 - [ ] 03-05-PLAN.md — Compare generated-image reward-filtered data against synthetic masked-SFT data.
@@ -166,7 +166,7 @@ Cross-cutting constraints:
 |-------|----------------|--------|-----------|
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
 | 2. Runtime Contracts and Run Provenance | 5/5 | Complete | 02-01, 02-02, 02-03, 02-04, 02-05 |
-| 3. Data Curriculum and Dataset Quality | 3/6 | In progress | 03-01, 03-02, 03-03 |
+| 3. Data Curriculum and Dataset Quality | 4/6 | In progress | 03-01, 03-02, 03-03, 03-04 |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
 | 6. Reward and Evaluation Validity | 0/TBD | Not started | - |
