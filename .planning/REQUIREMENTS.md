@@ -25,9 +25,9 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 ### Data Curriculum and Dataset Quality
 
-- [ ] **DATA-01**: User can define explicit prompt/data curriculum stages for Cyrillic and multilingual text rendering, including single letters, short words, multi-word phrases, digits, punctuation, mixed case, multiline text, and harder scene/style cases.
+- [x] **DATA-01**: User can define explicit prompt/data curriculum stages for Cyrillic and multilingual text rendering, including single letters, short words, multi-word phrases, digits, punctuation, mixed case, multiline text, and harder scene/style cases.
 - [ ] **DATA-02**: User can validate generated prompt datasets for target length, character set, rare-character coverage, duplicate rate, text naturalness, content-type distribution, style distribution, and illegal/malformed outputs.
-- [ ] **DATA-03**: User can replace prompt-generation monkey-patching with explicit config objects or config files for simple, full, curriculum, and future prompt-generation modes.
+- [x] **DATA-03**: User can replace prompt-generation monkey-patching with explicit config objects or config files for simple, full, curriculum, and future prompt-generation modes.
 - [ ] **DATA-04**: User can generate dataset manifests that record config, seed strategy, git commit, source word/scene/font/background hashes, model IDs, filtering stats, and output counts.
 - [ ] **DATA-05**: User can inspect and report synthetic dataset quality, including OCR verification, mask area/bbox/contrast filters, per-character coverage, per-font coverage, resolution mix, and sample contact sheets.
 - [ ] **DATA-06**: User can materialize selected SFT samples and DPO preference pairs as versioned artifacts instead of selecting them only inside dataset constructors.
@@ -144,9 +144,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENV-04 | Phase 1 | Complete |
 | ENV-05 | Phase 1 | Complete |
 | ENV-06 | Phase 1 | Complete |
-| DATA-01 | Phase 3 | Pending |
+| DATA-01 | Phase 3 | Complete |
 | DATA-02 | Phase 3 | Pending |
-| DATA-03 | Phase 3 | Pending |
+| DATA-03 | Phase 3 | Complete |
 | DATA-04 | Phase 3 | Pending |
 | DATA-05 | Phase 3 | Pending |
 | DATA-06 | Phase 3 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after Phase 2 Plan 05 execution*
+*Last updated: 2026-05-04 after Phase 3 Plan 01 execution*
