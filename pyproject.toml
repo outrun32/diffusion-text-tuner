@@ -1,0 +1,86 @@
+[project]
+name = "diffusion-text-tuner"
+version = "0.1.0"
+description = "Brownfield thesis toolkit for diffusion-based multilingual text rendering"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "accelerate",
+    "datasets",
+    "diffusers",
+    "peft",
+    "pillow",
+    "tqdm",
+    "transformers",
+]
+
+[project.optional-dependencies]
+gpu = [
+    "bitsandbytes",
+    "torch",
+    "torchvision",
+]
+ocr = [
+    "paddleocr",
+]
+reward = [
+    "bitsandbytes",
+    "paddleocr",
+]
+synthesis = [
+    "opencv-python",
+    "requests",
+    "synthtiger",
+]
+vllm = [
+    "vllm; sys_platform == 'linux'",
+]
+mlx = [
+    "mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+lint = [
+    "ruff",
+]
+plotting = [
+    "matplotlib",
+    "pandas",
+]
+analysis = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "scipy",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "torch",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--strict-markers"
+markers = [
+    "slow: marks tests as slow or long-running",
+    "gpu: marks tests that require CUDA or GPU hardware",
+    "model: marks tests that load or access model weights",
+    "ocr: marks tests that require OCR backends such as PaddleOCR",
+    "integration: marks tests that exercise multiple pipeline components",
+    "manual: marks tests intended for explicit manual execution only",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
