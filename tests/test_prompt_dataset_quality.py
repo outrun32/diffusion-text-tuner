@@ -6,6 +6,12 @@ from pathlib import Path
 from src.data_quality.prompt_validation import validate_prompt_dataset
 
 
+def _write_json(path: Path, payload: dict[str, object]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def _write_jsonl(path: Path, rows: list[dict[str, object] | str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
@@ -145,3 +151,93 @@ def test_prompt_quality_report_flags_cpu_safe_naturalness_and_script_heuristics(
     assert any("unmatched quote" in warning for warning in report.warnings)
     assert any("illegal character" in error and "line 5" in error for error in report.errors)
     assert any("disallowed script latin" in error and "line 5" in error for error in report.errors)
+
+
+def test_dataset_manifest_records_deterministic_prompt_provenance(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from src.data_quality import manifests
+
+    monkeypatch.setattr(manifests, "_utc_now", lambda: "2026-05-04T00:00:00Z")
+    monkeypatch.setattr(
+        manifests,
+        "collect_git_state",
+        lambda root=None: {"available": True, "commit": "abc1234", "dirty": False},
+    )
+    config = _write_json(
+        tmp_path / "configs" / "prompt.json",
+        {"schema_version": "prompt-generation/v1", "seed": 7, "model_id": "Qwen/demo"},
+    )
+    prompts = _write_jsonl(tmp_path / "data" / "prompts.jsonl", [_prompt_record("p1", "Ёж")])
+
+    manifest = manifests.create_dataset_manifest(
+        dataset_kind="prompt",
+        dataset_paths=[prompts],
+        config_path=config,
+        seed_strategy={"prompt.seed": 7},
+        source_paths=[prompts, config],
+        filtering_stats={"accepted": 1, "rejected": 0},
+        output_counts={"prompts": 1},
+        root=tmp_path,
+    )
+
+    payload = manifest.to_json_payload()
+    assert payload["schema_version"] == "dataset-manifest/v1"
+    assert payload["dataset_kind"] == "prompt"
+    assert payload["dataset_paths"] == [str(prompts)]
+    assert payload["config"]["path"] == str(config)
+    assert len(payload["config"]["sha256"]) == 64
+    assert payload["seed_strategy"] == {"prompt.seed": 7}
+    assert payload["git"] == {"available": True, "commit": "abc1234", "dirty": False}
+    assert payload["models"] == {"model_id": "Qwen/demo", "model_revision": None}
+    assert payload["source_hashes"][str(config)]["sha256"] == payload["config"]["sha256"]
+    assert payload["filtering_stats"] == {"accepted": 1, "rejected": 0}
+    assert payload["output_counts"] == {"prompts": 1}
+
+
+def test_dataset_manifest_loading_rejects_malformed_and_missing_fields(tmp_path: Path) -> None:
+    from src.data_quality.manifests import DatasetManifestError, load_dataset_manifest
+
+    malformed = tmp_path / "manifest.json"
+    malformed.write_text("{not-json", encoding="utf-8")
+    missing = tmp_path / "missing-fields.json"
+    missing.write_text(json.dumps({"schema_version": "dataset-manifest/v1"}), encoding="utf-8")
+
+    try:
+        load_dataset_manifest(malformed)
+    except DatasetManifestError as exc:
+        assert "malformed JSON" in str(exc)
+    else:  # pragma: no cover - documents required exception path
+        raise AssertionError("malformed manifest should be rejected")
+
+    try:
+        load_dataset_manifest(missing)
+    except DatasetManifestError as exc:
+        assert "dataset_kind" in str(exc)
+    else:  # pragma: no cover - documents required exception path
+        raise AssertionError("missing top-level fields should be rejected")
+
+
+def test_hash_source_file_references_binary_generated_artifacts_by_default(tmp_path: Path) -> None:
+    from src.data_quality.manifests import hash_source_file
+
+    text_path = tmp_path / "prompts.csv"
+    text_path.write_text("id,target_text\np1,Ёж\n", encoding="utf-8")
+    tensor_path = tmp_path / "outputs" / "generated" / "latent.pt"
+    tensor_path.parent.mkdir(parents=True)
+    tensor_path.write_bytes(b"\x80\x04binary")
+
+    text_hash = hash_source_file(text_path)
+    tensor_reference = hash_source_file(tensor_path)
+    tensor_forced = hash_source_file(tensor_path, safe_hash_inputs={tensor_path})
+
+    assert text_hash["hashed"] is True
+    assert len(text_hash["sha256"]) == 64
+    assert tensor_reference == {
+        "path": str(tensor_path),
+        "hashed": False,
+        "reason": "unsafe generated or binary artifact",
+    }
+    assert tensor_forced["hashed"] is True
+    assert len(tensor_forced["sha256"]) == 64
