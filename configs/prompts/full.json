@@ -1,0 +1,64 @@
+{
+  "schema_version": "prompt-generation/v1",
+  "mode": "full",
+  "seed": 42,
+  "output_path": "data/prompts/full.jsonl",
+  "generation": {
+    "n": 30000,
+    "no_llm": false,
+    "model": "Qwen/Qwen3.5-4B",
+    "backend": "transformers",
+    "batch_size": 1,
+    "temperature": 0.7,
+    "expand_scenes": 0
+  },
+  "curriculum_stages": [
+    {
+      "name": "broad_letters_words",
+      "family": "short_words",
+      "weight": 2,
+      "scripts": ["cyrillic"],
+      "content_types": ["poster", "photo_text", "typography", "product", "social_media", "clothing", "book_cover", "street_art", "niche"],
+      "tiers": [1, 2],
+      "cases": ["upper", "title", "lower", "mixed"],
+      "languages": ["ru", "en"]
+    },
+    {
+      "name": "broad_phrases",
+      "family": "phrases",
+      "weight": 5,
+      "scripts": ["cyrillic", "latin", "mixed"],
+      "content_types": ["poster", "photo_text", "typography", "product", "social_media", "clothing", "book_cover", "street_art", "niche"],
+      "tiers": [3, 4, 5],
+      "cases": ["upper", "title", "lower", "mixed"],
+      "languages": ["ru", "en"]
+    },
+    {
+      "name": "style_distribution",
+      "family": "style",
+      "weight": 2,
+      "scripts": ["cyrillic", "mixed"],
+      "content_types": ["typography", "book_cover", "clothing", "street_art"],
+      "tiers": [2, 3, 4],
+      "cases": ["upper", "title", "mixed"],
+      "languages": ["ru", "en"]
+    },
+    {
+      "name": "scene_distribution",
+      "family": "scene",
+      "weight": 2,
+      "scripts": ["cyrillic", "mixed"],
+      "content_types": ["poster", "photo_text", "product", "social_media", "niche"],
+      "tiers": [2, 3, 4, 5],
+      "cases": ["upper", "title", "lower"],
+      "languages": ["ru", "en"]
+    }
+  ],
+  "validation_thresholds": {
+    "min_rare_char_coverage": 0.05,
+    "max_duplicate_rate": 0.05,
+    "max_target_length": 160,
+    "min_content_type_entropy": 1.5,
+    "min_style_entropy": 1.5
+  }
+}
