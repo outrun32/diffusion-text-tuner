@@ -34,7 +34,23 @@
   3. User can install Python 3.11 dependencies from committed manifests with optional groups for GPU, OCR/reward, synthesis, vLLM/MLX, tests, linting, plotting, and analysis.
   4. User can run documented CPU-safe tests, lint/format commands, import/CUDA/model/OCR/cache smoke checks, and comparable local/SLURM command variants.
   5. User can distinguish default automated tests from slow, GPU, model, OCR, integration, and manual diagnostics.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 01-01-PLAN.md — Inventory supported pipeline families, diagnostics, experiments, and historical tracks.
+- [ ] 01-02-PLAN.md — Add Python 3.11 uv/pyproject/lock tooling, pytest discovery, and Ruff configuration.
+
+**Wave 2** *(blocked on Wave 1 tooling completion)*
+- [ ] 01-03-PLAN.md — Add tested, import-safe smoke checks for imports, CUDA, cache paths, model access, and OCR.
+
+**Wave 3** *(blocked on Wave 1 inventory/tooling and Wave 2 smoke CLI)*
+- [ ] 01-04-PLAN.md — Publish command catalog, Makefile aliases, README links, and diagnostic separation.
+
+Cross-cutting constraints:
+- Default automated tests stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER.
+- Generated images, tensors, checkpoints, logs, large datasets, `outputs/`, and `runs/` stay out of git unless intentionally tiny fixtures or documentation assets.
 
 ### Phase 2: Runtime Contracts and Run Provenance
 **Goal**: Users can validate configs, paths, artifacts, and run metadata before long-running generation, scoring, training, or evaluation stages start.  
@@ -109,7 +125,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Execution Surface and Pipeline Inventory | 0/TBD | Not started | - |
+| 1. Execution Surface and Pipeline Inventory | 0/4 | Ready to execute | - |
 | 2. Runtime Contracts and Run Provenance | 0/TBD | Not started | - |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
