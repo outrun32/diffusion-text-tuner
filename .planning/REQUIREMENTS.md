@@ -31,7 +31,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **DATA-04**: User can generate dataset manifests that record config, seed strategy, git commit, source word/scene/font/background hashes, model IDs, filtering stats, and output counts.
 - [x] **DATA-05**: User can inspect and report synthetic dataset quality, including OCR verification, mask area/bbox/contrast filters, per-character coverage, per-font coverage, resolution mix, and sample contact sheets.
 - [x] **DATA-06**: User can materialize selected SFT samples and DPO preference pairs as versioned artifacts instead of selecting them only inside dataset constructors.
-- [ ] **DATA-07**: User can compare generated-image reward-filtered data against synthetic masked-SFT data and identify where each data source is expected to help or fail.
+- [x] **DATA-07**: User can compare generated-image reward-filtered data against synthetic masked-SFT data and identify where each data source is expected to help or fail.
 
 ### Objective and Training Pipeline Validity
 
@@ -150,7 +150,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-04 | Phase 3 | Complete |
 | DATA-05 | Phase 3 | Complete |
 | DATA-06 | Phase 3 | Complete |
-| DATA-07 | Phase 3 | Pending |
+| DATA-07 | Phase 3 | Complete |
 | TRN-01 | Phase 4 | Pending |
 | TRN-02 | Phase 5 | Pending |
 | TRN-03 | Phase 5 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after Phase 3 Plan 04 execution*
+*Last updated: 2026-05-04 after Phase 3 Plan 05 execution*
