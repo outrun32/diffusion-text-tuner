@@ -204,3 +204,109 @@ def test_dpo_materialization_requires_winner_strictly_above_loser(tmp_path: Path
 
     assert summary["pair_count"] == 0
     assert summary["filtering_stats"]["ambiguous_below_margin"] == 1
+
+
+def test_materialization_cli_writes_sft_artifact_manifest_and_stdout_summary(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from scripts.materialize_training_data import main
+
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.70", "target_text": "Ёж"},
+            {"id": "p2", "version": 1, "score": "0.20", "target_text": "Жук"},
+        ],
+    )
+    output_dir = tmp_path / "selection"
+    manifest = tmp_path / "selection" / "selected_samples.manifest.json"
+
+    exit_code = main(
+        [
+            "--kind",
+            "sft",
+            "--scores-csv",
+            str(scores),
+            "--output-dir",
+            str(output_dir),
+            "--manifest",
+            str(manifest),
+            "--threshold",
+            "0.3",
+        ]
+    )
+
+    stdout = json.loads(capsys.readouterr().out)
+    rows = _read_jsonl(output_dir / "selected_samples.jsonl")
+    manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert stdout["schema_version"] == "selected-samples/v1"
+    assert stdout["selected_count"] == 1
+    assert stdout["output_path"] == str(output_dir / "selected_samples.jsonl")
+    assert manifest_payload["threshold"] == 0.3
+    assert manifest_payload["score_column"] == "score"
+    assert manifest_payload["source_scores_sha256"] == stdout["source_scores_sha256"]
+    assert rows[0]["manifest_path"] == str(manifest)
+
+
+def test_materialization_cli_writes_dpo_artifact_manifest_and_stdout_summary(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from scripts.materialize_training_data import main
+
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.10", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.70", "target_text": "Ёж"},
+        ],
+    )
+    output_dir = tmp_path / "selection"
+    manifest = output_dir / "preference_pairs.manifest.json"
+
+    exit_code = main(
+        [
+            "--kind",
+            "dpo",
+            "--scores-csv",
+            str(scores),
+            "--output-dir",
+            str(output_dir),
+            "--manifest",
+            str(manifest),
+            "--threshold",
+            "0.5",
+            "--margin",
+            "0.1",
+        ]
+    )
+
+    stdout = json.loads(capsys.readouterr().out)
+    rows = _read_jsonl(output_dir / "preference_pairs.jsonl")
+    assert exit_code == 0
+    assert stdout["schema_version"] == "preference-pairs/v1"
+    assert stdout["pair_count"] == 1
+    assert stdout["output_path"] == str(output_dir / "preference_pairs.jsonl")
+    assert rows[0]["winner_version"] == 2
+    assert rows[0]["loser_version"] == 1
+    assert rows[0]["manifest_path"] == str(manifest)
+
+
+def test_data_selection_docs_cover_artifact_schemas_and_runtime_contracts() -> None:
+    docs = Path("docs/data_selection.md").read_text(encoding="utf-8")
+
+    required_strings = [
+        "selected_samples.jsonl",
+        "preference_pairs.jsonl",
+        "selected-samples/v1",
+        "preference-pairs/v1",
+        "materialize_training_data.py --kind sft",
+        "materialize_training_data.py --kind dpo",
+        "default equivalence",
+        "docs/runtime_contracts.md",
+        "Do not commit generated images or tensors",
+    ]
+    missing = [text for text in required_strings if text not in docs]
+    assert not missing, missing
