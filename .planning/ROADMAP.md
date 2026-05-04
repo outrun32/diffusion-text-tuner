@@ -14,7 +14,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: Execution Surface and Pipeline Inventory** - Users can understand what already runs and reproduce the basic command/test surface before deeper changes.
+- [x] **Phase 1: Execution Surface and Pipeline Inventory** - Users can understand what already runs and reproduce the basic command/test surface before deeper changes.
 - [ ] **Phase 2: Runtime Contracts and Run Provenance** - Users can validate configs/artifacts and capture local run manifests before expensive pipeline work starts.
 - [ ] **Phase 3: Data Curriculum and Dataset Quality** - Users can define, generate, validate, and compare prompt/synthetic/reward-filtered training data.
 - [ ] **Phase 4: CPU-Safe Characterization Tests** - Users can rely on lightweight fixtures and deterministic tests for fragile config, data, reward, prompt, and objective behavior.
@@ -46,7 +46,7 @@ Plans:
 - [x] 01-03-PLAN.md — Add tested, import-safe smoke checks for imports, CUDA, cache paths, model access, and OCR.
 
 **Wave 3** *(blocked on Wave 1 inventory/tooling and Wave 2 smoke CLI)*
-- [ ] 01-04-PLAN.md — Publish command catalog, Makefile aliases, README links, and diagnostic separation.
+- [x] 01-04-PLAN.md — Publish command catalog, Makefile aliases, README links, and diagnostic separation.
 
 Cross-cutting constraints:
 - Default automated tests stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER.
@@ -125,7 +125,7 @@ Cross-cutting constraints:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Execution Surface and Pipeline Inventory | 3/4 | Executing | 01-01, 01-02, 01-03 |
+| 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
 | 2. Runtime Contracts and Run Provenance | 0/TBD | Not started | - |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |

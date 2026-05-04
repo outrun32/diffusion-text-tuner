@@ -21,7 +21,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **ENV-03**: User can run a standard CPU-safe test command without downloading large models or requiring CUDA.
 - [x] **ENV-04**: User can run documented smoke commands that validate key imports, CUDA availability, model access, PaddleOCR availability, and expected cache/runtime paths before launching long jobs.
 - [x] **ENV-05**: User can format and lint the repository with standard documented commands.
-- [ ] **ENV-06**: User can run local and SLURM variants of supported commands through documented, comparable entry points.
+- [x] **ENV-06**: User can run local and SLURM variants of supported commands through documented, comparable entry points.
 
 ### Data Curriculum and Dataset Quality
 
@@ -143,7 +143,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ENV-03 | Phase 1 | Complete |
 | ENV-04 | Phase 1 | Complete |
 | ENV-05 | Phase 1 | Complete |
-| ENV-06 | Phase 1 | Pending |
+| ENV-06 | Phase 1 | Complete |
 | DATA-01 | Phase 3 | Pending |
 | DATA-02 | Phase 3 | Pending |
 | DATA-03 | Phase 3 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-04 after Phase 1 Plan 03 execution*
+*Last updated: 2026-05-04 after Phase 1 Plan 04 execution*
