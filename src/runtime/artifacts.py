@@ -13,6 +13,45 @@ import torch
 
 ARTIFACT_SCHEMA_VERSION = "runtime-artifacts/v1"
 REQUIRED_SCORE_COLUMNS = frozenset({"id", "version", "score", "target_text"})
+PHASE3_JSON_SCHEMAS = {
+    "dataset_manifest": {
+        "key": "dataset_manifest",
+        "schema": "dataset-manifest/v1",
+        "required_fields": ("dataset_kind", "dataset_paths"),
+    },
+    "prompt_quality_report": {
+        "key": "prompt_quality_report",
+        "schema": "prompt-quality/v1",
+        "required_fields": ("valid_records",),
+    },
+    "synthetic_quality_report": {
+        "key": "synthetic_quality_report",
+        "schema": "synthetic-quality/v1",
+        "required_fields": ("sample_count",),
+    },
+    "data_source_comparison": {
+        "key": "data_source_comparison",
+        "schema": "data-source-comparison/v1",
+        "required_fields": ("evidence_available", "evidence_missing"),
+    },
+}
+PHASE3_JSONL_SCHEMAS = {
+    "selected_samples": {
+        "schema": "selected-samples/v1",
+        "required_fields": ("sample_id", "prompt_id", "version", "selected_score"),
+    },
+    "preference_pairs": {
+        "schema": "preference-pairs/v1",
+        "required_fields": (
+            "pair_id",
+            "prompt_id",
+            "winner_version",
+            "loser_version",
+            "winner_score",
+            "loser_score",
+        ),
+    },
+}
 
 
 class ArtifactValidationError(ValueError):
@@ -71,8 +110,10 @@ def validate_artifacts(stage: str, paths: Mapping[str, str | Path | bool]) -> Ar
         _validate_evaluation_outputs(context, normalized, require_ready=require_ready)
     elif stage_key == "run_manifest":
         _validate_manifest(context, normalized, require_ready=require_ready)
-    elif stage_key in {"selected_samples", "preference_pairs"}:
-        _validate_optional_index_file(context, normalized, stage_key, required=require_ready)
+    elif stage_key in PHASE3_JSON_SCHEMAS:
+        _validate_phase3_json(context, normalized, stage_key, required=require_ready)
+    elif stage_key in PHASE3_JSONL_SCHEMAS:
+        _validate_phase3_jsonl(context, normalized, stage_key, required=require_ready)
     else:
         context.error(f"stage: unsupported artifact stage {stage!r}")
 
@@ -117,6 +158,13 @@ def _normalize_stage(stage: str) -> str:
         "scoring": "scores",
         "score": "scores",
         "masked-sft": "masked_sft",
+        "dataset-manifest": "dataset_manifest",
+        "prompt-quality": "prompt_quality_report",
+        "prompt_quality": "prompt_quality_report",
+        "synthetic-quality": "synthetic_quality_report",
+        "synthetic_quality": "synthetic_quality_report",
+        "source-comparison": "data_source_comparison",
+        "data-comparison": "data_source_comparison",
         "manifests": "run_manifest",
         "manifest": "run_manifest",
     }
@@ -285,7 +333,11 @@ def _validate_synthetic_outputs(context: _ValidationContext, paths: Mapping[str,
     for key in ("raw_dir", "masked_dir", "anyword_dir"):
         _validate_optional_directory(context, paths, key, required=False)
     if "selected_samples" in paths:
-        _validate_optional_index_file(context, paths, "selected_samples", required=False)
+        _validate_phase3_jsonl(context, paths, "selected_samples", required=False)
+    if "synthetic_quality_report" in paths:
+        _validate_phase3_json(context, paths, "synthetic_quality_report", required=False)
+    if "dataset_manifest" in paths:
+        _validate_phase3_json(context, paths, "dataset_manifest", required=False)
 
 
 def _validate_evaluation_outputs(
@@ -339,6 +391,117 @@ def _validate_optional_index_file(
     if not path.is_file():
         message = f"{path}: {key} file is missing"
         context.error(message) if required else context.warn(message)
+
+
+def _validate_phase3_json(
+    context: _ValidationContext,
+    paths: Mapping[str, Path],
+    stage_key: str,
+    *,
+    required: bool,
+) -> None:
+    spec = PHASE3_JSON_SCHEMAS[stage_key]
+    key = str(spec["key"])
+    path = paths.get(key) or paths.get(stage_key)
+    if path is None:
+        if required:
+            context.error(f"{key}: required path is missing from validation input")
+        return
+    context.checked(path)
+    if not path.is_file():
+        message = f"{path}: {key} JSON file is missing"
+        context.error(message) if required else context.warn(message)
+        return
+    payload = _load_json_object(context, path, label=key)
+    if payload is None:
+        return
+    expected_schema = str(spec["schema"])
+    _validate_schema_version(context, path, payload, expected_schema)
+    for field_name in spec["required_fields"]:
+        if field_name not in payload:
+            context.error(f"{path}: missing required field {field_name!r}")
+    context.metadata["schema_version"] = payload.get("schema_version")
+    context.metadata[f"{stage_key}_path"] = str(path)
+
+
+def _validate_phase3_jsonl(
+    context: _ValidationContext,
+    paths: Mapping[str, Path],
+    stage_key: str,
+    *,
+    required: bool,
+) -> None:
+    path = paths.get(stage_key)
+    if path is None:
+        if required:
+            context.error(f"{stage_key}: required path is missing from validation input")
+        return
+    context.checked(path)
+    if not path.is_file():
+        message = f"{path}: {stage_key} file is missing"
+        context.error(message) if required else context.warn(message)
+        return
+    spec = PHASE3_JSONL_SCHEMAS[stage_key]
+    expected_schema = str(spec["schema"])
+    record_count = 0
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            record_count += 1
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                context.error(f"{path}: line {line_number}: malformed JSONL")
+                continue
+            if not isinstance(payload, dict):
+                context.error(f"{path}: line {line_number}: record must be an object")
+                continue
+            _validate_schema_version(
+                context,
+                path,
+                payload,
+                expected_schema,
+                line_number=line_number,
+            )
+            for field_name in spec["required_fields"]:
+                if field_name not in payload:
+                    context.error(
+                        f"{path}: line {line_number}: missing required field {field_name!r}"
+                    )
+    context.metadata["schema_version"] = expected_schema
+    context.metadata["record_count"] = record_count
+
+
+def _load_json_object(
+    context: _ValidationContext, path: Path, *, label: str
+) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        context.error(f"{path}: malformed {label} JSON")
+        return None
+    if not isinstance(payload, dict):
+        context.error(f"{path}: {label} JSON must be an object")
+        return None
+    return payload
+
+
+def _validate_schema_version(
+    context: _ValidationContext,
+    path: Path,
+    payload: Mapping[str, Any],
+    expected_schema: str,
+    *,
+    line_number: int | None = None,
+) -> None:
+    actual_schema = payload.get("schema_version")
+    location = f"{path}: line {line_number}" if line_number is not None else str(path)
+    if actual_schema != expected_schema:
+        context.error(
+            f"{location}: schema_version must be {expected_schema}, got {actual_schema!r}"
+        )
 
 
 def _validate_optional_directory(

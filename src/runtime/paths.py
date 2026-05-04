@@ -106,6 +106,10 @@ def assert_artifact_git_safety(paths: Iterable[str | Path]) -> GitSafetyReport:
 
 def _normalize_stage(stage: str) -> str:
     aliases = {
+        "comparison": "data_comparison",
+        "data-source-comparison": "data_comparison",
+        "data_quality": "prompt_quality",
+        "selection": "data_selection",
         "image_generation": "generated",
         "generation": "generated",
         "score": "scoring",
@@ -131,14 +135,22 @@ def _default_paths(
 ) -> dict[str, Path]:
     generated_root = outputs_root / "generated"
     masked_root = data_root / "synth_cyrillic" / "masked_sft"
+    prompt_quality_root = runs_root / "prompt-quality"
+    synthetic_quality_root = runs_root / "synthetic-quality"
+    comparisons_root = runs_root / "comparisons"
     run_id = str(overrides.get("run_id", "<run_id>"))
     paths_by_stage: dict[str, dict[str, Path]] = {
         "prompts": {
             "prompts_jsonl": data_root / "prompts_simple.jsonl",
         },
         "prompt_generation": {
-            "prompts_jsonl": data_root / "prompts_simple.jsonl",
-            "config": configs_root / "prompts.json",
+            "prompts_jsonl": data_root / "prompts" / "simple.jsonl",
+            "config": configs_root / "prompts" / "simple.json",
+            "simple_config": configs_root / "prompts" / "simple.json",
+            "full_config": configs_root / "prompts" / "full.json",
+            "curriculum_config": configs_root / "prompts" / "curriculum.json",
+            "prompt_quality_report": prompt_quality_root / "prompt-quality.json",
+            "dataset_manifest": prompt_quality_root / "dataset-manifest.json",
         },
         "generated": {
             "prompts_jsonl": data_root / "prompts_simple.jsonl",
@@ -148,6 +160,9 @@ def _default_paths(
             "text_embeds_dir": generated_root / "text_embeds",
             "scores_csv": generated_root / "scores.csv",
             "manifest_json": generated_root / "manifest.json",
+            "selected_samples": generated_root / "selected_samples.jsonl",
+            "preference_pairs": generated_root / "preference_pairs.jsonl",
+            "dataset_manifest": generated_root / "dataset-manifest.json",
         },
         "scoring": {
             "images_dir": generated_root / "images",
@@ -198,6 +213,26 @@ def _default_paths(
             "anyword_dir": data_root / "synth_cyrillic" / "anyword_format",
             "index_csv": masked_root / "index.csv",
             "selected_samples": masked_root / "selected_samples.jsonl",
+            "synthetic_quality_report": synthetic_quality_root / "synthetic-quality.json",
+            "dataset_manifest": synthetic_quality_root / "dataset-manifest.json",
+            "contact_sheet": synthetic_quality_root / "contact-sheet.png",
+        },
+        "data_selection": {
+            "scores_csv": generated_root / "scores.csv",
+            "selected_samples": generated_root / "selected_samples.jsonl",
+            "selected_samples_manifest": generated_root / "selected_samples.manifest.json",
+            "preference_pairs": generated_root / "preference_pairs.jsonl",
+            "preference_pairs_manifest": generated_root / "preference_pairs.manifest.json",
+        },
+        "data_comparison": {
+            "prompt_quality_report": prompt_quality_root / "prompt-quality.json",
+            "selected_samples": generated_root / "selected_samples.jsonl",
+            "preference_pairs": generated_root / "preference_pairs.jsonl",
+            "generated_dataset_manifest": generated_root / "dataset-manifest.json",
+            "synthetic_quality_report": synthetic_quality_root / "synthetic-quality.json",
+            "synthetic_manifest": synthetic_quality_root / "dataset-manifest.json",
+            "data_source_comparison": comparisons_root / "generated-vs-synthetic.json",
+            "markdown_summary": comparisons_root / "generated-vs-synthetic.md",
         },
         "evaluation": {
             "config": configs_root / "eval_suite.json",

@@ -30,13 +30,27 @@ def test_phase3_runtime_paths_expose_data_quality_artifacts(tmp_path: Path) -> N
     selection_paths = resolve_stage_paths("data_selection", root=tmp_path).paths
     comparison_paths = resolve_stage_paths("data_comparison", root=tmp_path).paths
 
-    assert prompt_paths["prompt_quality_report"] == tmp_path / "runs" / "prompt-quality" / "prompt-quality.json"
-    assert prompt_paths["dataset_manifest"] == tmp_path / "runs" / "prompt-quality" / "dataset-manifest.json"
-    assert synthetic_paths["synthetic_quality_report"] == tmp_path / "runs" / "synthetic-quality" / "synthetic-quality.json"
-    assert synthetic_paths["contact_sheet"] == tmp_path / "runs" / "synthetic-quality" / "contact-sheet.png"
-    assert selection_paths["selected_samples"] == tmp_path / "outputs" / "generated" / "selected_samples.jsonl"
-    assert selection_paths["preference_pairs"] == tmp_path / "outputs" / "generated" / "preference_pairs.jsonl"
-    assert comparison_paths["data_source_comparison"] == tmp_path / "runs" / "comparisons" / "generated-vs-synthetic.json"
+    assert prompt_paths["prompt_quality_report"] == (
+        tmp_path / "runs" / "prompt-quality" / "prompt-quality.json"
+    )
+    assert prompt_paths["dataset_manifest"] == (
+        tmp_path / "runs" / "prompt-quality" / "dataset-manifest.json"
+    )
+    assert synthetic_paths["synthetic_quality_report"] == (
+        tmp_path / "runs" / "synthetic-quality" / "synthetic-quality.json"
+    )
+    assert synthetic_paths["contact_sheet"] == (
+        tmp_path / "runs" / "synthetic-quality" / "contact-sheet.png"
+    )
+    assert selection_paths["selected_samples"] == (
+        tmp_path / "outputs" / "generated" / "selected_samples.jsonl"
+    )
+    assert selection_paths["preference_pairs"] == (
+        tmp_path / "outputs" / "generated" / "preference_pairs.jsonl"
+    )
+    assert comparison_paths["data_source_comparison"] == (
+        tmp_path / "runs" / "comparisons" / "generated-vs-synthetic.json"
+    )
 
 
 def test_phase3_runtime_artifact_validators_accept_json_reports_and_jsonl(tmp_path: Path) -> None:
@@ -58,7 +72,11 @@ def test_phase3_runtime_artifact_validators_accept_json_reports_and_jsonl(tmp_pa
     )
     comparison_report = _write_json(
         tmp_path / "runs" / "comparisons" / "generated-vs-synthetic.json",
-        {"schema_version": "data-source-comparison/v1", "evidence_available": [], "evidence_missing": []},
+        {
+            "schema_version": "data-source-comparison/v1",
+            "evidence_available": [],
+            "evidence_missing": [],
+        },
     )
     selected_samples = _write_jsonl(
         tmp_path / "outputs" / "generated" / "selected_samples.jsonl",
@@ -88,12 +106,27 @@ def test_phase3_runtime_artifact_validators_accept_json_reports_and_jsonl(tmp_pa
     )
 
     checks = [
-        validate_artifacts("dataset_manifest", {"dataset_manifest": manifest, "require_ready": True}),
-        validate_artifacts("prompt_quality_report", {"prompt_quality_report": prompt_report, "require_ready": True}),
-        validate_artifacts("synthetic_quality_report", {"synthetic_quality_report": synthetic_report, "require_ready": True}),
-        validate_artifacts("data_source_comparison", {"data_source_comparison": comparison_report, "require_ready": True}),
-        validate_artifacts("selected_samples", {"selected_samples": selected_samples, "require_ready": True}),
-        validate_artifacts("preference_pairs", {"preference_pairs": preference_pairs, "require_ready": True}),
+        validate_artifacts(
+            "dataset_manifest", {"dataset_manifest": manifest, "require_ready": True}
+        ),
+        validate_artifacts(
+            "prompt_quality_report",
+            {"prompt_quality_report": prompt_report, "require_ready": True},
+        ),
+        validate_artifacts(
+            "synthetic_quality_report",
+            {"synthetic_quality_report": synthetic_report, "require_ready": True},
+        ),
+        validate_artifacts(
+            "data_source_comparison",
+            {"data_source_comparison": comparison_report, "require_ready": True},
+        ),
+        validate_artifacts(
+            "selected_samples", {"selected_samples": selected_samples, "require_ready": True}
+        ),
+        validate_artifacts(
+            "preference_pairs", {"preference_pairs": preference_pairs, "require_ready": True}
+        ),
     ]
 
     assert all(report.ok for report in checks)
@@ -116,7 +149,13 @@ def test_phase3_runtime_artifact_validators_block_missing_or_wrong_schema(tmp_pa
     with pytest.raises(ArtifactValidationError, match="selected_samples"):
         validate_artifacts(
             "selected_samples",
-            {"selected_samples": tmp_path / "outputs" / "generated" / "missing.jsonl", "require_ready": True},
+            {
+                "selected_samples": tmp_path
+                / "outputs"
+                / "generated"
+                / "missing.jsonl",
+                "require_ready": True,
+            },
         )
 
 
