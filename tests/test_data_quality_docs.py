@@ -172,3 +172,69 @@ def test_phase3_generated_reports_and_contact_sheets_are_non_committable() -> No
 
     assert not report.ok
     assert len(report.errors) == 5
+
+
+def _read_repo_file(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def test_phase3_command_docs_publish_data_quality_workflows() -> None:
+    docs = _read_repo_file("docs/commands.md")
+
+    required_strings = [
+        "## Phase 3 data curriculum and quality",
+        "configs/prompts/simple.json",
+        "configs/prompts/full.json",
+        "configs/prompts/curriculum.json",
+        "python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json",
+        "uv run python scripts/validate_prompt_dataset.py",
+        "uv run python scripts/inspect_synthetic_dataset.py",
+        "uv run python scripts/materialize_training_data.py --kind sft",
+        "uv run python scripts/materialize_training_data.py --kind dpo",
+        "uv run python scripts/compare_data_sources.py",
+        "OCR/model-heavy checks are opt-in",
+        "SLURM-compatible",
+        "generated reports, images, tensors, contact sheets, selections, and comparisons",
+    ]
+
+    missing = [value for value in required_strings if value not in docs]
+    assert missing == []
+
+
+def test_makefile_exposes_phase3_cpu_safe_aliases() -> None:
+    makefile = _read_repo_file("Makefile")
+
+    required_strings = [
+        "phase3-generate-prompts:",
+        "phase3-validate-prompts:",
+        "phase3-inspect-synthetic:",
+        "phase3-materialize-sft:",
+        "phase3-materialize-dpo:",
+        "phase3-compare-sources:",
+        "scripts/validate_prompt_dataset.py",
+        "scripts/inspect_synthetic_dataset.py",
+        "scripts/materialize_training_data.py --kind sft",
+        "scripts/materialize_training_data.py --kind dpo",
+        "scripts/compare_data_sources.py",
+    ]
+
+    missing = [value for value in required_strings if value not in makefile]
+    assert missing == []
+
+
+def test_readme_links_phase3_data_quality_docs_and_artifact_safety() -> None:
+    readme = _read_repo_file("README.md")
+
+    required_strings = [
+        "docs/data_curriculum.md",
+        "docs/dataset_quality.md",
+        "docs/synthetic_quality.md",
+        "docs/data_selection.md",
+        "docs/data_source_comparison.md",
+        "Phase 3 data curriculum and quality",
+        "generated reports, images, tensors, contact sheets, selections, and comparisons",
+        "remain out of git",
+    ]
+
+    missing = [value for value in required_strings if value not in readme]
+    assert missing == []
