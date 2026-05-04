@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 1 - Execution Surface and Pipeline Inventory
-current_plan: Phase 1 complete — ready for Phase 2 planning/transition
+current_plan: Phase 1 verified complete — ready for Phase 2 planning/transition
 status: phase-complete
 last_updated: "2026-05-04T13:38:11Z"
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
   completed_plans: 4
   percent: 100
@@ -17,7 +17,7 @@ progress:
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 1 Plan 04 execution
+**Last updated:** 2026-05-04 after Phase 1 verification
 
 ## Project Reference
 
@@ -31,15 +31,15 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 1 - Execution Surface and Pipeline Inventory  
-**Current Plan:** Phase 1 complete — ready for Phase 2 planning/transition  
-**Status:** Phase 1 complete
+**Current Plan:** Phase 1 verified complete — ready for Phase 2 planning/transition  
+**Status:** Phase 1 verified complete
 **Progress:** [████████████████████] 100%
 
 ## Phase Status
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1. Execution Surface and Pipeline Inventory | Complete | 4/4 plans complete: inventory, uv/tooling, import-safe smoke checks, command catalog, Makefile aliases, README links, and diagnostic separation done. |
+| 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Not started | Config validation, artifact contracts, manifests, runtime helpers. |
 | 3. Data Curriculum and Dataset Quality | Not started | Prompt/synthetic curricula, validators, manifests, selected sample artifacts. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
@@ -129,6 +129,7 @@ progress:
 - `README.md`
 - `docs/pipeline_inventory.md`
 - `.planning/phases/01-execution-surface-and-pipeline-inventory/01-04-SUMMARY.md`
+- `.planning/phases/01-execution-surface-and-pipeline-inventory/VERIFICATION.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
