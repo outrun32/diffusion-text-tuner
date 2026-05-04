@@ -4,20 +4,20 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 3 - Data Curriculum and Dataset Quality
 current_plan: 03-06-PLAN.md
-status: phase-3-in-progress
-last_updated: "2026-05-04T15:56:26Z"
+status: phase-3-complete
+last_updated: "2026-05-04T16:05:01Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 3 Plan 05 execution
+**Last updated:** 2026-05-04 after Phase 3 Plan 06 execution
 
 ## Project Reference
 
@@ -32,8 +32,8 @@ progress:
 
 **Current Phase:** Phase 3 - Data Curriculum and Dataset Quality  
 **Current Plan:** 03-06-PLAN.md  
-**Status:** Phase 3 in progress; Plans 03-01 through 03-05 complete and ready for Wave 3 runtime/docs command wiring
-**Progress:** [█████████████████░░░] 83% for Phase 3
+**Status:** Phase 3 complete; Plans 03-01 through 03-06 complete with runtime contracts, command docs, README, Makefile, and docs tests wired
+**Progress:** [████████████████████] 100% for Phase 3
 
 ## Phase Status
 
@@ -41,7 +41,7 @@ progress:
 |-------|--------|-------|
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
-| 3. Data Curriculum and Dataset Quality | In progress | 5/6 plans complete. Plans 03-01 through 03-05 added prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, and generated-vs-synthetic source comparison reports. |
+| 3. Data Curriculum and Dataset Quality | Complete | 6/6 plans complete. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
@@ -51,11 +51,11 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 plus all Phase 2 runtime requirements complete; DATA-01 through DATA-07 complete for Phase 3 implementation, with Plan 03-06 documentation/runtime wiring remaining | 100% mapped; execute remaining Phase 3 docs/runtime wiring |
+| v1 requirement coverage | 58/58 mapped; Phase 1 and Phase 2 requirements complete; DATA-01 through DATA-07 complete for Phase 3 including runtime/docs command wiring | 100% mapped; proceed to Phase 4 planning/verification |
 | Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
-| Default test posture | 111 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, prompt dataset quality/manifest CLI tests, synthetic quality/manifest/contact-sheet CLI tests, training selection artifact/CLI tests, and data source comparison/CLI/docs tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 120 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, prompt dataset quality/manifest CLI tests, synthetic quality/manifest/contact-sheet CLI tests, training selection artifact/CLI tests, data source comparison/CLI/docs tests, and Phase 3 data-quality docs/runtime wiring tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
-| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, and generated-vs-synthetic comparison reports | Extend command/docs wiring during remaining Phase 3 execution |
+| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, and Phase 3 runtime/docs command wiring | Extend characterization coverage during Phase 4 |
 
 ## Accumulated Context
 
@@ -96,6 +96,9 @@ progress:
 - Materialize reward-filtered training selections as JSONL metadata artifacts before comparison-grade runs, keeping current trainer loaders unchanged until a later optional loader-wiring plan.
 - Treat DPO preference artifacts as invalid unless the winner score is strictly greater than the loser score and the configured margin/ambiguity filters pass.
 - Compare generated reward-filtered data against synthetic masked-SFT data using metadata-only JSON/JSONL reports and manifests; missing optional evidence must remain explicit in comparison reports.
+- Keep Phase 3 runtime validators shallow and CPU-safe: validate JSON/JSONL presence, `schema_version`, and required fields without inspecting generated images/tensors or invoking OCR/model stacks.
+- Use `docs/commands.md`, `README.md`, and Makefile aliases as the standard discovery surface for Phase 3 prompt validation, synthetic inspection, selection materialization, and source comparison workflows.
+- Treat generated Phase 3 reports, manifests, contact sheets, selected samples, preference pairs, and comparison outputs as non-committable runtime artifacts by default.
 
 ### Important Caveats
 
@@ -113,7 +116,7 @@ progress:
 
 ### Open Todos
 
-- Execute remaining Phase 3 Wave 3 documentation/command wiring plan: 03-06.
+- Run Phase 3 verification/transition and plan Phase 4 CPU-safe characterization tests.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -123,7 +126,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 3 Plan 03-06 for Phase 3 runtime contract, command alias, README, and docs-test wiring.
+**Next Recommended Action:** Verify/transition Phase 3, then plan Phase 4 CPU-safe characterization tests.
 
 **Files Created/Updated:**
 
@@ -226,6 +229,14 @@ progress:
 - `tests/test_data_source_comparison.py`
 - `docs/data_source_comparison.md`
 - `.planning/phases/03-data-curriculum-and-dataset-quality/03-05-SUMMARY.md`
+- `tests/test_data_quality_docs.py`
+- `src/runtime/paths.py`
+- `src/runtime/artifacts.py`
+- `docs/runtime_contracts.md`
+- `docs/commands.md`
+- `README.md`
+- `Makefile`
+- `.planning/phases/03-data-curriculum-and-dataset-quality/03-06-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
