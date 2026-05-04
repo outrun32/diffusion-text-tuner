@@ -246,3 +246,22 @@ def test_compare_data_sources_cli_handles_missing_optional_inputs(tmp_path: Path
     assert report["evidence_available"] == []
     assert report["counts"]["generated_selected_samples"] is None
     assert "selected_samples" in report["evidence_missing"]
+
+
+def test_data_source_comparison_docs_cover_workflow_and_thesis_caveats() -> None:
+    docs = Path("docs/data_source_comparison.md").read_text(encoding="utf-8")
+
+    required_strings = [
+        "reward-filtered generated images",
+        "synthetic masked-SFT",
+        "rare-character coverage",
+        "reward/OCR false positives",
+        "natural scene realism",
+        "manifests",
+        "thesis comparison",
+        "training loss or DPO accuracy",
+        "compare_data_sources.py",
+        "data-source-comparison/v1",
+    ]
+    missing = [text for text in required_strings if text not in docs]
+    assert not missing, missing
