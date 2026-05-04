@@ -71,7 +71,7 @@ Plans:
 - [x] 02-02-PLAN.md — Define canonical runtime paths, artifact schemas, preflight validators, and generated-artifact safety docs.
 
 **Wave 2** *(blocked on Wave 1 config/artifact contracts)*
-- [ ] 02-03-PLAN.md — Add local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands.
+- [x] 02-03-PLAN.md — Add local run manifests, config snapshots, reproducibility metadata, and manifest CLI commands.
 
 **Wave 3** *(blocked on runtime helpers and manifests)*
 - [ ] 02-04-PLAN.md — Wire trainer config loaders to shared validation and expose a CPU-safe preflight CLI.
@@ -146,7 +146,7 @@ Cross-cutting constraints:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
-| 2. Runtime Contracts and Run Provenance | 2/5 | In progress | 02-01, 02-02 |
+| 2. Runtime Contracts and Run Provenance | 3/5 | In progress | 02-01, 02-02, 02-03 |
 | 3. Data Curriculum and Dataset Quality | 0/TBD | Not started | - |
 | 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
