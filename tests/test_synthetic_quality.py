@@ -245,7 +245,8 @@ def test_synthetic_quality_docs_cover_reports_manifests_and_artifact_safety() ->
         "--ocr-results runs/synthetic-quality/ocr-results.csv",
         "--contact-sheet runs/synthetic-quality/contact-sheet.png",
         "dataset-manifest/v1",
-        "Generated reports, manifests, contact sheets, images, masks, tensors, and private OCR outputs are runtime artifacts",
+        "Generated reports, manifests, contact sheets, images, masks, tensors, "
+        "and private OCR outputs are runtime artifacts",
     ]
     missing = [item for item in required if item not in docs]
     assert not missing
