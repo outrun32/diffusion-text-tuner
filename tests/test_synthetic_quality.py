@@ -226,3 +226,26 @@ def test_synthetic_inspection_cli_returns_nonzero_for_blocking_thresholds(
     assert exit_code == 1
     assert report["accepted_count"] == 0
     assert report["rejection_reasons"] == {"contrast_below_min": 2}
+
+
+def test_synthetic_quality_docs_cover_reports_manifests_and_artifact_safety() -> None:
+    docs = Path("docs/synthetic_quality.md").read_text(encoding="utf-8")
+    required = [
+        "inspect_synthetic_dataset.py",
+        "scripts/synth/build_dataset.py",
+        "raw/imgs/{sid}.png",
+        "masked_sft/index.csv",
+        "mask area fraction",
+        "bbox height fraction",
+        "foreground/background contrast",
+        "character coverage",
+        "font coverage",
+        "resolution distribution",
+        "OCR verification is optional",
+        "--ocr-results runs/synthetic-quality/ocr-results.csv",
+        "--contact-sheet runs/synthetic-quality/contact-sheet.png",
+        "dataset-manifest/v1",
+        "Generated reports, manifests, contact sheets, images, masks, tensors, and private OCR outputs are runtime artifacts",
+    ]
+    missing = [item for item in required if item not in docs]
+    assert not missing
