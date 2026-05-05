@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from scripts import check_training_comparability as comparability_cli
 from src.training.comparability import compare_training_configs, format_comparability_report
 
 
@@ -117,7 +118,10 @@ def test_compare_training_configs_reports_missing_controlled_fields_explicitly()
 
 def test_compare_training_configs_identical_controlled_fields_has_no_blockers():
     left = _base_config(metric_columns=["vlm_score"], samples_dir="outputs/left/samples")
-    right = _base_config(metric_columns=["vlm_score", "ocr_cer"], samples_dir="outputs/right/samples")
+    right = _base_config(
+        metric_columns=["vlm_score", "ocr_cer"],
+        samples_dir="outputs/right/samples",
+    )
 
     report = compare_training_configs(left, right)
 
@@ -147,6 +151,92 @@ def test_format_comparability_report_renders_deterministic_markdown():
     assert markdown == format_comparability_report(json.loads(json.dumps(report)))
 
 
+def test_check_training_comparability_cli_exits_one_for_blocking_manifest_mismatch(
+    tmp_path, capsys
+):
+    left = _write_manifest(
+        tmp_path / "runs" / "left" / "manifest.json",
+        run_id="run-left",
+        config_snapshot=_base_config(seed=1),
+    )
+    right = _write_manifest(
+        tmp_path / "runs" / "right" / "manifest.json",
+        run_id="run-right",
+        config_snapshot=_base_config(seed=2),
+    )
+
+    exit_code = comparability_cli.main(
+        ["--left-manifest", str(left), "--right-manifest", str(right)]
+    )
+
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["left_label"] == "run-left"
+    assert payload["right_label"] == "run-right"
+    assert payload["summary"]["is_comparable"] is False
+    assert {item["field"] for item in payload["blocking_mismatches"]} == {"seed"}
+
+
+def test_check_training_comparability_cli_allows_blocking_and_writes_markdown(tmp_path, capsys):
+    left = _write_manifest(
+        tmp_path / "runs" / "left" / "manifest.json",
+        run_id="run-left",
+        config_snapshot=_base_config(num_inference_steps=20),
+    )
+    right = _write_manifest(
+        tmp_path / "runs" / "right" / "manifest.json",
+        run_id="run-right",
+        config_snapshot=_base_config(num_inference_steps=28),
+    )
+    output = tmp_path / "comparability.md"
+
+    exit_code = comparability_cli.main(
+        [
+            "--left-manifest",
+            str(left),
+            "--right-manifest",
+            str(right),
+            "--markdown",
+            "--output",
+            str(output),
+            "--allow-blocking",
+        ]
+    )
+
+    assert exit_code == 0
+    assert capsys.readouterr().out == ""
+    markdown = output.read_text(encoding="utf-8")
+    assert "# Training comparability report" in markdown
+    assert "| num_inference_steps | inference | 20 | 28 | value_mismatch |" in markdown
+
+
+def test_check_training_comparability_cli_compares_valid_stage_configs(tmp_path, capsys):
+    left = tmp_path / "sft.json"
+    right = tmp_path / "dpo.json"
+    _write_config(left, stage="sft", seed=11)
+    _write_config(right, stage="dpo", seed=22)
+
+    exit_code = comparability_cli.main(
+        [
+            "--left-config",
+            str(left),
+            "--left-stage",
+            "sft",
+            "--right-config",
+            str(right),
+            "--right-stage",
+            "dpo",
+            "--allow-blocking",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["left_label"] == "sft"
+    assert payload["right_label"] == "dpo"
+    assert {item["field"] for item in payload["blocking_mismatches"]} == {"seed"}
+
+
 def _base_config(**overrides):
     config = {
         "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
@@ -169,3 +259,64 @@ def _base_config(**overrides):
     }
     config.update(overrides)
     return config
+
+
+def _write_manifest(path, *, run_id, config_snapshot):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "run-manifest/v1",
+        "run_id": run_id,
+        "stage": str(config_snapshot.get("stage", "sft")),
+        "created_at": "2026-05-05T00:00:00Z",
+        "command": ["python", "train.py"],
+        "git": {"commit": "abc1234"},
+        "environment": {},
+        "config_snapshot_path": "config_snapshot.json",
+        "config_snapshot": config_snapshot,
+        "seeds": {},
+        "models": {},
+        "inputs": {},
+        "outputs": {},
+        "metrics": {},
+        "notes": [],
+        "artifact_schema_versions": {},
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _write_config(path, *, stage, seed):
+    payload = {
+        "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+        "latents_dir": "outputs/generated/latents",
+        "text_embeds_dir": "outputs/generated/text_embeds",
+        "scores_csv": "outputs/generated/scores.csv",
+        "score_threshold": 0.4,
+        "num_training_steps": 1000,
+        "batch_size": 2,
+        "gradient_accumulation_steps": 1,
+        "lr": 0.0001,
+        "weight_decay": 0.0,
+        "max_grad_norm": 1.0,
+        "warmup_steps": 10,
+        "seed": seed,
+        "num_train_timesteps": 1000,
+        "shift": 3.0,
+        "resolution": 512,
+        "lora": {"r": 4, "lora_alpha": 4, "target_modules": ["to_q"]},
+        "sample_prompt": "Render text A",
+        "sample_target_text": "ТЕКСТ A",
+        "sample_interval": 200,
+        "num_inference_steps": 28,
+        "log_interval": 10,
+        "save_interval": 100,
+        "output_dir": f"outputs/{stage}",
+        "experiment_name": f"{stage}_test",
+        "gradient_checkpointing": True,
+        "mixed_precision": "bf16",
+    }
+    if stage == "dpo":
+        payload["score_diff_min"] = 0.1
+        payload["beta"] = 5000.0
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    return path

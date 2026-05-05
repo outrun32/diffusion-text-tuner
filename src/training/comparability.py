@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 COMPARABILITY_SCHEMA_VERSION = "training-comparability/v1"
 
@@ -189,7 +190,9 @@ def _format_mismatch_section(title: str, mismatches: Any) -> list[str]:
     if not rows:
         lines.extend(["None.", ""])
         return lines
-    lines.extend(["| Field | Group | Left | Right | Reason |", "|-------|-------|------|-------|--------|"])
+    lines.extend(
+        ["| Field | Group | Left | Right | Reason |", "|-------|-------|------|-------|--------|"]
+    )
     for item in rows:
         if not isinstance(item, Mapping):
             continue
