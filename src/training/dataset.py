@@ -7,8 +7,10 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 
+import random
+
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 
 logger = logging.getLogger(__name__)
 
@@ -191,3 +193,174 @@ def dpo_collate_fn(batch: list[dict]) -> dict:
         "loser_latent": l_latents,
         "prompt_embeds": padded,
     }
+
+
+class MaskedSFTDataset(Dataset):
+    """Synthetic-text dataset for masked flow-matching SFT.
+
+    On-disk layout under `data_dir`:
+        latents/{sample_id}.pt      dict with "latent" (C, H, W) patchified+BN-normalized
+                                    and "mask_lat" (H, W) float in [0, 1] on the latent grid
+        text_embeds/{sample_id}.pt  dict with "prompt_embeds" (L, D)
+
+    Sample IDs are taken from `latents/*.pt` filenames; a matching text-embed file
+    must exist for each.
+    """
+
+    def __init__(self, data_dir: str):
+        self.data_dir = Path(data_dir)
+        latents_dir = self.data_dir / "latents"
+        embeds_dir = self.data_dir / "text_embeds"
+        if not latents_dir.is_dir():
+            raise FileNotFoundError(f"Missing latents dir: {latents_dir}")
+        if not embeds_dir.is_dir():
+            raise FileNotFoundError(f"Missing text_embeds dir: {embeds_dir}")
+
+        sample_ids: list[str] = []
+        for p in sorted(latents_dir.glob("*.pt")):
+            sid = p.stem
+            if not (embeds_dir / f"{sid}.pt").is_file():
+                logger.warning("Skipping %s: no matching text embedding", sid)
+                continue
+            sample_ids.append(sid)
+
+        if not sample_ids:
+            raise RuntimeError(f"No samples found under {data_dir}")
+
+        self.sample_ids = sample_ids
+        self.latents_dir = latents_dir
+        self.embeds_dir = embeds_dir
+
+        # Optional shapes.csv (id,H,W) — used by ResolutionBucketSampler.
+        # Falls back to per-sample on-disk inspection if missing.
+        self.shapes: dict[str, tuple[int, int]] = {}
+        shapes_csv = self.data_dir / "shapes.csv"
+        if shapes_csv.is_file():
+            with shapes_csv.open("r", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    self.shapes[row["id"]] = (int(row["H"]), int(row["W"]))
+            logger.info("Loaded %d latent shapes from %s", len(self.shapes), shapes_csv)
+
+        logger.info("MaskedSFTDataset: %d samples from %s", len(sample_ids), data_dir)
+
+    def __len__(self) -> int:
+        return len(self.sample_ids)
+
+    def __getitem__(self, idx: int) -> dict:
+        sid = self.sample_ids[idx]
+        lat_data = torch.load(self.latents_dir / f"{sid}.pt", map_location="cpu", weights_only=True)
+        emb_data = torch.load(self.embeds_dir / f"{sid}.pt", map_location="cpu", weights_only=True)
+        return {
+            "sample_id": sid,
+            "latent": lat_data["latent"],          # (C, H, W)
+            "mask_lat": lat_data["mask_lat"],      # (H, W) float in [0, 1]
+            "prompt_embeds": emb_data["prompt_embeds"],  # (L, D)
+        }
+
+
+def masked_sft_collate_fn(batch: list[dict]) -> dict:
+    """Collate masked-SFT samples; pad text embeddings to max sequence length."""
+    latents = torch.stack([b["latent"] for b in batch])
+    masks = torch.stack([b["mask_lat"] for b in batch])
+
+    embeds = [b["prompt_embeds"] for b in batch]
+    max_len = max(e.shape[0] for e in embeds)
+    dim = embeds[0].shape[1]
+    padded = torch.zeros(len(embeds), max_len, dim, dtype=embeds[0].dtype)
+    for i, e in enumerate(embeds):
+        padded[i, : e.shape[0]] = e
+
+    return {
+        "sample_ids": [b["sample_id"] for b in batch],
+        "latent": latents,
+        "mask_lat": masks,
+        "prompt_embeds": padded,
+    }
+
+
+class ResolutionBucketSampler(Sampler[list[int]]):
+    """Yields batches of dataset indices grouped by latent (H, W) shape.
+
+    Reads `dataset.shapes` (populated from `shapes.csv`). If a sample has no
+    shape entry, its shape is loaded once from the latent file on disk.
+
+    Behavior:
+      - Indices within each bucket are shuffled per epoch (when shuffle=True).
+      - Buckets are then concatenated in random order, sliced into batches.
+      - If `drop_last=True`, partial bucket tails are dropped.
+    """
+
+    def __init__(
+        self,
+        dataset: MaskedSFTDataset,
+        batch_size: int,
+        shuffle: bool = True,
+        drop_last: bool = True,
+        seed: int = 0,
+    ):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.seed = seed
+        self.epoch = 0
+
+        # Resolve shapes for every sample (lazy fallback to disk).
+        buckets: dict[tuple[int, int], list[int]] = defaultdict(list)
+        missing: list[str] = []
+        for idx, sid in enumerate(dataset.sample_ids):
+            shp = dataset.shapes.get(sid)
+            if shp is None:
+                missing.append(sid)
+                d = torch.load(
+                    dataset.latents_dir / f"{sid}.pt",
+                    map_location="cpu", weights_only=True,
+                )
+                lat = d["latent"]
+                shp = (int(lat.shape[-2]), int(lat.shape[-1]))
+                dataset.shapes[sid] = shp
+            buckets[shp].append(idx)
+
+        if missing:
+            logger.warning(
+                "ResolutionBucketSampler: %d samples lacked shape entries; "
+                "loaded shapes from disk (slow). Re-run dataset build to emit shapes.csv.",
+                len(missing),
+            )
+
+        self.buckets = dict(buckets)
+        # Pre-compute number of batches per epoch.
+        n = 0
+        for ids in self.buckets.values():
+            if drop_last:
+                n += len(ids) // batch_size
+            else:
+                n += (len(ids) + batch_size - 1) // batch_size
+        self._num_batches = n
+        logger.info(
+            "ResolutionBucketSampler: buckets=%s batches/epoch=%d (batch_size=%d, drop_last=%s)",
+            {f"{h}x{w}": len(v) for (h, w), v in self.buckets.items()},
+            n, batch_size, drop_last,
+        )
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+    def __len__(self) -> int:
+        return self._num_batches
+
+    def __iter__(self):
+        rng = random.Random(self.seed + self.epoch)
+        all_batches: list[list[int]] = []
+        for ids in self.buckets.values():
+            ids = list(ids)
+            if self.shuffle:
+                rng.shuffle(ids)
+            for i in range(0, len(ids), self.batch_size):
+                chunk = ids[i : i + self.batch_size]
+                if self.drop_last and len(chunk) < self.batch_size:
+                    continue
+                all_batches.append(chunk)
+        if self.shuffle:
+            rng.shuffle(all_batches)
+        yield from all_batches

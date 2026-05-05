@@ -3,9 +3,18 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import pytest
 import torch
 
-from src.training.dataset import DPODataset, SFTDataset, dpo_collate_fn, sft_collate_fn
+from src.training.dataset import (
+    DPODataset,
+    MaskedSFTDataset,
+    ResolutionBucketSampler,
+    SFTDataset,
+    dpo_collate_fn,
+    masked_sft_collate_fn,
+    sft_collate_fn,
+)
 
 
 def _write_scores(path: Path, rows: list[dict[str, object]]) -> Path:
@@ -29,6 +38,29 @@ def _write_text_embed(root: Path, prompt_id: str, prompt_embeds: torch.Tensor) -
     path = root / f"{prompt_id}.pt"
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save({"prompt_embeds": prompt_embeds}, path)
+    return path
+
+
+def _write_masked_sample(
+    data_dir: Path,
+    sample_id: str,
+    latent: torch.Tensor,
+    mask_lat: torch.Tensor,
+    prompt_embeds: torch.Tensor,
+) -> None:
+    latents_dir = data_dir / "latents"
+    embeds_dir = data_dir / "text_embeds"
+    latents_dir.mkdir(parents=True, exist_ok=True)
+    embeds_dir.mkdir(parents=True, exist_ok=True)
+    torch.save({"latent": latent, "mask_lat": mask_lat}, latents_dir / f"{sample_id}.pt")
+    torch.save({"prompt_embeds": prompt_embeds}, embeds_dir / f"{sample_id}.pt")
+
+
+def _write_shapes(path: Path, rows: list[dict[str, object]]) -> Path:
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["id", "H", "W"])
+        writer.writeheader()
+        writer.writerows(rows)
     return path
 
 
@@ -150,3 +182,117 @@ def test_dpo_collate_stacks_pair_latents_and_pads_shared_prompt_embeddings() -> 
     assert collated["prompt_embeds"].shape == (2, 3, 2)
     assert torch.equal(collated["prompt_embeds"][1, 0], torch.tensor([7.0, 8.0]))
     assert torch.equal(collated["prompt_embeds"][1, 1:], torch.zeros(2, 2))
+
+
+def test_masked_sft_dataset_fails_fast_for_missing_required_directories(tmp_path: Path) -> None:
+    missing_root = tmp_path / "missing-root"
+    with pytest.raises(FileNotFoundError, match="Missing latents dir"):
+        MaskedSFTDataset(str(missing_root))
+
+    latents_only = tmp_path / "latents-only"
+    (latents_only / "latents").mkdir(parents=True)
+    with pytest.raises(FileNotFoundError, match="Missing text_embeds dir"):
+        MaskedSFTDataset(str(latents_only))
+
+
+def test_masked_sft_dataset_loads_matched_latents_masks_and_text_embeds(tmp_path: Path) -> None:
+    data_dir = tmp_path / "masked"
+    _write_masked_sample(
+        data_dir,
+        "sample-b",
+        latent=torch.full((2, 3, 4), 2.0),
+        mask_lat=torch.ones(3, 4),
+        prompt_embeds=torch.arange(12, dtype=torch.float32).reshape(3, 4),
+    )
+    _write_masked_sample(
+        data_dir,
+        "sample-a",
+        latent=torch.full((2, 3, 4), 1.0),
+        mask_lat=torch.zeros(3, 4),
+        prompt_embeds=torch.arange(8, dtype=torch.float32).reshape(2, 4),
+    )
+
+    dataset = MaskedSFTDataset(str(data_dir))
+
+    assert len(dataset) == 2
+    assert dataset.sample_ids == ["sample-a", "sample-b"]
+    item = dataset[0]
+    assert item["sample_id"] == "sample-a"
+    assert item["latent"].shape == (2, 3, 4)
+    assert item["mask_lat"].shape == (3, 4)
+    assert item["prompt_embeds"].shape == (2, 4)
+    assert torch.equal(item["latent"], torch.full((2, 3, 4), 1.0))
+
+
+def test_masked_sft_collate_stacks_masks_latents_and_pads_text_embeddings() -> None:
+    batch = [
+        {
+            "sample_id": "sample-a",
+            "latent": torch.ones(2, 2, 2),
+            "mask_lat": torch.ones(2, 2),
+            "prompt_embeds": torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+        },
+        {
+            "sample_id": "sample-b",
+            "latent": torch.full((2, 2, 2), 2.0),
+            "mask_lat": torch.zeros(2, 2),
+            "prompt_embeds": torch.tensor([[5.0, 6.0]]),
+        },
+    ]
+
+    collated = masked_sft_collate_fn(batch)
+
+    assert collated["sample_ids"] == ["sample-a", "sample-b"]
+    assert collated["latent"].shape == (2, 2, 2, 2)
+    assert collated["mask_lat"].shape == (2, 2, 2)
+    assert collated["prompt_embeds"].shape == (2, 2, 2)
+    assert torch.equal(collated["prompt_embeds"][1, 0], torch.tensor([5.0, 6.0]))
+    assert torch.equal(collated["prompt_embeds"][1, 1], torch.zeros(2))
+
+
+def test_resolution_bucket_sampler_uses_complete_shapes_csv_without_latent_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_dir = tmp_path / "masked"
+    for sample_id, shape in {
+        "sample-a": (2, 2),
+        "sample-b": (2, 2),
+        "sample-c": (3, 2),
+        "sample-d": (3, 2),
+    }.items():
+        height, width = shape
+        _write_masked_sample(
+            data_dir,
+            sample_id,
+            latent=torch.zeros(1, height, width),
+            mask_lat=torch.zeros(height, width),
+            prompt_embeds=torch.ones(1, 2),
+        )
+    _write_shapes(
+        data_dir / "shapes.csv",
+        [
+            {"id": "sample-a", "H": 2, "W": 2},
+            {"id": "sample-b", "H": 2, "W": 2},
+            {"id": "sample-c", "H": 3, "W": 2},
+            {"id": "sample-d", "H": 3, "W": 2},
+        ],
+    )
+    dataset = MaskedSFTDataset(str(data_dir))
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("ResolutionBucketSampler should use complete shapes.csv")
+
+    monkeypatch.setattr(torch, "load", fail_if_called)
+    sampler_a = ResolutionBucketSampler(dataset, batch_size=2, shuffle=True, drop_last=False, seed=17)
+    sampler_b = ResolutionBucketSampler(dataset, batch_size=2, shuffle=True, drop_last=False, seed=17)
+
+    batches = list(sampler_a)
+    assert batches == list(sampler_b)
+    assert len(sampler_a) == 2
+    assert sorted({dataset.shapes[dataset.sample_ids[index]] for batch in batches for index in batch}) == [
+        (2, 2),
+        (3, 2),
+    ]
+    for batch in batches:
+        assert len({dataset.shapes[dataset.sample_ids[index]] for index in batch}) == 1
