@@ -38,7 +38,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **TRN-01**: User can verify DPO objective sign, beta scaling, and winner/loser behavior with deterministic unit tests before relying on DPO results.
 - [x] **TRN-02**: User can distinguish SFT modes such as all-above-threshold, top-1 winner per prompt, score-weighted SFT, and filtered hard-positive SFT.
 - [x] **TRN-03**: User can distinguish DPO pair-construction modes such as best-vs-worst, all separated pairs, margin-weighted pairs, and ambiguity-filtered pairs.
-- [ ] **TRN-04**: User can run masked-SFT experiments with explicit masked/global loss weighting, LoRA target/rank choices, synthetic dataset variant, and evaluation suite references captured in config and manifest.
+- [x] **TRN-04**: User can run masked-SFT experiments with explicit masked/global loss weighting, LoRA target/rank choices, synthetic dataset variant, and evaluation suite references captured in config and manifest.
 - [x] **TRN-05**: User can compare baseline, SFT, DPO, masked-SFT, and combined/curriculum approaches under controlled prompts, seeds, inference settings, and evaluation metrics.
 - [x] **TRN-06**: User can identify training/inference mismatches such as step count, guidance, prompt embedding padding, model ID variants, and sampling configuration differences.
 - [ ] **TRN-07**: User can add new trainer or pipeline variants without editing unrelated scripts or losing existing runnable behavior.
@@ -154,7 +154,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRN-01 | Phase 4 | Complete |
 | TRN-02 | Phase 5 | Complete |
 | TRN-03 | Phase 5 | Complete |
-| TRN-04 | Phase 5 | Pending |
+| TRN-04 | Phase 5 | Complete |
 | TRN-05 | Phase 5 | Complete |
 | TRN-06 | Phase 5 | Complete |
 | TRN-07 | Phase 5 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-05 after Phase 5 Plan 03 execution*
+*Last updated: 2026-05-05 after Phase 5 Plan 04 execution*

@@ -18,7 +18,7 @@
 - [x] **Phase 2: Runtime Contracts and Run Provenance** - Users can validate configs/artifacts and capture local run manifests before expensive pipeline work starts.
 - [x] **Phase 3: Data Curriculum and Dataset Quality** - Users can define, generate, validate, and compare prompt/synthetic/reward-filtered training data. *(6/6 plans complete)*
 - [x] **Phase 4: CPU-Safe Characterization Tests** - Users can rely on lightweight fixtures and deterministic tests for fragile config, data, reward, prompt, and objective behavior. *(6/6 plans complete)*
-- [ ] **Phase 5: Training Objective and Pipeline Comparability** - Users can run and compare SFT, DPO, masked-SFT, and combined variants under explicit, controlled choices. *(3/6 plans complete)*
+- [ ] **Phase 5: Training Objective and Pipeline Comparability** - Users can run and compare SFT, DPO, masked-SFT, and combined variants under explicit, controlled choices. *(4/6 plans complete)*
 - [ ] **Phase 6: Reward and Evaluation Validity** - Users can produce comparable held-out evaluations, reward diagnostics, and thesis-ready outputs from recorded runs.
 - [ ] **Phase 7: Moderate Structure and Extension Cleanup** - Users can navigate clearer source/script/config homes and add future pipelines through documented extension points.
 
@@ -163,7 +163,7 @@ Plans:
 - [x] 05-03-PLAN.md — Add CPU-safe training comparability mismatch detector, CLI, tests, and guide for controlled fields.
 
 **Wave 2** *(blocked on Wave 1 selection and comparability contracts)*
-- [ ] 05-04-PLAN.md — Wire explicit SFT, DPO, and masked-SFT choices into config dataclasses, validation, snapshots, tests, and experiment config docs.
+- [x] 05-04-PLAN.md — Wire explicit SFT, DPO, and masked-SFT choices into config dataclasses, validation, snapshots, tests, and experiment config docs.
 - [ ] 05-05-PLAN.md — Add import-safe shared training modules for sampling, checkpointing, schedulers, runtime metadata, tests, and extension guidance.
 
 **Wave 3** *(blocked on Wave 2 config/shared utility contracts plus Wave 1 manifest/comparability CLIs)*
@@ -205,7 +205,7 @@ Cross-cutting constraints:
 | 2. Runtime Contracts and Run Provenance | 5/5 | Complete | 02-01, 02-02, 02-03, 02-04, 02-05 |
 | 3. Data Curriculum and Dataset Quality | 6/6 | Complete | 03-01, 03-02, 03-03, 03-04, 03-05, 03-06 |
 | 4. CPU-Safe Characterization Tests | 6/6 | Complete | 04-01, 04-02, 04-03, 04-04, 04-05, 04-06 |
-| 5. Training Objective and Pipeline Comparability | 3/6 | In progress | 05-01, 05-02, and 05-03 complete; 05-04, 05-05, 05-06 ready |
+| 5. Training Objective and Pipeline Comparability | 4/6 | In progress | 05-01, 05-02, 05-03, and 05-04 complete; 05-05 and 05-06 ready |
 | 6. Reward and Evaluation Validity | 0/TBD | Not started | - |
 | 7. Moderate Structure and Extension Cleanup | 0/TBD | Not started | - |
 
