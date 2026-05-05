@@ -25,6 +25,7 @@ def test_compare_training_configs_reports_blocking_controlled_field_mismatches()
         samples_dir="outputs/sft-a/samples",
     )
     right = _base_config(
+        model_id="black-forest-labs/FLUX.2-klein-dev-4B",
         num_training_steps=1200,
         num_inference_steps=32,
         guidance_scale=4.0,
