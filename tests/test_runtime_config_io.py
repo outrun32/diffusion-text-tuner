@@ -322,3 +322,46 @@ def test_resolve_config_snapshot_is_json_serializable_sorted_and_immutable(
     assert cfg == before
     assert json.loads(json.dumps(snapshot, sort_keys=True)) == snapshot
     assert list(snapshot) == sorted(snapshot)
+
+
+def test_experiment_config_docs_guard_explicit_training_choice_fields() -> None:
+    docs = {
+        "sft": Path("configs/experiments/sft/README.md").read_text(encoding="utf-8"),
+        "dpo": Path("configs/experiments/dpo/README.md").read_text(encoding="utf-8"),
+        "masked_sft": Path("configs/experiments/masked_sft/README.md").read_text(
+            encoding="utf-8"
+        ),
+    }
+
+    for field in [
+        "selection_mode",
+        "selected_samples_path",
+        "score_column",
+        "score_threshold",
+        "hard_negative_threshold",
+        "sample_weighting",
+    ]:
+        assert field in docs["sft"]
+
+    for field in [
+        "pair_construction_mode",
+        "preference_pairs_path",
+        "score_column",
+        "score_threshold",
+        "score_diff_min",
+        "ambiguity_margin",
+        "pair_weighting",
+        "beta",
+    ]:
+        assert field in docs["dpo"]
+
+    for field in [
+        "masked_lambda",
+        "lora.attn_r",
+        "lora.joint_attn_r",
+        "data_dir",
+        "eval_suite_path",
+        "validation_interval",
+        "eval_suite_n_per_step",
+    ]:
+        assert field in docs["masked_sft"]
