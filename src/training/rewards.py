@@ -40,8 +40,9 @@ class QwenYesProbReward:
     )
 
     def __init__(self, model_id: str = "Qwen/Qwen3.5-9B", device: str = "cuda"):
-        from transformers import AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig
         import torch
+        from transformers import AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig
+
         globals()["torch"] = torch
 
         self.device = device
@@ -387,7 +388,11 @@ class OcrCerEntropyReward:
             frac_unc = float("nan")
 
         cer = min(1.0, _char_error_rate(rec_texts, target_text.split()))
-        reward_ocr = (1.0 - cer) * math.exp(-self.entropy_lambda * mean_entropy) if not math.isnan(mean_entropy) else (1.0 - cer)
+        reward_ocr = (
+            (1.0 - cer) * math.exp(-self.entropy_lambda * mean_entropy)
+            if not math.isnan(mean_entropy)
+            else (1.0 - cer)
+        )
 
         return {
             "rec_texts": rec_texts,

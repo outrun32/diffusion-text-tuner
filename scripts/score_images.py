@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import logging
 import os
 from pathlib import Path
@@ -112,7 +111,7 @@ def main():
     # Resume: load already scored
     scored_keys = set()
     if args.resume and os.path.exists(output_csv):
-        with open(output_csv, "r") as f:
+        with open(output_csv) as f:
             reader = csv.DictReader(f)
             for row in reader:
                 scored_keys.add((row["id"], int(row["version"])))
@@ -209,7 +208,7 @@ def main():
 
     # Print summary stats
     scores = []
-    with open(output_csv, "r") as f:
+    with open(output_csv) as f:
         for row in csv.DictReader(f):
             scores.append(float(row["score"]))
 
