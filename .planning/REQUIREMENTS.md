@@ -57,7 +57,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 ### Run Tracking and Experiment Comparison
 
 - [x] **RUN-01**: User can create a local run directory with a manifest containing command, timestamp, git state, resolved config, environment summary, seeds, model IDs/revisions, input paths, output paths, metrics, and notes.
-- [ ] **RUN-02**: User can compare two local run manifests to see changed configs, data sources, rewards, seeds, inference settings, metrics, and artifacts.
+- [x] **RUN-02**: User can compare two local run manifests to see changed configs, data sources, rewards, seeds, inference settings, metrics, and artifacts.
 - [x] **RUN-03**: User can record long-running pipeline stage outputs in a consistent artifact layout without committing generated tensors, images, checkpoints, or logs.
 - [x] **RUN-04**: User can resume or inspect long-running generation, scoring, training, and evaluation stages using documented manifest and output conventions.
 - [ ] **RUN-05**: User can map thesis plots/results back to the exact run manifests and artifacts that produced them.
@@ -167,7 +167,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVAL-07 | Phase 6 | Pending |
 | EVAL-08 | Phase 6 | Pending |
 | RUN-01 | Phase 2 | Complete |
-| RUN-02 | Phase 5 | Pending |
+| RUN-02 | Phase 5 | Complete |
 | RUN-03 | Phase 2 | Complete |
 | RUN-04 | Phase 2 | Complete |
 | RUN-05 | Phase 6 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-05 after Phase 5 Plan 01 execution*
+*Last updated: 2026-05-05 after Phase 5 Plan 02 execution*
