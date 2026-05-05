@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 4 - CPU-Safe Characterization Tests
+current_phase: Phase 5 - Training Objective and Pipeline Comparability
 current_plan: Phase 5 planning pending
-status: phase-4-complete
+status: phase-4-verified-complete
 last_updated: "2026-05-05T18:39:17Z"
 progress:
   total_phases: 7
@@ -17,7 +17,7 @@ progress:
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-05 after Phase 4 Plan 06 execution
+**Last updated:** 2026-05-05 after Phase 4 verification
 
 ## Project Reference
 
@@ -30,9 +30,9 @@ progress:
 
 ## Current Position
 
-**Current Phase:** Phase 4 - CPU-Safe Characterization Tests  
+**Current Phase:** Phase 5 - Training Objective and Pipeline Comparability  
 **Current Plan:** Phase 5 planning pending  
-**Status:** Phase 4 complete; Plans 04-01 through 04-06 complete
+**Status:** Phase 4 verified complete; ready to plan Phase 5
 **Progress:** [████████████████████] 100% for Phase 4
 
 ## Phase Status
@@ -42,7 +42,7 @@ progress:
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
-| 4. CPU-Safe Characterization Tests | Complete | 6/6 plans complete. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
+| 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
@@ -51,7 +51,7 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, DATA-01 through DATA-07, TEST-01 through TEST-05, and TRN-01 complete | 100% mapped; complete Phase 4 characterization docs |
+| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, Phase 3, TEST-01 through TEST-05, and TRN-01 complete and verified | 100% mapped; proceed to Phase 5 trainer comparability work |
 | Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
 | Default test posture | 166 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety characterization, fake/mock reward wrapper characterization, Phase 4 characterization docs drift tests, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, prompt dataset quality/manifest CLI tests, synthetic quality/manifest/contact-sheet CLI tests, training selection artifact/CLI tests, data source comparison/CLI/docs tests, and Phase 3 data-quality docs/runtime wiring tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
@@ -111,6 +111,7 @@ progress:
 - Keep reward wrappers import-safe by lazy-loading Paddle/PaddleOCR/Transformers/Qwen dependencies and testing Qwen/OCR behavior with object-level fakes instead of model or OCR initialization.
 - Keep scoring reward class imports inside scorer selection branches so importing scoring scripts during default pytest does not load optional model/OCR stacks.
 - Publish Phase 4 characterization commands through exact pytest file selections and Makefile aliases, with docs drift tests guarding CPU-safe defaults and optional slow/GPU/OCR/model/integration/manual marker boundaries.
+- Treat Phase 4 DPO tests as characterization of the current negative beta convention, not proof that the convention is scientifically correct; Phase 5 must decide and compare objective behavior explicitly.
 
 ### Important Caveats
 
@@ -264,6 +265,8 @@ progress:
 - `src/training/rewards.py`
 - `scripts/score_images.py`
 - `.planning/phases/04-cpu-safe-characterization-tests/04-05-SUMMARY.md`
+- `.planning/phases/04-cpu-safe-characterization-tests/04-06-SUMMARY.md`
+- `.planning/phases/04-cpu-safe-characterization-tests/VERIFICATION.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
