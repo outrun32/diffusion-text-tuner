@@ -13,7 +13,6 @@ from src.training.runtime import training_run_inputs, training_run_outputs
 from src.training.sampling import normalize_eval_suite_items, should_sample_step
 from src.training.schedulers import compute_sigma
 
-
 HEAVY_OPTIONAL_MODULES = {
     "accelerate",
     "diffusers",
@@ -149,7 +148,8 @@ def test_training_comparability_docs_describe_shared_trainer_seams() -> None:
         "src.training.checkpointing",
         "src.training.schedulers",
         "src.training.runtime",
-        "Do not add unrelated sampling, checkpointing, scheduler, or runtime code directly to large trainer modules.",
+        "Do not add unrelated sampling, checkpointing, scheduler, or runtime code "
+        "directly to large trainer modules.",
         "load_stage_config",
         "create/compare run manifests",
         "run CPU-safe tests",

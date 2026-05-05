@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-
 _TRAINING_INPUT_KEYS = frozenset(
     {
         "data_dir",
@@ -32,7 +31,9 @@ def training_run_outputs(config_snapshot: Mapping[str, Any]) -> dict[str, Any]:
     return _sorted_present_fields(config_snapshot, _TRAINING_OUTPUT_KEYS)
 
 
-def _sorted_present_fields(config_snapshot: Mapping[str, Any], keys: frozenset[str]) -> dict[str, Any]:
+def _sorted_present_fields(
+    config_snapshot: Mapping[str, Any], keys: frozenset[str]
+) -> dict[str, Any]:
     return {
         key: config_snapshot[key]
         for key in sorted(keys)
