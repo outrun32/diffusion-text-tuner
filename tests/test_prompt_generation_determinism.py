@@ -6,7 +6,6 @@ from pathlib import Path
 from src.data_quality.curriculum import load_prompt_generation_config
 from src.prompt_pipeline import generate
 
-
 CONFIG_PATHS = (
     Path("configs/prompts/simple.json"),
     Path("configs/prompts/full.json"),
@@ -56,6 +55,33 @@ class FakeTextGenerator:
         return dict(self.coverage)
 
 
+class FakeStyleGenerator:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def sample(self, content_type):
+        return {"font": f"{content_type}-font", "color": "black"}
+
+
+class FakeScenePool:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __len__(self):
+        return 1
+
+    def sample(self, content_type, lang):
+        return {"id": f"{content_type}-{lang}", "ru": "сцена", "en": "scene"}
+
+
+class FakeAssembler:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def assemble(self, target_text, scene, style, content_type, lang):
+        return f"{lang}:{content_type}:{target_text}:{scene['id']}:{style['font']}"
+
+
 def _plan_signature(plan):
     keys = ("stage_name", "stage_family", "content_type", "tier", "case", "lang")
     return [tuple(item[key] for key in keys) for item in plan]
@@ -69,6 +95,63 @@ def _build_plan(config_path: str, seed: int, n: int | None = None):
         text_gen=FakeTextGenerator(),
         prompt_config=config,
     )
+
+
+def _write_config(path: Path, *, output_path: Path, n: int = 8) -> Path:
+    payload = {
+        "schema_version": "prompt-generation/v1",
+        "mode": "determinism-test",
+        "seed": 2026,
+        "output_path": str(output_path),
+        "generation": {
+            "n": n,
+            "no_llm": True,
+            "model": "Qwen/Qwen3.5-4B",
+            "backend": "transformers",
+            "batch_size": 2,
+            "temperature": 0.7,
+            "expand_scenes": 0,
+        },
+        "curriculum_stages": [
+            {
+                "name": "letters",
+                "family": "single_letters",
+                "sample_count": 2,
+                "content_types": ["typography"],
+                "tiers": [1],
+                "cases": ["upper"],
+                "languages": ["ru"],
+            },
+            {
+                "name": "digits",
+                "family": "digits",
+                "sample_count": 2,
+                "content_types": ["poster"],
+                "tiers": [2],
+                "cases": ["title"],
+                "languages": ["ru"],
+            },
+            {
+                "name": "multiline",
+                "family": "multiline",
+                "weight": 1,
+                "content_types": ["book_cover"],
+                "tiers": [4],
+                "cases": ["lower"],
+                "languages": ["ru"],
+            },
+        ],
+        "validation_thresholds": {"require_stage_provenance": True},
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _patch_lightweight_generators(monkeypatch):
+    monkeypatch.setattr(generate, "TextGenerator", FakeTextGenerator)
+    monkeypatch.setattr(generate, "StyleGenerator", FakeStyleGenerator)
+    monkeypatch.setattr(generate, "ScenePool", FakeScenePool)
+    monkeypatch.setattr(generate, "Assembler", FakeAssembler)
 
 
 def test_committed_prompt_configs_have_stable_stage_allocations_and_metadata():
@@ -137,3 +220,106 @@ def test_legacy_generation_plan_marks_metadata_as_unconfigured():
 
     assert [item["stage_name"] for item in legacy_plan] == [None, None, None, None]
     assert [item["stage_family"] for item in legacy_plan] == [None, None, None, None]
+
+
+def test_stage_family_text_policies_are_seeded_and_predictable():
+    text_gen = FakeTextGenerator()
+    single_lower = generate._apply_stage_text_policy(
+        "ignored",
+        {"stage_family": "single_letters", "case": "lower"},
+        text_gen,
+        random.Random(10),
+    )
+    single_upper = generate._apply_stage_text_policy(
+        "ignored",
+        {"stage_family": "single_letters", "case": "upper"},
+        text_gen,
+        random.Random(10),
+    )
+
+    assert single_lower == "в"
+    assert single_upper == "В"
+    assert (
+        generate._apply_stage_text_policy(
+            "цена", {"stage_family": "digits"}, text_gen, random.Random(1)
+        )
+        == "цена 42"
+    )
+    assert (
+        generate._apply_stage_text_policy(
+            "привет", {"stage_family": "punctuation"}, text_gen, random.Random(4)
+        )
+        == "привет?"
+    )
+    assert (
+        generate._apply_stage_text_policy(
+            "абвг", {"stage_family": "mixed_case"}, text_gen, random.Random(1)
+        )
+        == "АбВг"
+    )
+    assert (
+        generate._apply_stage_text_policy(
+            "первая вторая третья", {"stage_family": "multiline"}, text_gen, random.Random(1)
+        )
+        == "первая\nвторая третья"
+    )
+
+
+def test_generate_dataset_with_config_writes_deterministic_provenance_records(
+    monkeypatch, tmp_path
+):
+    _patch_lightweight_generators(monkeypatch)
+    output_path = tmp_path / "prompts.jsonl"
+    config_path = _write_config(
+        tmp_path / "config.json", output_path=Path("data/prompts/unit.jsonl")
+    )
+    config = load_prompt_generation_config(config_path)
+
+    generate.generate_dataset(
+        n=config.generation.n,
+        output_path=str(output_path),
+        llm=None,
+        seed=config.seed,
+        batch_size=config.generation.batch_size,
+        prompt_config=config,
+    )
+    first = output_path.read_text(encoding="utf-8").splitlines()
+    generate.generate_dataset(
+        n=config.generation.n,
+        output_path=str(output_path),
+        llm=None,
+        seed=config.seed,
+        batch_size=config.generation.batch_size,
+        prompt_config=config,
+    )
+    second = output_path.read_text(encoding="utf-8").splitlines()
+
+    assert first == second
+    records = [json.loads(line) for line in first]
+    assert {record["prompt_mode"] for record in records} == {"determinism-test"}
+    assert {record["curriculum_stage"] for record in records} == {"letters", "digits", "multiline"}
+    assert {record["curriculum_family"] for record in records} == {
+        "single_letters",
+        "digits",
+        "multiline",
+    }
+
+
+def test_no_llm_cli_path_avoids_heavy_backend_imports(monkeypatch, tmp_path):
+    output_path = Path("data/prompts/no_llm_test.jsonl")
+    config_path = _write_config(tmp_path / "config.json", output_path=output_path, n=3)
+    captured = {}
+
+    def fake_generate_dataset(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(generate, "generate_dataset", fake_generate_dataset)
+    before = set(sys.modules)
+
+    assert generate.main(["--config", str(config_path), "--no-llm"]) == 0
+
+    newly_imported = set(sys.modules) - before
+    assert captured["llm"] is None
+    assert captured["prompt_config"].mode == "determinism-test"
+    assert "src.prompt_pipeline.llm_client" not in newly_imported
+    assert not {"vllm", "mlx_lm", "diffusers", "transformers", "torch"} & newly_imported
