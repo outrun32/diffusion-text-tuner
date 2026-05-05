@@ -23,4 +23,17 @@ SFT configs should identify:
 - LoRA, optimizer, schedule, precision, checkpoint, and `output_dir` settings.
 - Manifest flow: create/inspect `runs/<run_id>/manifest.json`, then preflight with the SFT config and artifact paths before launching `src.training.sft_trainer`.
 
+## Comparison Choice Fields
+
+Use these fields to make SFT sample-selection choices explicit before training and in config snapshots:
+
+| Field | Purpose | Expected values or notes |
+|-------|---------|--------------------------|
+| `selection_mode` | Names the SFT sample-selection contract. | `threshold`, `top_k_per_prompt`, `score_weighted`, or `hard_positive`; default is `threshold`. |
+| `selected_samples_path` | Optional materialized selected-samples JSONL produced before comparison-grade runs. | Repository-relative runtime path such as `outputs/generated/selected_samples.jsonl`, or `null` for legacy CSV selection. |
+| `score_column` | Score column read from the scores CSV or materialized selection source. | Default `score`; change only when the scoring artifact documents another column. |
+| `score_threshold` | Minimum score included by threshold-style selection. | Float in `[0, 1]`; default root config behavior is preserved. |
+| `hard_negative_threshold` | Prompt-level low-score cutoff used by `hard_positive` selection. | Float in `[0, 1]`; records the rejected hard-negative boundary. |
+| `sample_weighting` | Names the sample-weight interpretation for snapshots and manifests. | `uniform` for unweighted modes or `score_normalized` for score-weighted selections. |
+
 Generated checkpoints, samples, logs, and tensors remain non-committable runtime artifacts.
