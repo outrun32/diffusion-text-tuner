@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from src.training.dataset import (
     masked_sft_collate_fn,
     sft_collate_fn,
 )
+from src.training.selection import materialize_dpo_pairs, materialize_sft_samples
 
 
 def _write_scores(path: Path, rows: list[dict[str, object]]) -> Path:
@@ -64,6 +66,10 @@ def _write_shapes(path: Path, rows: list[dict[str, object]]) -> Path:
     return path
 
 
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
 def test_sft_dataset_loads_score_filtered_tensor_samples(tmp_path: Path) -> None:
     latents_dir = tmp_path / "latents"
     text_embeds_dir = tmp_path / "text_embeds"
@@ -78,12 +84,25 @@ def test_sft_dataset_loads_score_filtered_tensor_samples(tmp_path: Path) -> None
     _write_latent(latents_dir, "p1", 2, torch.full((2, 3, 4), 1.5))
     _write_latent(latents_dir, "p2", 1, torch.full((2, 3, 4), 2.5))
     _write_text_embed(text_embeds_dir, "p1", torch.arange(6, dtype=torch.float32).reshape(2, 3))
-    _write_text_embed(text_embeds_dir, "p2", torch.arange(9, dtype=torch.float32).reshape(3, 3))
+    _write_text_embed(
+        text_embeds_dir,
+        "p2",
+        torch.arange(9, dtype=torch.float32).reshape(3, 3),
+    )
 
-    dataset = SFTDataset(str(latents_dir), str(text_embeds_dir), str(scores_csv), score_threshold=0.3)
+    dataset = SFTDataset(
+        str(latents_dir),
+        str(text_embeds_dir),
+        str(scores_csv),
+        score_threshold=0.3,
+    )
 
     assert len(dataset) == 2
-    assert [(sample["prompt_id"], sample["version"], sample["score"]) for sample in dataset.samples] == [
+    selected_samples = [
+        (sample["prompt_id"], sample["version"], sample["score"])
+        for sample in dataset.samples
+    ]
+    assert selected_samples == [
         ("p1", 2, 0.3),
         ("p2", 1, 0.9),
     ]
@@ -284,15 +303,103 @@ def test_resolution_bucket_sampler_uses_complete_shapes_csv_without_latent_fallb
         raise AssertionError("ResolutionBucketSampler should use complete shapes.csv")
 
     monkeypatch.setattr(torch, "load", fail_if_called)
-    sampler_a = ResolutionBucketSampler(dataset, batch_size=2, shuffle=True, drop_last=False, seed=17)
-    sampler_b = ResolutionBucketSampler(dataset, batch_size=2, shuffle=True, drop_last=False, seed=17)
+    sampler_a = ResolutionBucketSampler(
+        dataset,
+        batch_size=2,
+        shuffle=True,
+        drop_last=False,
+        seed=17,
+    )
+    sampler_b = ResolutionBucketSampler(
+        dataset,
+        batch_size=2,
+        shuffle=True,
+        drop_last=False,
+        seed=17,
+    )
 
     batches = list(sampler_a)
     assert batches == list(sampler_b)
     assert len(sampler_a) == 2
-    assert sorted({dataset.shapes[dataset.sample_ids[index]] for batch in batches for index in batch}) == [
+    batch_shapes = {
+        dataset.shapes[dataset.sample_ids[index]]
+        for batch in batches
+        for index in batch
+    }
+    assert sorted(batch_shapes) == [
         (2, 2),
         (3, 2),
     ]
     for batch in batches:
         assert len({dataset.shapes[dataset.sample_ids[index]] for index in batch}) == 1
+
+
+def test_materialized_sft_selections_match_sft_dataset_threshold_semantics(
+    tmp_path: Path,
+) -> None:
+    latents_dir = tmp_path / "latents"
+    text_embeds_dir = tmp_path / "text_embeds"
+    scores_csv = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p2", "version": 2, "score": "0.90", "target_text": "Жук"},
+            {"id": "p1", "version": 1, "score": "0.29", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.30", "target_text": "Ёж"},
+            {"id": "p2", "version": 1, "score": "0.70", "target_text": "Жук"},
+        ],
+    )
+    for prompt_id, versions in {"p1": [2], "p2": [1, 2]}.items():
+        for version in versions:
+            _write_latent(latents_dir, prompt_id, version, torch.zeros(1, 2, 2))
+        _write_text_embed(text_embeds_dir, prompt_id, torch.ones(1, 2))
+    dataset = SFTDataset(
+        str(latents_dir),
+        str(text_embeds_dir),
+        str(scores_csv),
+        score_threshold=0.3,
+    )
+
+    summary = materialize_sft_samples(
+        scores_csv,
+        tmp_path / "selected_samples.jsonl",
+        threshold=0.3,
+    )
+
+    dataset_keys = sorted((sample["prompt_id"], sample["version"]) for sample in dataset.samples)
+    materialized_keys = [
+        (str(row["prompt_id"]), int(row["version"]))
+        for row in _read_jsonl(tmp_path / "selected_samples.jsonl")
+    ]
+    assert summary["selected_count"] == len(dataset)
+    assert materialized_keys == dataset_keys == [("p1", 2), ("p2", 1), ("p2", 2)]
+
+
+def test_materialized_dpo_pairs_reject_equal_and_ambiguous_scores(tmp_path: Path) -> None:
+    scores_csv = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "equal", "version": 1, "score": "0.70", "target_text": "Ёж"},
+            {"id": "equal", "version": 2, "score": "0.70", "target_text": "Ёж"},
+            {"id": "ambiguous", "version": 1, "score": "0.50", "target_text": "Жук"},
+            {"id": "ambiguous", "version": 2, "score": "0.55", "target_text": "Жук"},
+            {"id": "selected", "version": 1, "score": "0.20", "target_text": "Цех"},
+            {"id": "selected", "version": 2, "score": "0.90", "target_text": "Цех"},
+        ],
+    )
+
+    summary = materialize_dpo_pairs(
+        scores_csv,
+        tmp_path / "preference_pairs.jsonl",
+        threshold=0.5,
+        margin=0.1,
+        ambiguity_margin=0.0,
+    )
+
+    rows = _read_jsonl(tmp_path / "preference_pairs.jsonl")
+    assert summary["pair_count"] == 1
+    assert summary["filtering_stats"]["ambiguous_below_margin"] == 2
+    assert [(row["prompt_id"], row["winner_version"], row["loser_version"]) for row in rows] == [
+        ("selected", 2, 1)
+    ]
+    assert float(rows[0]["winner_score"]) > float(rows[0]["loser_score"])
+    assert rows[0]["margin"] == 0.7

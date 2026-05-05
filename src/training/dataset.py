@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import csv
 import logging
+import random
 from collections import defaultdict
 from pathlib import Path
-
-import random
 
 import torch
 from torch.utils.data import Dataset, Sampler
