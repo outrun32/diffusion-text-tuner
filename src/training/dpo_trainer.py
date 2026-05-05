@@ -21,7 +21,6 @@ import os
 import time
 
 import torch
-import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.utils import set_seed
 from peft import LoraConfig as PeftLoraConfig, get_peft_model, PeftModel
@@ -30,25 +29,11 @@ from tqdm import tqdm
 
 from .config import DPOConfig, LoraConfig
 from .dataset import DPODataset, dpo_collate_fn
+from .dpo_objective import compute_dpo_objective, compute_sigma, time_dependent_beta
 from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids
 from src.runtime import config_io
 
 logger = logging.getLogger(__name__)
-
-
-# ── Helpers ─────────────────────────────────────────────────────────────────
-
-
-def compute_sigma(t: torch.Tensor, shift: float = 3.0) -> torch.Tensor:
-    """σ(t) with shift, t ∈ [0, 1000)."""
-    t_norm = t.float() / 1000.0
-    return shift * t_norm / (1.0 + (shift - 1.0) * t_norm)
-
-
-def time_dependent_beta(t: torch.Tensor, beta_conf: float, shift: float = 3.0) -> torch.Tensor:
-    """β(t) = -β_conf * (1 − σ_t)² / 2  (ref: diffusion-text-tuner paper, SD3 DPO)"""
-    sigma_t = compute_sigma(t, shift=shift)
-    return -beta_conf * (1.0 - sigma_t) ** 2 / 2.0
 
 
 # ── Model loading ───────────────────────────────────────────────────────────
@@ -164,28 +149,21 @@ def compute_dpo_loss(
     w_ref_loss = (w_ref_pred.float() - w_target.float()).pow(2).mean(dim=(1, 2))
     l_ref_loss = (l_ref_pred.float() - l_target.float()).pow(2).mean(dim=(1, 2))
 
-    # Log-ratio differences
-    # In DPO: log(π/π_ref) ∝ -(policy_loss - ref_loss)  (lower loss = higher likelihood)
-    w_log_ratio = -(w_policy_loss - w_ref_loss)
-    l_log_ratio = -(l_policy_loss - l_ref_loss)
-
-    # Time-dependent beta
-    beta_t = time_dependent_beta(t, beta_conf, shift=shift)  # (B,)
-
-    # DPO sigmoid loss: -log(σ(β(t) * (w_log_ratio - l_log_ratio)))
-    logits = beta_t * (w_log_ratio - l_log_ratio)
-    loss = -F.logsigmoid(logits).mean()
-
-    # Metrics
-    with torch.no_grad():
-        reward_margin = (w_log_ratio - l_log_ratio).mean().item()
-        accuracy = (logits > 0).float().mean().item()
+    loss, objective_metrics = compute_dpo_objective(
+        w_policy_loss=w_policy_loss,
+        l_policy_loss=l_policy_loss,
+        w_ref_loss=w_ref_loss,
+        l_ref_loss=l_ref_loss,
+        t=t,
+        beta_conf=beta_conf,
+        shift=shift,
+    )
 
     metrics = {
-        "reward_margin": reward_margin,
-        "accuracy": accuracy,
-        "w_policy_loss": w_policy_loss.mean().item(),
-        "l_policy_loss": l_policy_loss.mean().item(),
+        "reward_margin": objective_metrics["reward_margin"].item(),
+        "accuracy": objective_metrics["accuracy"].item(),
+        "w_policy_loss": objective_metrics["w_policy_loss"].item(),
+        "l_policy_loss": objective_metrics["l_policy_loss"].item(),
     }
 
     return loss, metrics

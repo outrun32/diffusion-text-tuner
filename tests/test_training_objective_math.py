@@ -193,7 +193,12 @@ def test_compute_dpo_loss_delegates_final_objective(monkeypatch: pytest.MonkeyPa
 
     def fake_objective(**kwargs: torch.Tensor | float):
         captured.update(kwargs)
-        return torch.tensor(12.0), {"accuracy": torch.tensor(1.0)}
+        return torch.tensor(12.0), {
+            "accuracy": torch.tensor(1.0),
+            "reward_margin": torch.tensor(0.5),
+            "w_policy_loss": torch.tensor(0.25),
+            "l_policy_loss": torch.tensor(0.75),
+        }
 
     monkeypatch.setattr(dpo_trainer, "compute_dpo_objective", fake_objective)
 
@@ -219,7 +224,7 @@ def test_compute_dpo_loss_delegates_final_objective(monkeypatch: pytest.MonkeyPa
     )
 
     assert loss.item() == 12.0
-    assert metrics["accuracy"].item() == 1.0
+    assert metrics["accuracy"] == 1.0
     assert captured["beta_conf"] == 2.0
     assert captured["shift"] == 3.0
     assert captured["w_policy_loss"].shape == (1,)
