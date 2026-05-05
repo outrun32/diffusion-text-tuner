@@ -153,7 +153,27 @@ Cross-cutting constraints:
   3. User can compare two run manifests to see changed configs, data sources, rewards, seeds, inference settings, metrics, and outputs.
   4. User can identify training/inference mismatches such as step count, guidance, prompt embedding padding, model variants, and sampling configuration differences before using results as evidence.
   5. User can add or modify trainer variants through focused shared modules for sampling, checkpointing, schedulers, objective helpers, and runtime plumbing while preserving existing SFT, DPO, and masked-SFT behavior.
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 05-01-PLAN.md — Make SFT sample-selection and DPO pair-construction modes explicit in materialized artifacts, CLI flags, tests, and docs.
+- [ ] 05-02-PLAN.md — Add CPU-safe run-manifest diff module, CLI, tests, and runtime docs for RUN-02 comparisons.
+- [ ] 05-03-PLAN.md — Add CPU-safe training comparability mismatch detector, CLI, tests, and guide for controlled fields.
+
+**Wave 2** *(blocked on Wave 1 selection and comparability contracts)*
+- [ ] 05-04-PLAN.md — Wire explicit SFT, DPO, and masked-SFT choices into config dataclasses, validation, snapshots, tests, and experiment config docs.
+- [ ] 05-05-PLAN.md — Add import-safe shared training modules for sampling, checkpointing, schedulers, runtime metadata, tests, and extension guidance.
+
+**Wave 3** *(blocked on Wave 2 config/shared utility contracts plus Wave 1 manifest/comparability CLIs)*
+- [ ] 05-06-PLAN.md — Publish integrated training-run comparison CLI, Makefile alias, command docs, README links, and docs drift tests.
+
+Cross-cutting constraints:
+- Default automated tests stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, SynthTIGER, or external model weights.
+- Selection artifacts, run manifests, comparison reports, checkpoints, logs, tensors, generated images, and private outputs remain ignored runtime artifacts unless intentionally tiny fixtures or documentation assets.
+- DPO winner/loser semantics and current objective sign/beta behavior remain explicitly tested before any comparison-grade DPO changes are trusted.
+- Comparability reports must surface missing or uncontrolled evidence explicitly rather than treating absent metrics/artifacts as comparable.
 
 ### Phase 6: Reward and Evaluation Validity
 **Goal**: Users can trust reward scores, held-out evaluations, diagnostic reports, and thesis outputs as comparable evidence tied back to exact runs.  

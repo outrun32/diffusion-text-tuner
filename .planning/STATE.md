@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 5 - Training Objective and Pipeline Comparability
-current_plan: Phase 5 planning pending
-status: phase-4-verified-complete
-last_updated: "2026-05-05T18:39:17Z"
+current_plan: Phase 5 plans 05-01 through 05-06 ready for execution
+status: phase-5-planned
+last_updated: "2026-05-05T19:10:00Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 6
-  completed_plans: 6
-  percent: 100
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-05 after Phase 4 verification
+**Last updated:** 2026-05-05 after Phase 5 planning
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 5 - Training Objective and Pipeline Comparability  
-**Current Plan:** Phase 5 planning pending  
-**Status:** Phase 4 verified complete; ready to plan Phase 5
-**Progress:** [████████████████████] 100% for Phase 4
+**Current Plan:** Phase 5 plans 05-01 through 05-06 ready for execution  
+**Status:** Phase 5 planned; ready to execute Wave 1
+**Progress:** [░░░░░░░░░░░░░░░░░░░░] 0% for Phase 5 execution
 
 ## Phase Status
 
@@ -43,7 +43,7 @@ progress:
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
-| 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
+| 5. Training Objective and Pipeline Comparability | Planned | 6 executable plans across 3 waves for explicit SFT/DPO modes, run diffs, controlled comparison checks, config choice snapshots, shared training utilities, and command docs. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
 
@@ -129,7 +129,7 @@ progress:
 
 ### Open Todos
 
-- Plan Phase 5 training objective and pipeline comparability work.
+- Execute Phase 5 training objective and pipeline comparability plans.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -139,7 +139,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Plan Phase 5 training objective and pipeline comparability work.
+**Next Recommended Action:** Execute Phase 5 training objective and pipeline comparability work.
 
 **Files Created/Updated:**
 
@@ -267,6 +267,13 @@ progress:
 - `.planning/phases/04-cpu-safe-characterization-tests/04-05-SUMMARY.md`
 - `.planning/phases/04-cpu-safe-characterization-tests/04-06-SUMMARY.md`
 - `.planning/phases/04-cpu-safe-characterization-tests/VERIFICATION.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-RESEARCH.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-01-PLAN.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-02-PLAN.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-03-PLAN.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-04-PLAN.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-05-PLAN.md`
+- `.planning/phases/05-training-objective-and-pipeline-comparability/05-06-PLAN.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
