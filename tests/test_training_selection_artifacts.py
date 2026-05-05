@@ -21,6 +21,30 @@ def _read_jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
+def _assert_sft_summary_contract(summary: dict[str, object]) -> None:
+    for key in [
+        "selection_mode",
+        "score_column",
+        "threshold",
+        "source_scores_sha256",
+        "selected_count",
+        "filtering_stats",
+    ]:
+        assert key in summary
+
+
+def _assert_sft_row_contract(row: dict[str, object]) -> None:
+    for key in [
+        "schema_version",
+        "sample_id",
+        "prompt_id",
+        "version",
+        "selected_score",
+        "selection_mode",
+    ]:
+        assert key in row
+
+
 def test_sft_materialization_defaults_to_existing_threshold_semantics(
     tmp_path: Path,
 ) -> None:
@@ -38,6 +62,7 @@ def test_sft_materialization_defaults_to_existing_threshold_semantics(
     summary = materialize_sft_samples(scores, output, threshold=0.3)
 
     rows = _read_jsonl(output)
+    _assert_sft_summary_contract(summary)
     assert summary["schema_version"] == "selected-samples/v1"
     assert summary["selection_mode"] == "threshold"
     assert summary["input_rows"] == 4
@@ -48,6 +73,7 @@ def test_sft_materialization_defaults_to_existing_threshold_semantics(
         ("p2", 1),
         ("p2", 2),
     ]
+    _assert_sft_row_contract(rows[0])
     assert rows[0]["schema_version"] == "selected-samples/v1"
     assert rows[0]["sample_id"] == "sft:p1:v2:score"
     assert rows[0]["target_text"] == "Ёж"
@@ -82,6 +108,7 @@ def test_sft_top_k_materialization_selects_highest_versions_per_prompt(
     )
 
     rows = _read_jsonl(output)
+    _assert_sft_summary_contract(summary)
     assert summary["selection_mode"] == "top_k_per_prompt"
     assert summary["selected_count"] == 2
     assert summary["filtering_stats"] == {
@@ -95,6 +122,74 @@ def test_sft_top_k_materialization_selects_highest_versions_per_prompt(
     ]
     assert {row["selection_mode"] for row in rows} == {"top_k_per_prompt"}
     assert {row["score_column"] for row in rows} == {"score_ocr"}
+
+
+def test_sft_score_weighted_materialization_adds_normalized_sample_weights(
+    tmp_path: Path,
+) -> None:
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.25", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.50", "target_text": "Ёж"},
+            {"id": "p2", "version": 1, "score": "0.75", "target_text": "Жук"},
+        ],
+    )
+    output = tmp_path / "selected_weighted.jsonl"
+
+    summary = materialize_sft_samples(scores, output, mode="score_weighted", threshold=0.3)
+
+    rows = _read_jsonl(output)
+    _assert_sft_summary_contract(summary)
+    assert summary["selection_mode"] == "score_weighted"
+    assert summary["selected_count"] == 2
+    assert [(row["prompt_id"], row["version"], row["selected_score"]) for row in rows] == [
+        ("p1", 2, 0.5),
+        ("p2", 1, 0.75),
+    ]
+    assert [row["sample_weight"] for row in rows] == [round(0.5 / 0.75, 12), 1.0]
+    assert {row["selection_mode"] for row in rows} == {"score_weighted"}
+    for row in rows:
+        _assert_sft_row_contract(row)
+
+
+def test_sft_hard_positive_requires_prompt_level_hard_negative(
+    tmp_path: Path,
+) -> None:
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.15", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.80", "target_text": "Ёж"},
+            {"id": "p2", "version": 1, "score": "0.35", "target_text": "Жук"},
+            {"id": "p2", "version": 2, "score": "0.90", "target_text": "Жук"},
+            {"id": "p3", "version": 1, "score": "0.10", "target_text": "Цех"},
+            {"id": "p3", "version": 2, "score": "0.29", "target_text": "Цех"},
+        ],
+    )
+    output = tmp_path / "selected_hard_positive.jsonl"
+
+    summary = materialize_sft_samples(
+        scores,
+        output,
+        mode="hard_positive",
+        threshold=0.7,
+        hard_negative_threshold=0.2,
+    )
+
+    rows = _read_jsonl(output)
+    _assert_sft_summary_contract(summary)
+    assert summary["selection_mode"] == "hard_positive"
+    assert summary["hard_negative_threshold"] == 0.2
+    assert summary["selected_count"] == 1
+    assert summary["filtering_stats"] == {
+        "below_threshold": 4,
+        "prompts_without_hard_negative": 1,
+        "selected": 1,
+    }
+    assert [(row["prompt_id"], row["version"]) for row in rows] == [("p1", 2)]
+    assert rows[0]["selection_mode"] == "hard_positive"
+    _assert_sft_row_contract(rows[0])
 
 
 def test_sft_materialization_validates_required_columns_and_numeric_values(
