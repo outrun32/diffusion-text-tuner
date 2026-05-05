@@ -41,7 +41,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **TRN-04**: User can run masked-SFT experiments with explicit masked/global loss weighting, LoRA target/rank choices, synthetic dataset variant, and evaluation suite references captured in config and manifest.
 - [x] **TRN-05**: User can compare baseline, SFT, DPO, masked-SFT, and combined/curriculum approaches under controlled prompts, seeds, inference settings, and evaluation metrics.
 - [x] **TRN-06**: User can identify training/inference mismatches such as step count, guidance, prompt embedding padding, model ID variants, and sampling configuration differences.
-- [ ] **TRN-07**: User can add new trainer or pipeline variants without editing unrelated scripts or losing existing runnable behavior.
+- [x] **TRN-07**: User can add new trainer or pipeline variants without editing unrelated scripts or losing existing runnable behavior.
 
 ### Reward and Evaluation Validity
 
@@ -88,7 +88,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [ ] **STR-01**: User can navigate a moderately cleaned file structure where reusable source code, thin scripts, cluster launchers, configs, diagnostics, experiments, generated outputs, tests, and thesis artifacts have clear homes.
 - [x] **STR-02**: User can use shared runtime helpers for config I/O, path resolution, seeds, manifests, and preflight validation.
 - [ ] **STR-03**: User can use shared scoring/reward/evaluation modules instead of duplicated Qwen/OCR logic across training and evaluation.
-- [ ] **STR-04**: User can use focused shared training modules for sampling, checkpointing, schedulers, objective helpers, and config/runtime plumbing while preserving current SFT, DPO, and masked-SFT behavior.
+- [x] **STR-04**: User can use focused shared training modules for sampling, checkpointing, schedulers, objective helpers, and config/runtime plumbing while preserving current SFT, DPO, and masked-SFT behavior.
 - [ ] **STR-05**: User can use importable implementation modules behind CLI scripts for generation, scoring, synthesis, evaluation, plotting, and run comparison.
 - [ ] **STR-06**: User can add future experiments/pipelines through documented extension points rather than new one-off scripts with hidden assumptions.
 
@@ -157,7 +157,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRN-04 | Phase 5 | Complete |
 | TRN-05 | Phase 5 | Complete |
 | TRN-06 | Phase 5 | Complete |
-| TRN-07 | Phase 5 | Pending |
+| TRN-07 | Phase 5 | Complete |
 | EVAL-01 | Phase 6 | Pending |
 | EVAL-02 | Phase 6 | Pending |
 | EVAL-03 | Phase 6 | Pending |
@@ -189,7 +189,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STR-01 | Phase 7 | Pending |
 | STR-02 | Phase 2 | Complete |
 | STR-03 | Phase 6 | Pending |
-| STR-04 | Phase 5 | Pending |
+| STR-04 | Phase 5 | Complete |
 | STR-05 | Phase 7 | Pending |
 | STR-06 | Phase 7 | Pending |
 
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-05 after Phase 5 Plan 04 execution*
+*Last updated: 2026-05-05 after Phase 5 Plan 05 execution*

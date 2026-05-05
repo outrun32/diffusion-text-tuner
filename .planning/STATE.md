@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 5 - Training Objective and Pipeline Comparability
-current_plan: Phase 5 Plan 05-05 ready for execution
+current_plan: Phase 5 Plan 05-06 ready for execution
 status: phase-5-in-progress
-last_updated: "2026-05-05T19:21:46Z"
+last_updated: "2026-05-05T19:27:53Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-05 after Phase 5 Plan 04 execution
+**Last updated:** 2026-05-05 after Phase 5 Plan 05 execution
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 5 - Training Objective and Pipeline Comparability  
-**Current Plan:** Phase 5 Plan 05-05 ready for execution  
-**Status:** Phase 5 in progress; Plans 05-01 through 05-04 complete
-**Progress:** [█████████████░░░░░░░] 67% for Phase 5 execution
+**Current Plan:** Phase 5 Plan 05-06 ready for execution  
+**Status:** Phase 5 in progress; Plans 05-01 through 05-05 complete
+**Progress:** [█████████████████░░░] 83% for Phase 5 execution
 
 ## Phase Status
 
@@ -43,7 +43,7 @@ progress:
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
-| 5. Training Objective and Pipeline Comparability | In progress | 4/6 plans complete. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, and explicit config choice snapshots are implemented; shared training utilities and command docs remain. |
+| 5. Training Objective and Pipeline Comparability | In progress | 5/6 plans complete. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, explicit config choice snapshots, and import-safe shared training utilities are implemented; integrated command docs remain. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
 
@@ -51,11 +51,11 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, Phase 3, TEST-01 through TEST-05, TRN-01 through TRN-06 except TRN-07, and RUN-02 complete | 100% mapped; continue Phase 5 trainer comparability work |
+| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, Phase 3, TEST-01 through TEST-05, TRN-01 through TRN-07, RUN-02, and STR-04 complete | 100% mapped; continue Phase 5 trainer comparability work |
 | Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
-| Default test posture | 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
-| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, Phase 3 runtime/docs command wiring, CPU-safe run-manifest diff tooling, CPU-safe training comparability reports, and explicit SFT/DPO/masked-SFT config choice snapshots | Extend integrated comparison commands during Phase 5 |
+| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, Phase 3 runtime/docs command wiring, CPU-safe run-manifest diff tooling, CPU-safe training comparability reports, explicit SFT/DPO/masked-SFT config choice snapshots, and shared training runtime metadata helpers | Extend integrated comparison commands during Phase 5 |
 
 ## Accumulated Context
 
@@ -122,6 +122,7 @@ progress:
 - Preserve `threshold` and `best_vs_worst` as backwards-compatible SFT/DPO config defaults while exposing explicit choice fields in dataclasses and snapshots for comparison-grade manifests.
 - Validate materialized selected-sample and preference-pair config paths with the existing CPU-safe runtime path policy; do not perform generated artifact existence checks during config loading.
 - Defer pre-existing dirty `src/training/config.py` Ruff line-length failures rather than touching unrelated user edits during Plan 05-04 execution.
+- Keep shared trainer seams in import-safe modules (`src.training.sampling`, `src.training.checkpointing`, `src.training.schedulers`, and `src.training.runtime`) before compatibility wiring into large trainer loops.
 
 ### Important Caveats
 
@@ -139,7 +140,7 @@ progress:
 
 ### Open Todos
 
-- Execute remaining Phase 5 training objective and pipeline comparability plans, starting with 05-05 shared training utilities.
+- Execute remaining Phase 5 training objective and pipeline comparability plan 05-06 integrated command documentation.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -149,7 +150,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 5 Plan 05-05 shared training utilities.
+**Next Recommended Action:** Execute Phase 5 Plan 05-06 integrated training-run comparison command docs.
 
 **Files Created/Updated:**
 
