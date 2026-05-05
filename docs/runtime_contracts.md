@@ -75,6 +75,31 @@ Phase 3 reports, manifests, contact sheets, selected samples, preference pairs, 
 comparison files are non-committable runtime output unless they are intentionally tiny reviewed
 fixtures or documentation assets.
 
+## Characterization Test Fixture Contract
+
+Phase 4 CPU-safe characterization tests use the same runtime trust boundaries while keeping all
+fixtures small enough for default pytest. The characterization suite covers config/artifact
+characterization, dataset and collator characterization, objective math and DPO characterization,
+prompt determinism characterization, and reward wrapper fake characterization through focused files:
+
+- `tests/test_characterization_config_artifacts.py`
+- `tests/test_training_dataset_contracts.py`
+- `tests/test_training_objective_math.py`
+- `tests/test_prompt_generation_determinism.py`
+- `tests/test_reward_wrapper_contracts.py`
+- `tests/test_characterization_docs.py`
+
+Use `tmp_path` for generated JSONL, CSV, PNG, and tensor fixtures. Tensor characterization must use
+trusted local dictionaries loaded as `torch.load(..., map_location="cpu", weights_only=True)` so tests
+do not allocate CUDA memory or unpickle arbitrary objects. Generated artifacts and private prompts
+remain out of git; commit only reviewed source, docs, or intentionally tiny fixtures under allowed
+fixture/documentation roots.
+
+The full suite is exposed as `make characterization-test`, with focused aliases
+`make characterization-runtime`, `make characterization-datasets`, `make characterization-objectives`,
+`make characterization-prompts`, and `make characterization-rewards`. These aliases are CPU-safe by
+default; optional slow/GPU/OCR/model/integration/manual diagnostics are not included in them.
+
 ## Preflight Validator Hooks
 
 | Stage | Recommended call | Blocks expensive work when |

@@ -1,4 +1,4 @@
-.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources
+.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards
 
 RUN_MANIFEST ?= runs/example/manifest.json
 PROMPT_CONFIG ?= configs/prompts/curriculum.json
@@ -83,3 +83,21 @@ phase3-materialize-dpo:
 
 phase3-compare-sources:
 	uv run python scripts/compare_data_sources.py --generated-prompt-quality-report $(PROMPT_QUALITY_REPORT) --selected-samples $(GENERATED_OUTPUT_DIR)/selected_samples.jsonl --preference-pairs $(GENERATED_OUTPUT_DIR)/preference_pairs.jsonl --generated-dataset-manifest $(SELECTED_SAMPLES_MANIFEST) --synthetic-quality-report $(SYNTHETIC_QUALITY_REPORT) --synthetic-manifest $(SYNTHETIC_DATASET_MANIFEST) --output-report $(DATA_SOURCE_COMPARISON) --markdown-summary $(DATA_SOURCE_COMPARISON_MD)
+
+characterization-test:
+	uv run pytest tests/test_characterization_config_artifacts.py tests/test_training_dataset_contracts.py tests/test_training_objective_math.py tests/test_prompt_generation_determinism.py tests/test_reward_wrapper_contracts.py tests/test_characterization_docs.py
+
+characterization-runtime:
+	uv run pytest tests/test_characterization_config_artifacts.py
+
+characterization-datasets:
+	uv run pytest tests/test_training_dataset_contracts.py
+
+characterization-objectives:
+	uv run pytest tests/test_training_objective_math.py
+
+characterization-prompts:
+	uv run pytest tests/test_prompt_generation_determinism.py
+
+characterization-rewards:
+	uv run pytest tests/test_reward_wrapper_contracts.py

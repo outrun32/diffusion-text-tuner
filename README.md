@@ -21,6 +21,14 @@ Start with the Phase 1 execution docs before launching experiments:
 
 Default automated tests are **CPU-safe**. GPU, model-access, OCR, SLURM, and gradient diagnostics are explicit **opt-in** commands so broad test discovery does not accidentally launch expensive work.
 
+Phase 4 CPU-safe characterization tests can be discovered from [`docs/commands.md`](docs/commands.md), [`docs/runtime_contracts.md`](docs/runtime_contracts.md), and Makefile aliases. Run the complete characterization suite with:
+
+```bash
+make characterization-test
+```
+
+Focused aliases are available for `characterization-runtime`, `characterization-datasets`, `characterization-objectives`, `characterization-prompts`, and `characterization-rewards`. These commands cover config/artifact, dataset/collator, objective math/DPO, prompt determinism, and reward wrapper fake tests without loading CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, SynthTIGER, or external model weights.
+
 Run the manifest and preflight steps before long-running GPU/model work: create or inspect a local run manifest, run the appropriate preflight check, and confirm generated artifacts will land under ignored runtime roots such as `outputs/` and `runs/`:
 
 ```bash

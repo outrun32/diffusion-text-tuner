@@ -49,6 +49,39 @@ uv run python -m scripts.smoke_environment --check ocr --allow-missing
 uv run python -m scripts.smoke_environment --check cache --allow-missing
 ```
 
+## Phase 4 CPU-safe characterization tests
+
+Phase 4 publishes CPU-safe characterization commands that lock fragile behavior before
+reward, trainer, prompt, dataset, or runtime code is moved. These tests are part of the
+default pytest posture: default pytest does not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER,
+and it does not download external model weights. Optional
+slow/GPU/OCR/model/integration/manual diagnostics remain opt-in through explicit marker
+commands such as `pytest -m slow`, `pytest -m gpu`, `pytest -m ocr`, `pytest -m model`,
+`pytest -m integration`, and `pytest -m manual`.
+
+Run the full Phase 4 characterization surface with either pytest or the Makefile alias:
+
+```bash
+uv run pytest tests/test_characterization_config_artifacts.py tests/test_training_dataset_contracts.py tests/test_training_objective_math.py tests/test_prompt_generation_determinism.py tests/test_reward_wrapper_contracts.py tests/test_characterization_docs.py
+make characterization-test
+```
+
+Focused CPU-safe characterization groups are available when working on a narrower
+boundary:
+
+| Focus | Pytest command | Makefile alias |
+|-------|----------------|----------------|
+| config/artifact characterization | `uv run pytest tests/test_characterization_config_artifacts.py` | `make characterization-runtime` |
+| dataset and collator characterization | `uv run pytest tests/test_training_dataset_contracts.py` | `make characterization-datasets` |
+| objective math and DPO characterization | `uv run pytest tests/test_training_objective_math.py` | `make characterization-objectives` |
+| prompt determinism characterization | `uv run pytest tests/test_prompt_generation_determinism.py` | `make characterization-prompts` |
+| reward wrapper fake characterization | `uv run pytest tests/test_reward_wrapper_contracts.py` | `make characterization-rewards` |
+
+Characterization fixtures must stay tiny and local to pytest. Prefer `tmp_path` for JSONL,
+CSV, image, and tensor fixtures; inspect trusted local tensors only with
+`torch.load(..., map_location="cpu", weights_only=True)`. generated artifacts and private prompts remain out of git unless they are intentionally tiny reviewed fixtures under an
+allowed fixture/documentation path.
+
 ## Runtime contracts
 
 Read [`docs/runtime_contracts.md`](runtime_contracts.md) and [`configs/experiments/README.md`](../configs/experiments/README.md) before launching long-running generation, scoring, training, synthesis, or evaluation jobs. The runtime contract helpers are CPU-safe gates: they validate configs, manifests, and local artifact layout, but they do not launch CUDA, FLUX, Qwen, PaddleOCR, OCR, or SLURM work.
