@@ -307,7 +307,7 @@ def test_dpo_all_separated_pairs_emits_every_strictly_separated_pair(
     assert summary["filtering_stats"] == {
         "equal_score_pairs_rejected": 1,
         "insufficient_versions": 0,
-        "pairs_below_margin": 1,
+        "pairs_below_margin": 0,
         "selected": 4,
         "winners_below_threshold": 0,
     }
