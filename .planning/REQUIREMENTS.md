@@ -75,8 +75,8 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 ### Testing and Diagnostics
 
-- [ ] **TEST-01**: User can run automated tests for config parsing and validation.
-- [ ] **TEST-02**: User can run automated tests for dataset loading, collators, pair/sample selection, and artifact path/shape contracts using tiny fixtures.
+- [x] **TEST-01**: User can run automated tests for config parsing and validation.
+- [x] **TEST-02**: User can run automated tests for dataset loading, collators, pair/sample selection, and artifact path/shape contracts using tiny fixtures.
 - [ ] **TEST-03**: User can run automated tests for critical tensor math including masked losses, scheduler helpers, DPO objective helpers, and beta/sign behavior.
 - [ ] **TEST-04**: User can run automated tests for deterministic prompt generation behavior under fixed seeds.
 - [ ] **TEST-05**: User can run automated tests for reward wrapper behavior using fakes/mocks rather than loading Qwen, PaddleOCR, or other large models.
@@ -179,8 +179,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ART-02 | Phase 2 | Complete |
 | ART-03 | Phase 2 | Complete |
 | ART-04 | Phase 2 | Complete |
-| TEST-01 | Phase 4 | Pending |
-| TEST-02 | Phase 4 | Pending |
+| TEST-01 | Phase 4 | Complete |
+| TEST-02 | Phase 4 | Complete |
 | TEST-03 | Phase 4 | Pending |
 | TEST-04 | Phase 4 | Pending |
 | TEST-05 | Phase 4 | Pending |

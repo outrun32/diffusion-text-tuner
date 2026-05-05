@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 4 - CPU-Safe Characterization Tests
-current_plan: Phase 4 planning pending
-status: phase-3-verified-complete
-last_updated: "2026-05-04T16:05:01Z"
+current_plan: 04-02-PLAN.md
+status: phase-4-in-progress
+last_updated: "2026-05-05T18:07:16Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 6
-  completed_plans: 6
-  percent: 100
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-04 after Phase 3 verification
+**Last updated:** 2026-05-05 after Phase 4 Plan 01 execution
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 4 - CPU-Safe Characterization Tests  
-**Current Plan:** Phase 4 planning pending  
-**Status:** Phase 3 verified complete; ready to plan Phase 4
-**Progress:** [████████████████████] 100% for Phase 3
+**Current Plan:** 04-02-PLAN.md  
+**Status:** Phase 4 in progress; Plan 04-01 complete
+**Progress:** [███░░░░░░░░░░░░░░░░░] 17% for Phase 4
 
 ## Phase Status
 
@@ -42,7 +42,7 @@ progress:
 | 1. Execution Surface and Pipeline Inventory | Verified complete | 4/4 plans complete and phase verification passed 12/12 must-haves. |
 | 2. Runtime Contracts and Run Provenance | Verified complete | 5/5 plans complete and phase verification passed 5/5 must-haves. Shared config validation, canonical paths, artifact validators, runtime contract docs, local manifests, trainer loader wiring, manifest CLI, runtime preflight CLI, config-family docs, and Makefile/README command surfaces are in place. |
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
-| 4. CPU-Safe Characterization Tests | Not started | Behavior-locking tests before trainer/reward/pipeline refactors. |
+| 4. CPU-Safe Characterization Tests | In progress | 1/6 plans complete. Plan 04-01 added committed-config and tiny-artifact characterization tests. |
 | 5. Training Objective and Pipeline Comparability | Not started | Explicit training modes, run diffs, controlled comparisons, shared training utilities. |
 | 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
@@ -51,9 +51,9 @@ progress:
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, and DATA-01 through DATA-07 complete and verified | 100% mapped; proceed to Phase 4 planning/verification |
+| v1 requirement coverage | 58/58 mapped; Phase 1, Phase 2, DATA-01 through DATA-07, TEST-01, and TEST-02 complete | 100% mapped; continue Phase 4 characterization plans |
 | Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
-| Default test posture | 120 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, prompt dataset quality/manifest CLI tests, synthetic quality/manifest/contact-sheet CLI tests, training selection artifact/CLI tests, data source comparison/CLI/docs tests, and Phase 3 data-quality docs/runtime wiring tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 128 CPU-safe pytest tests including smoke CLI, tensor-loss, runtime config validation, runtime artifact contracts, committed-config/tiny-artifact characterization, runtime manifest contracts, runtime docs checks, runtime preflight CLI behavior, prompt curriculum/config CLI tests, prompt dataset quality/manifest CLI tests, synthetic quality/manifest/contact-sheet CLI tests, training selection artifact/CLI tests, data source comparison/CLI/docs tests, and Phase 3 data-quality docs/runtime wiring tests; diagnostics are opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
 | Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, and Phase 3 runtime/docs command wiring | Extend characterization coverage during Phase 4 |
 
@@ -100,6 +100,9 @@ progress:
 - Use `docs/commands.md`, `README.md`, and Makefile aliases as the standard discovery surface for Phase 3 prompt validation, synthetic inspection, selection materialization, and source comparison workflows.
 - Treat generated Phase 3 reports, manifests, contact sheets, selected samples, preference pairs, and comparison outputs as non-committable runtime artifacts by default.
 - Capture synthetic dataset provenance through `scripts/inspect_synthetic_dataset.py` flags for build config, seed, template/runner, model metadata, and word/font/scene/background sources before using synthetic data as thesis evidence.
+- Use real committed SFT, DPO, and masked-SFT root configs as Phase 4 characterization fixtures for runtime config validation.
+- Keep Phase 4 artifact characterization fixtures in pytest `tmp_path`, using only tiny trusted local tensor dictionaries inspected with `torch.load(..., map_location="cpu", weights_only=True)`.
+- Preserve both mapping-based and keyword-based `require_ready` artifact readiness APIs so preflight callers can aggregate blocking errors before expensive stages.
 
 ### Important Caveats
 
@@ -117,7 +120,7 @@ progress:
 
 ### Open Todos
 
-- Plan Phase 4 CPU-safe characterization tests.
+- Execute Phase 4 Plan 02 dataset, collator, selection, and resolution-bucket characterization tests.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -127,7 +130,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Plan Phase 4 CPU-safe characterization tests.
+**Next Recommended Action:** Execute Phase 4 Plan 02 dataset/collator/selection characterization tests.
 
 **Files Created/Updated:**
 
@@ -239,6 +242,14 @@ progress:
 - `Makefile`
 - `.planning/phases/03-data-curriculum-and-dataset-quality/03-06-SUMMARY.md`
 - `.planning/phases/03-data-curriculum-and-dataset-quality/VERIFICATION.md`
+- `.planning/phases/04-cpu-safe-characterization-tests/04-CONTEXT.md`
+- `.planning/phases/04-cpu-safe-characterization-tests/04-RESEARCH.md`
+- `.planning/phases/04-cpu-safe-characterization-tests/04-PATTERNS.md`
+- `.planning/phases/04-cpu-safe-characterization-tests/04-01-PLAN.md`
+- `tests/test_characterization_config_artifacts.py`
+- `configs/masked_sft.json`
+- `src/runtime/artifacts.py`
+- `.planning/phases/04-cpu-safe-characterization-tests/04-01-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
