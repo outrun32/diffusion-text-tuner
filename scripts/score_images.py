@@ -1,15 +1,26 @@
 """
-Score generated images using VLM (Qwen3.5-9B) reward model.
+Score generated images using VLM or OCR reward model.
 
-Reads PNGs from the image generation output, computes P(yes) scores,
+Reads PNGs from the image generation output, computes scores,
 and writes a scores CSV for the SFT/DPO pipeline.
+
+Scorers:
+  vlm  — Qwen3.5-9B P(yes) (default, ~2.5GB VRAM, ~500ms/img)
+  ocr  — PaddleOCR v5 CER+Entropy (~50MB VRAM, ~10ms/img, needs paddle)
+  both — runs both and writes all columns
 
 Usage:
   python -m scripts.score_images \
     --images_dir outputs/generated/images \
     --text_embeds_dir outputs/generated/text_embeds \
     --output_csv outputs/generated/scores.csv \
-    --vlm_model_id Qwen/Qwen3.5-9B
+    --scorer vlm
+
+  python -m scripts.score_images \
+    --scorer ocr --entropy_lambda 1.5 ...
+
+  python -m scripts.score_images \
+    --scorer both ...
 """
 
 from __future__ import annotations
@@ -35,7 +46,11 @@ def main():
     parser.add_argument("--text_embeds_dir", type=str, required=True,
                         help="Dir with {prompt_id}.pt (contains target_text)")
     parser.add_argument("--output_csv", type=str, default="outputs/generated/scores.csv")
+    parser.add_argument("--scorer", type=str, default="vlm", choices=["vlm", "ocr", "both"],
+                        help="Scoring method: vlm (Qwen yes-prob), ocr (CER+entropy), both")
     parser.add_argument("--vlm_model_id", type=str, default="Qwen/Qwen3.5-9B")
+    parser.add_argument("--entropy_lambda", type=float, default=1.0,
+                        help="Lambda for OCR entropy scaling (R = (1-CER)*exp(-λ*H))")
     parser.add_argument("--batch_size", type=int, default=1,
                         help="VLM scoring batch size (1 is safest for memory)")
     parser.add_argument("--resume", action="store_true",
@@ -109,9 +124,35 @@ def main():
         logger.info("Nothing to score, exiting.")
         return
 
-    # Load VLM
-    from src.training.rewards import QwenYesProbReward
-    reward_model = QwenYesProbReward(model_id=args.vlm_model_id, device="cuda")
+    # Load scorer(s)
+    vlm_model = None
+    ocr_model = None
+
+    if args.scorer in ("vlm", "both"):
+        from src.training.rewards import QwenYesProbReward
+        vlm_model = QwenYesProbReward(model_id=args.vlm_model_id, device="cuda")
+
+    if args.scorer in ("ocr", "both"):
+        from src.training.rewards import OcrCerEntropyReward
+        ocr_model = OcrCerEntropyReward(
+            lang="ru", device="gpu", entropy_lambda=args.entropy_lambda,
+        )
+
+    # CSV fields depend on scorer
+    base_fields = ["id", "version", "score", "target_text"]
+    extra_fields = []
+    if ocr_model:
+        extra_fields += [
+            "official_conf",
+            "cer",
+            "entropy",
+            "min_p",
+            "frac_unc",
+            "ocr_detected",
+        ]
+    if vlm_model and ocr_model:
+        extra_fields += ["score_vlm", "score_ocr"]
+    all_fields = base_fields + extra_fields
 
     # Score
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
@@ -119,25 +160,49 @@ def main():
     mode = "w" if write_header else "a"
 
     with open(output_csv, mode, newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["id", "version", "score", "target_text"])
+        writer = csv.DictWriter(f, fieldnames=all_fields)
         if write_header:
             writer.writeheader()
 
         for task in tqdm(tasks, desc="Scoring"):
-            pil_image = Image.open(task["image_path"]).convert("RGB")
-            import torchvision.transforms.functional as TF
-            img_tensor = TF.to_tensor(pil_image).to("cuda")
-
-            with torch.no_grad():
-                score = reward_model.score_single(img_tensor, task["target_text"])
-                score_val = score.item()
-
-            writer.writerow({
+            row = {
                 "id": task["id"],
                 "version": task["version"],
-                "score": f"{score_val:.6f}",
                 "target_text": task["target_text"],
-            })
+            }
+
+            score_vlm = None
+            score_ocr = None
+
+            if vlm_model:
+                pil_image = Image.open(task["image_path"]).convert("RGB")
+                import torchvision.transforms.functional as TF
+                img_tensor = TF.to_tensor(pil_image).to("cuda")
+                with torch.no_grad():
+                    score_vlm = vlm_model.score_single(
+                        img_tensor, task["target_text"]).item()
+
+            if ocr_model:
+                ocr_result = ocr_model.score(task["image_path"], task["target_text"])
+                score_ocr = ocr_result["reward_ocr"]
+                row["official_conf"] = f"{ocr_result['official_conf']:.4f}"
+                row["cer"] = f"{ocr_result['cer']:.4f}"
+                row["entropy"] = f"{ocr_result['entropy']:.4f}"
+                row["min_p"] = f"{ocr_result['min_p']:.4f}"
+                row["frac_unc"] = f"{ocr_result['frac_unc']:.4f}"
+                row["ocr_detected"] = ocr_result["ocr_detected"]
+
+            # Primary score: VLM if available, else OCR
+            if vlm_model and ocr_model:
+                row["score"] = f"{score_vlm:.6f}"
+                row["score_vlm"] = f"{score_vlm:.6f}"
+                row["score_ocr"] = f"{score_ocr:.6f}"
+            elif vlm_model:
+                row["score"] = f"{score_vlm:.6f}"
+            else:
+                row["score"] = f"{score_ocr:.6f}"
+
+            writer.writerow(row)
             f.flush()
 
     logger.info("Scoring complete. Results → %s", output_csv)

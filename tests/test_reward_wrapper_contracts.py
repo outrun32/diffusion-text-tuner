@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import math
 import sys
 
@@ -133,3 +134,27 @@ def test_ocr_score_pil_writes_temporary_png_and_removes_it():
     assert result == {"reward_ocr": 0.75}
     assert len(seen_paths) == 1
     assert not __import__("os").path.exists(seen_paths[0])
+
+
+def test_score_images_import_does_not_import_reward_models(monkeypatch):
+    for module_name in ["scripts.score_images", "src.training.rewards"]:
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    score_images = importlib.import_module("scripts.score_images")
+
+    assert score_images.main
+    assert "src.training.rewards" not in sys.modules
+
+
+def test_score_images_reward_imports_remain_inside_scorer_selection_paths():
+    import scripts.score_images as score_images
+
+    module_source = inspect.getsource(score_images)
+    before_main = module_source.split("def main():", maxsplit=1)[0]
+    main_source = inspect.getsource(score_images.main)
+
+    assert "from src.training.rewards import" not in before_main
+    assert "from src.training.rewards import QwenYesProbReward" in main_source
+    assert "from src.training.rewards import OcrCerEntropyReward" in main_source
+    assert "args.scorer in (\"vlm\", \"both\")" in main_source
+    assert "args.scorer in (\"ocr\", \"both\")" in main_source
