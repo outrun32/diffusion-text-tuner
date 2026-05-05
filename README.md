@@ -11,6 +11,7 @@ Start with the Phase 1 execution docs before launching experiments:
 - [`docs/pipeline_inventory.md`](docs/pipeline_inventory.md) separates supported toolkit entry points from historical experiments and manual diagnostics.
 - [`docs/commands.md`](docs/commands.md) lists setup, CPU-safe tests, lint/format commands, smoke checks, local commands, SLURM variants, manual diagnostics, and generated-artifact safety notes.
 - [`docs/runtime_contracts.md`](docs/runtime_contracts.md) defines canonical runtime paths, artifact schemas, manifest expectations, and generated-artifact git safety.
+- [`docs/training_comparability.md`](docs/training_comparability.md) explains CPU-safe Phase 5 comparability checks for baseline, SFT, DPO, masked-SFT, combined, and curriculum training approaches.
 - [`configs/experiments/README.md`](configs/experiments/README.md) documents the config-family and naming contract for new SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
 - Phase 3 data curriculum and quality docs cover prompt curriculum configs, prompt dataset validation, synthetic quality inspection, materialized SFT/DPO selections, and generated-vs-synthetic source comparison:
   [`docs/data_curriculum.md`](docs/data_curriculum.md),
@@ -28,6 +29,13 @@ make characterization-test
 ```
 
 Focused aliases are available for `characterization-runtime`, `characterization-datasets`, `characterization-objectives`, `characterization-prompts`, and `characterization-rewards`. These commands cover config/artifact, dataset/collator, objective math/DPO, prompt determinism, and reward wrapper fake tests without loading CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, SynthTIGER, or external model weights.
+
+Phase 5 training comparability commands are CPU-safe and compare recorded manifests
+without launching training, CUDA, model, OCR, image, tensor, or checkpoint work.
+Use `python -m scripts.compare_run_manifests` for raw manifest diffs,
+`python -m scripts.check_training_comparability` for controlled-field mismatch
+checks, and `python -m scripts.compare_training_runs` or `make compare-training-runs`
+for the integrated baseline/SFT/DPO/masked-SFT/combined/curriculum comparison report.
 
 Run the manifest and preflight steps before long-running GPU/model work: create or inspect a local run manifest, run the appropriate preflight check, and confirm generated artifacts will land under ignored runtime roots such as `outputs/` and `runs/`:
 

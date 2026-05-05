@@ -82,6 +82,48 @@ CSV, image, and tensor fixtures; inspect trusted local tensors only with
 `torch.load(..., map_location="cpu", weights_only=True)`. generated artifacts and private prompts remain out of git unless they are intentionally tiny reviewed fixtures under an
 allowed fixture/documentation path.
 
+## Phase 5 training comparability
+
+Phase 5 publishes CPU-safe comparison commands for controlled baseline, SFT, DPO,
+masked-SFT, combined, and curriculum approach reviews. These commands read local
+manifest/config JSON only; they do not launch training, CUDA, FLUX, Qwen,
+PaddleOCR, OCR, model downloads, or generated image/tensor/checkpoint loading.
+Write comparison outputs under ignored runtime roots such as `runs/comparisons/`.
+
+Materialize comparison-grade selections before launching SFT or DPO runs:
+
+```bash
+uv run python scripts/materialize_training_data.py --kind sft --scores-csv outputs/generated/scores.csv --output-dir outputs/generated --manifest outputs/generated/selected_samples.manifest.json
+uv run python scripts/materialize_training_data.py --kind dpo --scores-csv outputs/generated/scores.csv --output-dir outputs/generated --manifest outputs/generated/preference_pairs.manifest.json
+```
+
+Compare run manifests for config, data source, reward, seed, inference, metric,
+artifact, and secret-safe environment differences:
+
+```bash
+python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json
+```
+
+Check controlled training comparability before interpreting approach differences:
+
+```bash
+python -m scripts.check_training_comparability --left-manifest runs/<a>/manifest.json --right-manifest runs/<b>/manifest.json
+```
+
+Generate one integrated Markdown report that includes both the manifest diff and
+blocking/warning comparability mismatches:
+
+```bash
+python -m scripts.compare_training_runs --left-manifest runs/<a>/manifest.json --right-manifest runs/<b>/manifest.json --markdown --output runs/comparisons/training-run-comparison.md
+make compare-training-runs LEFT_MANIFEST=runs/<a>/manifest.json RIGHT_MANIFEST=runs/<b>/manifest.json
+```
+
+Use the integrated `compare-training-runs` alias when reviewing baseline vs SFT,
+baseline vs DPO, SFT vs masked-SFT, combined training, or curriculum ablations.
+Blocking mismatches mean the runs are not controlled enough for thesis-grade
+claims unless the mismatch is intentionally documented; warnings identify step,
+metric, or artifact evidence that needs interpretation notes.
+
 ## Runtime contracts
 
 Read [`docs/runtime_contracts.md`](runtime_contracts.md) and [`configs/experiments/README.md`](../configs/experiments/README.md) before launching long-running generation, scoring, training, synthesis, or evaluation jobs. The runtime contract helpers are CPU-safe gates: they validate configs, manifests, and local artifact layout, but they do not launch CUDA, FLUX, Qwen, PaddleOCR, OCR, or SLURM work.

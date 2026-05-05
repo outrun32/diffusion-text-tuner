@@ -1,4 +1,4 @@
-.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards
+.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards compare-training-runs
 
 RUN_MANIFEST ?= runs/example/manifest.json
 PROMPT_CONFIG ?= configs/prompts/curriculum.json
@@ -16,6 +16,9 @@ SELECTED_SAMPLES_MANIFEST ?= outputs/generated/selected_samples.manifest.json
 PREFERENCE_PAIRS_MANIFEST ?= outputs/generated/preference_pairs.manifest.json
 DATA_SOURCE_COMPARISON ?= runs/comparisons/generated-vs-synthetic.json
 DATA_SOURCE_COMPARISON_MD ?= runs/comparisons/generated-vs-synthetic.md
+LEFT_MANIFEST ?= runs/a/manifest.json
+RIGHT_MANIFEST ?= runs/b/manifest.json
+TRAINING_RUN_COMPARISON ?= runs/comparisons/training-run-comparison.md
 
 setup:
 	uv sync --group dev
@@ -101,3 +104,6 @@ characterization-prompts:
 
 characterization-rewards:
 	uv run pytest tests/test_reward_wrapper_contracts.py
+
+compare-training-runs:
+	uv run python -m scripts.compare_training_runs --left-manifest $(LEFT_MANIFEST) --right-manifest $(RIGHT_MANIFEST) --markdown --output $(TRAINING_RUN_COMPARISON)

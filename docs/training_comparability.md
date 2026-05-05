@@ -82,6 +82,27 @@ Manifest mode delegates loading to `src.runtime.manifests.load_run_manifest` thr
 `compare_training_manifests`, then applies the same controlled-field comparison logic used
 for config snapshots.
 
+## Integrated run comparison command
+
+Use the integrated command when you want one CPU-safe report for baseline, SFT, DPO,
+masked-SFT, combined, or curriculum run comparisons. It reads the same two local
+run manifests twice: once through `compare_run_manifests` for provenance/config
+diffs and once through `compare_training_manifests` for blocking/warning
+controlled-field mismatches. It does not launch training, CUDA, FLUX, Qwen,
+PaddleOCR, OCR, model inference, tensor loading, generated image reads, or
+checkpoint inspection.
+
+```bash
+python -m scripts.compare_training_runs --left-manifest runs/<a>/manifest.json --right-manifest runs/<b>/manifest.json --markdown --output runs/comparisons/training-run-comparison.md
+make compare-training-runs LEFT_MANIFEST=runs/<a>/manifest.json RIGHT_MANIFEST=runs/<b>/manifest.json
+```
+
+The JSON report uses `schema_version: training-run-comparison/v1` and contains
+`manifest_diff` and `comparability` keys. The Markdown report starts with
+`# Training run comparison`, then renders `## Manifest diff` and
+`## Comparability mismatches`. The command exits `1` when blocking comparability
+mismatches exist unless `--allow-blocking` is passed.
+
 ## Shared trainer seams
 
 Trainer variants should grow through focused shared modules instead of adding more unrelated
