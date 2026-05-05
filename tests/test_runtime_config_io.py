@@ -253,6 +253,59 @@ def test_path_policy_is_applied_during_stage_loading(tmp_path: Path) -> None:
     assert "sft_lora_path" in str(exc_info.value)
 
 
+def test_sft_explicit_selection_fields_snapshot_for_manifest_provenance(tmp_path: Path) -> None:
+    payload = _sft_payload() | {
+        "selection_mode": "score_weighted",
+        "selected_samples_path": "outputs/generated/selected_samples.jsonl",
+        "score_column": "reward_score",
+        "hard_negative_threshold": 0.15,
+        "sample_weighting": "score_normalized",
+    }
+    path = _write_json(tmp_path, "sft_explicit_selection.json", payload)
+
+    snapshot = resolve_config_snapshot(load_stage_config("sft", path))
+
+    assert snapshot["selection_mode"] == "score_weighted"
+    assert snapshot["selected_samples_path"] == "outputs/generated/selected_samples.jsonl"
+    assert snapshot["score_column"] == "reward_score"
+    assert snapshot["hard_negative_threshold"] == 0.15
+    assert snapshot["sample_weighting"] == "score_normalized"
+
+
+def test_dpo_explicit_pair_fields_snapshot_for_manifest_provenance(tmp_path: Path) -> None:
+    payload = _dpo_payload() | {
+        "pair_construction_mode": "margin_weighted",
+        "preference_pairs_path": "outputs/generated/preference_pairs.jsonl",
+        "score_column": "reward_score",
+        "ambiguity_margin": 0.05,
+        "pair_weighting": "margin_normalized",
+    }
+    path = _write_json(tmp_path, "dpo_explicit_pairs.json", payload)
+
+    snapshot = resolve_config_snapshot(load_stage_config("dpo", path))
+
+    assert snapshot["pair_construction_mode"] == "margin_weighted"
+    assert snapshot["preference_pairs_path"] == "outputs/generated/preference_pairs.jsonl"
+    assert snapshot["score_column"] == "reward_score"
+    assert snapshot["ambiguity_margin"] == 0.05
+    assert snapshot["pair_weighting"] == "margin_normalized"
+
+
+def test_invalid_explicit_mode_strings_are_secret_safe(tmp_path: Path) -> None:
+    secret_like_value = "score_weighted_sk-live-secret-token-123"
+    payload = _sft_payload() | {"selection_mode": secret_like_value}
+    path = _write_json(tmp_path, "sft_bad_mode.json", payload)
+
+    with pytest.raises(RuntimeConfigError) as exc_info:
+        load_stage_config("sft", path)
+
+    message = str(exc_info.value)
+    assert str(path) in message
+    assert "selection_mode" in message
+    assert secret_like_value not in message
+    assert "sk-live-secret-token-123" not in message
+
+
 def test_resolve_config_snapshot_is_json_serializable_sorted_and_immutable(
     tmp_path: Path,
 ) -> None:

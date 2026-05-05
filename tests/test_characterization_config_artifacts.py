@@ -8,7 +8,7 @@ import torch
 
 import src.runtime.artifacts as artifacts_module
 from src.runtime.artifacts import ArtifactValidationError, validate_artifacts
-from src.runtime.config_io import RuntimeConfigError, load_stage_config
+from src.runtime.config_io import RuntimeConfigError, load_stage_config, resolve_config_snapshot
 from src.training.config import DPOConfig, MaskedSFTConfig, SFTConfig
 
 CONFIG_CASES = [
@@ -91,6 +91,53 @@ def test_unknown_config_fields_remain_rejected(tmp_path: Path) -> None:
     assert str(config_path) in message
     assert "silent_future_toggle" in message
     assert "extra" in message.lower() or "forbidden" in message.lower()
+
+
+def test_explicit_training_choices_appear_in_config_snapshots(tmp_path: Path) -> None:
+    sft_payload = _load_json(Path("configs/sft.json")) | {
+        "selection_mode": "score_weighted",
+        "selected_samples_path": "outputs/generated/selected_samples.jsonl",
+        "score_column": "score",
+        "hard_negative_threshold": 0.2,
+        "sample_weighting": "score_normalized",
+    }
+    dpo_payload = _load_json(Path("configs/dpo.json")) | {
+        "pair_construction_mode": "margin_weighted",
+        "preference_pairs_path": "outputs/generated/preference_pairs.jsonl",
+        "score_column": "score",
+        "ambiguity_margin": 0.05,
+        "pair_weighting": "margin_normalized",
+    }
+    masked_payload = _load_json(Path("configs/masked_sft.json")) | {
+        "masked_lambda": 0.65,
+        "eval_suite_path": "configs/eval_suite.json",
+        "validation_interval": 250,
+        "eval_suite_n_per_step": 4,
+    }
+
+    sft_snapshot = resolve_config_snapshot(
+        load_stage_config("sft", _write_json(tmp_path, "sft_explicit.json", sft_payload))
+    )
+    dpo_snapshot = resolve_config_snapshot(
+        load_stage_config("dpo", _write_json(tmp_path, "dpo_explicit.json", dpo_payload))
+    )
+    masked_snapshot = resolve_config_snapshot(
+        load_stage_config(
+            "masked_sft", _write_json(tmp_path, "masked_explicit.json", masked_payload)
+        )
+    )
+
+    assert sft_snapshot["selection_mode"] == "score_weighted"
+    assert sft_snapshot["selected_samples_path"] == "outputs/generated/selected_samples.jsonl"
+    assert dpo_snapshot["pair_construction_mode"] == "margin_weighted"
+    assert dpo_snapshot["preference_pairs_path"] == "outputs/generated/preference_pairs.jsonl"
+    assert masked_snapshot["masked_lambda"] == 0.65
+    assert masked_snapshot["lora"]["attn_r"] == 64
+    assert masked_snapshot["lora"]["joint_attn_r"] == 16
+    assert masked_snapshot["data_dir"] == "data/synth_cyrillic/masked_sft"
+    assert masked_snapshot["eval_suite_path"] == "configs/eval_suite.json"
+    assert masked_snapshot["validation_interval"] == 250
+    assert masked_snapshot["eval_suite_n_per_step"] == 4
 
 
 def test_tiny_prompt_scores_and_generated_layout_validate_with_schema_warning(
