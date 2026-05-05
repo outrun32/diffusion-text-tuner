@@ -35,7 +35,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 ### Objective and Training Pipeline Validity
 
-- [ ] **TRN-01**: User can verify DPO objective sign, beta scaling, and winner/loser behavior with deterministic unit tests before relying on DPO results.
+- [x] **TRN-01**: User can verify DPO objective sign, beta scaling, and winner/loser behavior with deterministic unit tests before relying on DPO results.
 - [ ] **TRN-02**: User can distinguish SFT modes such as all-above-threshold, top-1 winner per prompt, score-weighted SFT, and filtered hard-positive SFT.
 - [ ] **TRN-03**: User can distinguish DPO pair-construction modes such as best-vs-worst, all separated pairs, margin-weighted pairs, and ambiguity-filtered pairs.
 - [ ] **TRN-04**: User can run masked-SFT experiments with explicit masked/global loss weighting, LoRA target/rank choices, synthetic dataset variant, and evaluation suite references captured in config and manifest.
@@ -77,7 +77,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 - [x] **TEST-01**: User can run automated tests for config parsing and validation.
 - [x] **TEST-02**: User can run automated tests for dataset loading, collators, pair/sample selection, and artifact path/shape contracts using tiny fixtures.
-- [ ] **TEST-03**: User can run automated tests for critical tensor math including masked losses, scheduler helpers, DPO objective helpers, and beta/sign behavior.
+- [x] **TEST-03**: User can run automated tests for critical tensor math including masked losses, scheduler helpers, DPO objective helpers, and beta/sign behavior.
 - [ ] **TEST-04**: User can run automated tests for deterministic prompt generation behavior under fixed seeds.
 - [ ] **TEST-05**: User can run automated tests for reward wrapper behavior using fakes/mocks rather than loading Qwen, PaddleOCR, or other large models.
 - [x] **TEST-06**: User can distinguish default CPU tests from marked slow, GPU, model, OCR, integration, and manual diagnostic checks.
@@ -151,7 +151,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-05 | Phase 3 | Complete |
 | DATA-06 | Phase 3 | Complete |
 | DATA-07 | Phase 3 | Complete |
-| TRN-01 | Phase 4 | Pending |
+| TRN-01 | Phase 4 | Complete |
 | TRN-02 | Phase 5 | Pending |
 | TRN-03 | Phase 5 | Pending |
 | TRN-04 | Phase 5 | Pending |
@@ -181,7 +181,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ART-04 | Phase 2 | Complete |
 | TEST-01 | Phase 4 | Complete |
 | TEST-02 | Phase 4 | Complete |
-| TEST-03 | Phase 4 | Pending |
+| TEST-03 | Phase 4 | Complete |
 | TEST-04 | Phase 4 | Pending |
 | TEST-05 | Phase 4 | Pending |
 | TEST-06 | Phase 1 | Complete |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-05 after Phase 4 Plan 02 execution*
+*Last updated: 2026-05-05 after Phase 4 Plan 03 execution*
