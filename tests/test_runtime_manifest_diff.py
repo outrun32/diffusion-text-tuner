@@ -57,6 +57,8 @@ def test_compare_run_manifests_categorizes_changes_and_redacts_sensitive_metadat
     assert diff["left_run_id"] == "run-left"
     assert diff["right_run_id"] == "run-right"
     assert diff["config_changes"] == {
+        "output_dir": {"left": "outputs/sft-left", "right": "outputs/dpo-right"},
+        "pair_construction_mode": {"left": "best_vs_worst", "right": "margin_weighted"},
         "score_threshold": {"left": 0.3, "right": 0.5},
         "stage": {"left": "sft", "right": "dpo"},
     }
