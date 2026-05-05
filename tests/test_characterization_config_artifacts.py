@@ -133,7 +133,7 @@ def test_explicit_training_choices_appear_in_config_snapshots(tmp_path: Path) ->
     assert dpo_snapshot["preference_pairs_path"] == "outputs/generated/preference_pairs.jsonl"
     assert masked_snapshot["masked_lambda"] == 0.65
     assert masked_snapshot["lora"]["attn_r"] == 64
-    assert masked_snapshot["lora"]["joint_attn_r"] == 16
+    assert masked_snapshot["lora"]["joint_attn_r"] == masked_payload["lora"]["joint_attn_r"]
     assert masked_snapshot["data_dir"] == "data/synth_cyrillic/masked_sft"
     assert masked_snapshot["eval_suite_path"] == "configs/eval_suite.json"
     assert masked_snapshot["validation_interval"] == 250

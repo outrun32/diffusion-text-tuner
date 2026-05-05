@@ -27,6 +27,11 @@ class SFTConfig:
     text_embeds_dir: str = "outputs/text_embeds"   # {id}.pt
     scores_csv: str = "outputs/scores.csv"         # id,version,score,target_text
     score_threshold: float = 0.3                   # min reward to include in SFT
+    selection_mode: str = "threshold"
+    selected_samples_path: str | None = None
+    score_column: str = "score"
+    hard_negative_threshold: float = 0.2
+    sample_weighting: str = "uniform"
 
     # Training
     num_training_steps: int = 1000
@@ -74,6 +79,11 @@ class DPOConfig:
     scores_csv: str = "outputs/scores.csv"
     score_threshold: float = 0.5     # winner must be above this
     score_diff_min: float = 0.1      # min score diff between winner and loser
+    pair_construction_mode: str = "best_vs_worst"
+    preference_pairs_path: str | None = None
+    score_column: str = "score"
+    ambiguity_margin: float = 0.0
+    pair_weighting: str = "uniform"
 
     # Training
     num_training_steps: int = 1000

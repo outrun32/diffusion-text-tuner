@@ -121,6 +121,8 @@ class _StrictRuntimeModel(BaseModel):
         "latents_dir",
         "text_embeds_dir",
         "scores_csv",
+        "selected_samples_path",
+        "preference_pairs_path",
         "output_dir",
         "resume_lora_path",
         "sft_lora_path",
@@ -182,6 +184,13 @@ class _SFTModel(_StrictRuntimeModel):
     text_embeds_dir: str
     scores_csv: str
     score_threshold: float = Field(0.3, ge=0.0, le=1.0)
+    selection_mode: Literal[
+        "hard_positive", "score_weighted", "threshold", "top_k_per_prompt"
+    ] = "threshold"
+    selected_samples_path: str | None = None
+    score_column: str = "score"
+    hard_negative_threshold: float = Field(0.2, ge=0.0, le=1.0)
+    sample_weighting: Literal["score_normalized", "uniform"] = "uniform"
     num_training_steps: int = Field(..., gt=0)
     batch_size: int = Field(..., gt=0)
     gradient_accumulation_steps: int = Field(..., gt=0)
@@ -221,6 +230,13 @@ class _DPOModel(_StrictRuntimeModel):
     scores_csv: str
     score_threshold: float = Field(0.5, ge=0.0, le=1.0)
     score_diff_min: float = Field(0.1, gt=0.0, le=1.0)
+    pair_construction_mode: Literal[
+        "all_separated_pairs", "ambiguity_filtered", "best_vs_worst", "margin_weighted"
+    ] = "best_vs_worst"
+    preference_pairs_path: str | None = None
+    score_column: str = "score"
+    ambiguity_margin: float = Field(0.0, ge=0.0, le=1.0)
+    pair_weighting: Literal["margin_normalized", "uniform"] = "uniform"
     num_training_steps: int = Field(..., gt=0)
     batch_size: int = Field(..., gt=0)
     gradient_accumulation_steps: int = Field(..., gt=0)
