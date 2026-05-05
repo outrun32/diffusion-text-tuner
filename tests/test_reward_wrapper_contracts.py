@@ -36,7 +36,7 @@ def test_normalize_homoglyphs_maps_visual_latin_letters_to_cyrillic():
 def test_char_error_rate_and_ctc_entropy_stats_are_deterministic_for_tiny_inputs():
     from src.training.rewards import _char_error_rate, _ctc_entropy_stats
 
-    assert _char_error_rate(["TECT"], ["ТЕСТ"]) == 0.25
+    assert _char_error_rate(["TEFT"], ["ТЕСТ"]) == 0.25
 
     probs = np.array(
         [
