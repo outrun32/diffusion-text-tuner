@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import sys
 from copy import deepcopy
+from pathlib import Path
 
 import torch
 
@@ -136,3 +137,21 @@ def test_training_run_metadata_helpers_return_sorted_path_metadata() -> None:
     }
     assert training_run_outputs(snapshot) == {"output_dir": "outputs/sft"}
     assert snapshot == original
+
+
+def test_training_comparability_docs_describe_shared_trainer_seams() -> None:
+    docs = Path("docs/training_comparability.md").read_text(encoding="utf-8")
+
+    for expected in (
+        "Shared trainer seams",
+        "Adding a trainer variant",
+        "src.training.sampling",
+        "src.training.checkpointing",
+        "src.training.schedulers",
+        "src.training.runtime",
+        "Do not add unrelated sampling, checkpointing, scheduler, or runtime code directly to large trainer modules.",
+        "load_stage_config",
+        "create/compare run manifests",
+        "run CPU-safe tests",
+    ):
+        assert expected in docs
