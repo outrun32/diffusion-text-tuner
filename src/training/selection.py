@@ -136,7 +136,10 @@ def materialize_dpo_pairs(
         margin=margin,
         ambiguity_margin=ambiguity_margin,
     )
-    pairs = sorted(pairs, key=lambda pair: (pair.prompt_id, pair.winner.version, pair.loser.version))
+    pairs = sorted(
+        pairs,
+        key=lambda pair: (pair.prompt_id, pair.winner.version, pair.loser.version),
+    )
     pair_weights = _dpo_pair_weights(pairs) if mode == "margin_weighted" else {}
     output_rows = [
         _dpo_output_row(

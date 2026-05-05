@@ -36,6 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--score-column", default="score")
     parser.add_argument("--threshold", type=float, default=None)
     parser.add_argument("--top-k-per-prompt", type=int, default=1)
+    parser.add_argument("--hard-negative-threshold", type=float, default=0.2)
     parser.add_argument("--margin", type=float, default=0.1)
     parser.add_argument("--ambiguity-margin", type=float, default=0.0)
     args = parser.parse_args(argv)
@@ -49,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
             score_column=args.score_column,
             threshold=0.3 if args.threshold is None else args.threshold,
             top_k_per_prompt=args.top_k_per_prompt,
+            hard_negative_threshold=args.hard_negative_threshold,
             manifest_path=args.manifest,
         )
     else:
