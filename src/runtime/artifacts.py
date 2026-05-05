@@ -78,10 +78,16 @@ class ArtifactReport:
         return not self.errors
 
 
-def validate_artifacts(stage: str, paths: Mapping[str, str | Path | bool]) -> ArtifactReport:
+def validate_artifacts(
+    stage: str,
+    paths: Mapping[str, str | Path | bool] | None = None,
+    *,
+    require_ready: bool = False,
+) -> ArtifactReport:
     """Validate artifact contracts without importing models, CUDA, OCR, or diffusers."""
 
-    require_ready = bool(paths.get("require_ready", False))
+    paths = paths or {}
+    require_ready = require_ready or bool(paths.get("require_ready", False))
     context = _ValidationContext(stage=stage)
     normalized = {
         key: Path(value)

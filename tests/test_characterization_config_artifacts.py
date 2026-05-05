@@ -11,7 +11,6 @@ from src.runtime.artifacts import ArtifactValidationError, validate_artifacts
 from src.runtime.config_io import RuntimeConfigError, load_stage_config
 from src.training.config import DPOConfig, MaskedSFTConfig, SFTConfig
 
-
 CONFIG_CASES = [
     pytest.param("sft", Path("configs/sft.json"), SFTConfig, id="sft"),
     pytest.param("dpo", Path("configs/dpo.json"), DPOConfig, id="dpo"),
