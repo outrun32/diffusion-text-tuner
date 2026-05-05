@@ -77,7 +77,7 @@ Each task was committed atomically where possible:
 3. **Task 3 RED: Guard experiment config choice docs** - `d569bfa` (test)
 4. **Task 3 GREEN: Document experiment config choice fields** - `677d70f` (docs)
 
-**Plan metadata:** pending final documentation commit.
+**Plan metadata:** `1b19728` (docs: complete explicit config choice plan).
 
 ## Files Created/Modified
 
