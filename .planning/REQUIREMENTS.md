@@ -78,7 +78,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **TEST-01**: User can run automated tests for config parsing and validation.
 - [x] **TEST-02**: User can run automated tests for dataset loading, collators, pair/sample selection, and artifact path/shape contracts using tiny fixtures.
 - [x] **TEST-03**: User can run automated tests for critical tensor math including masked losses, scheduler helpers, DPO objective helpers, and beta/sign behavior.
-- [ ] **TEST-04**: User can run automated tests for deterministic prompt generation behavior under fixed seeds.
+- [x] **TEST-04**: User can run automated tests for deterministic prompt generation behavior under fixed seeds.
 - [ ] **TEST-05**: User can run automated tests for reward wrapper behavior using fakes/mocks rather than loading Qwen, PaddleOCR, or other large models.
 - [x] **TEST-06**: User can distinguish default CPU tests from marked slow, GPU, model, OCR, integration, and manual diagnostic checks.
 - [x] **TEST-07**: User can run optional diagnostic commands for gradient flow, generated sample quality, reward calibration, synthetic data validation, and eval contact sheets without confusing them with CI-safe tests.
@@ -182,7 +182,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-01 | Phase 4 | Complete |
 | TEST-02 | Phase 4 | Complete |
 | TEST-03 | Phase 4 | Complete |
-| TEST-04 | Phase 4 | Pending |
+| TEST-04 | Phase 4 | Complete |
 | TEST-05 | Phase 4 | Pending |
 | TEST-06 | Phase 1 | Complete |
 | TEST-07 | Phase 1 | Complete |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-05 after Phase 4 Plan 03 execution*
+*Last updated: 2026-05-05 after Phase 4 Plan 04 execution*
