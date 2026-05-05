@@ -80,7 +80,7 @@ def test_qwen_score_batch_preserves_order_with_fake_score_single():
 
 
 def test_ocr_score_uses_fake_ocr_and_raw_ctc_predictions_deterministically():
-    from src.training import rewards
+    rewards = importlib.import_module("src.training.rewards")
     from src.training.rewards import OcrCerEntropyReward, _ctc_entropy_stats
 
     raw_probs = np.array(

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import math
-import sys
-import types
 
 import pytest
 import torch
@@ -19,11 +17,7 @@ from src.training.dpo_objective import (
 
 
 def _flow_match_scheduler_class():
-    """Import the scheduler without requiring optional reward/OCR dependencies."""
-    if "src.training.rewards" not in sys.modules:
-        rewards_stub = types.ModuleType("src.training.rewards")
-        rewards_stub.QwenYesProbReward = object
-        sys.modules["src.training.rewards"] = rewards_stub
+    """Import the scheduler through the now import-safe reward boundary."""
     from src.training.refl_trainer import FlowMatchScheduler
 
     return FlowMatchScheduler
