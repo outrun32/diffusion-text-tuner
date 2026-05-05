@@ -514,6 +514,83 @@ def test_materialization_cli_writes_dpo_artifact_manifest_and_stdout_summary(
     assert rows[0]["manifest_path"] == str(manifest)
 
 
+def test_materialization_cli_forwards_explicit_sft_hard_positive_mode(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from scripts.materialize_training_data import main
+
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.10", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.80", "target_text": "Ёж"},
+        ],
+    )
+
+    exit_code = main(
+        [
+            "--kind",
+            "sft",
+            "--scores-csv",
+            str(scores),
+            "--output",
+            str(tmp_path / "selected_hard_positive.jsonl"),
+            "--mode",
+            "hard_positive",
+            "--threshold",
+            "0.7",
+            "--hard-negative-threshold",
+            "0.2",
+        ]
+    )
+
+    stdout = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert stdout["selection_mode"] == "hard_positive"
+    assert stdout["hard_negative_threshold"] == 0.2
+    assert stdout["selected_count"] == 1
+
+
+def test_materialization_cli_forwards_explicit_dpo_margin_weighted_mode(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    from scripts.materialize_training_data import main
+
+    scores = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 1, "score": "0.10", "target_text": "Ёж"},
+            {"id": "p1", "version": 2, "score": "0.70", "target_text": "Ёж"},
+        ],
+    )
+
+    exit_code = main(
+        [
+            "--kind",
+            "dpo",
+            "--scores-csv",
+            str(scores),
+            "--output",
+            str(tmp_path / "weighted_pairs.jsonl"),
+            "--mode",
+            "margin_weighted",
+            "--threshold",
+            "0.5",
+            "--margin",
+            "0.1",
+        ]
+    )
+
+    stdout = json.loads(capsys.readouterr().out)
+    rows = _read_jsonl(tmp_path / "weighted_pairs.jsonl")
+    assert exit_code == 0
+    assert stdout["pair_construction_mode"] == "margin_weighted"
+    assert stdout["pair_count"] == 1
+    assert rows[0]["pair_weight"] == 1.0
+
+
 def test_data_selection_docs_cover_artifact_schemas_and_runtime_contracts() -> None:
     docs = Path("docs/data_selection.md").read_text(encoding="utf-8")
 
@@ -524,6 +601,14 @@ def test_data_selection_docs_cover_artifact_schemas_and_runtime_contracts() -> N
         "preference-pairs/v1",
         "materialize_training_data.py --kind sft",
         "materialize_training_data.py --kind dpo",
+        "SFT selection modes",
+        "DPO pair-construction modes",
+        "--hard-negative-threshold",
+        "score_weighted",
+        "hard_positive",
+        "all_separated_pairs",
+        "margin_weighted",
+        "ambiguity_filtered",
         "default equivalence",
         "docs/runtime_contracts.md",
         "Do not commit generated images or tensors",
