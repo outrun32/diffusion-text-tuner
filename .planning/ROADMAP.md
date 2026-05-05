@@ -124,7 +124,24 @@ Cross-cutting constraints:
   2. User can run deterministic tests for prompt generation under fixed seeds and mocked reward wrappers without loading Qwen, PaddleOCR, FLUX, or other large models.
   3. User can verify critical tensor math including masked losses, scheduler helpers, DPO objective sign, beta scaling, and winner/loser behavior before trusting training results.
   4. User can run the default test command without model downloads or CUDA while still having explicit markers/commands for optional slow, GPU, OCR, model, integration, and diagnostic checks.
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 04-01-PLAN.md — Add committed-config and tiny-artifact characterization tests.
+- [ ] 04-02-PLAN.md — Add dataset, collator, selection, and resolution bucket characterization tests.
+- [ ] 04-03-PLAN.md — Add objective math, scheduler, latent geometry, and DPO sign/beta tests.
+- [ ] 04-04-PLAN.md — Add fixed-seed prompt-generation determinism tests.
+- [ ] 04-05-PLAN.md — Add import-safe fake/mock reward wrapper tests.
+
+**Wave 2** *(blocked on Wave 1 characterization surfaces)*
+- [ ] 04-06-PLAN.md — Publish characterization commands, Makefile aliases, README/runtime docs, and docs tests.
+
+Cross-cutting constraints:
+- Default automated tests stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, SynthTIGER, or external model weights.
+- Characterization fixtures stay tiny and use `tmp_path` unless intentionally committed under `tests/fixtures/`.
+- DPO objective sign, beta scaling, and winner/loser behavior are research-critical and must be verified before Phase 5 trainer comparability work.
 
 ### Phase 5: Training Objective and Pipeline Comparability
 **Goal**: Users can configure, run, extend, and compare training approaches without hidden objective choices or accidental behavior changes.  
@@ -167,7 +184,7 @@ Cross-cutting constraints:
 | 1. Execution Surface and Pipeline Inventory | 4/4 | Complete | 01-01, 01-02, 01-03, 01-04 |
 | 2. Runtime Contracts and Run Provenance | 5/5 | Complete | 02-01, 02-02, 02-03, 02-04, 02-05 |
 | 3. Data Curriculum and Dataset Quality | 6/6 | Complete | 03-01, 03-02, 03-03, 03-04, 03-05, 03-06 |
-| 4. CPU-Safe Characterization Tests | 0/TBD | Not started | - |
+| 4. CPU-Safe Characterization Tests | 0/6 | Planned | - |
 | 5. Training Objective and Pipeline Comparability | 0/TBD | Not started | - |
 | 6. Reward and Evaluation Validity | 0/TBD | Not started | - |
 | 7. Moderate Structure and Extension Cleanup | 0/TBD | Not started | - |
