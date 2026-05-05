@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from src.runtime.manifests import RunManifest, load_run_manifest
 
@@ -41,7 +42,10 @@ _INFERENCE_KEYS = frozenset(
 )
 
 
-def compare_run_manifests(left: str | Path | RunManifest, right: str | Path | RunManifest) -> dict[str, Any]:
+def compare_run_manifests(
+    left: str | Path | RunManifest,
+    right: str | Path | RunManifest,
+) -> dict[str, Any]:
     """Compare two local run manifests without loading model or training dependencies."""
 
     left_manifest = _coerce_manifest(left)
@@ -93,7 +97,9 @@ def format_manifest_diff_markdown(diff: Mapping[str, Any]) -> str:
         changes = diff.get(section, {})
         if not changes:
             continue
-        lines.extend(["", f"## {_section_title(section)}", "", "| Key | Left | Right |", "|---|---|---|"])
+        lines.extend(
+            ["", f"## {_section_title(section)}", "", "| Key | Left | Right |", "|---|---|---|"]
+        )
         for key, change in sorted(dict(changes).items()):
             if not isinstance(change, Mapping):
                 continue

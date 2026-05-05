@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.runtime.manifest_diff import compare_run_manifests, format_manifest_diff_markdown
 from scripts import compare_run_manifests as compare_cli
+from src.runtime.manifest_diff import compare_run_manifests, format_manifest_diff_markdown
 
 
 def test_compare_run_manifests_categorizes_changes_and_redacts_sensitive_metadata(tmp_path):

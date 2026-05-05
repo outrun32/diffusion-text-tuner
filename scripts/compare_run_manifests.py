@@ -34,7 +34,12 @@ def main(argv: list[str] | None = None) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compare two local run manifest JSON files.")
     parser.add_argument("--left", required=True, type=Path, help="Path to the left manifest JSON.")
-    parser.add_argument("--right", required=True, type=Path, help="Path to the right manifest JSON.")
+    parser.add_argument(
+        "--right",
+        required=True,
+        type=Path,
+        help="Path to the right manifest JSON.",
+    )
     parser.add_argument("--markdown", action="store_true", help="Render Markdown instead of JSON.")
     parser.add_argument("--output", type=Path, help="Optional output path for the diff report.")
     return parser

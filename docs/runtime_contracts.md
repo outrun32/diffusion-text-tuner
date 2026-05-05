@@ -45,6 +45,30 @@ anchored below the supplied root.
 | eval outputs | `outputs/evaluation/` | `src.evaluation.*`, future eval harness | thesis plots, reward diagnostics | Scores CSV, generated samples, report files | Future `evaluation/v1`; current path reserved | `validate_artifacts("evaluation", {"outputs_dir": ..., "scores_csv": ...})` | Tie final claims back to run manifests and fixed prompt/eval configs | Non-committable generated outputs. |
 | run manifests | `runs/<run_id>/manifest.json` | Plan 02-03 runtime manifest helper | all long-running stages, comparison tools | JSON object with command, git/config/env/artifact metadata | Manifest contains `schema_version` (planned) | `validate_artifacts("run_manifest", {"manifest_json": ...})` | `run_id` should be stable and not include personal absolute paths | Non-committable local provenance by default. |
 
+## Run manifest diff
+
+Use `scripts.compare_run_manifests` to compare two local `run-manifest/v1` files before treating
+their results as comparable thesis evidence. The command reads only manifest JSON/config snapshots,
+metrics, and output path metadata; it does not open generated images, tensors, checkpoints, logs, OCR
+outputs, model caches, or network resources.
+
+Print a deterministic JSON diff to stdout:
+
+```bash
+python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json
+```
+
+Write a Markdown report under an ignored runtime comparison directory:
+
+```bash
+python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json --markdown --output runs/comparisons/run-diff.md
+```
+
+The diff report includes `left_run_id`, `right_run_id`, manifest paths, and categorized changes for
+configs, data sources, rewards, seeds, inference settings, metrics, and artifacts. Environment secret
+metadata and cache metadata remain presence-only booleans, matching the manifest contract; raw token
+values and private cache paths must not appear in diff output.
+
 ## Local and SLURM Path Guidance
 
 - Run local commands from the repository root, or pass a workspace root to
