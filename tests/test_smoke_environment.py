@@ -36,10 +36,16 @@ def test_unknown_check_returns_nonzero():
 
 
 def test_import_has_no_heavy_side_effects():
+    removed_modules = {}
     for module_name in ("scripts.smoke_environment", *HEAVY_MODULES):
-        sys.modules.pop(module_name, None)
+        if module_name in sys.modules:
+            removed_modules[module_name] = sys.modules.pop(module_name)
 
-    importlib.import_module("scripts.smoke_environment")
+    try:
+        importlib.import_module("scripts.smoke_environment")
 
-    for module_name in HEAVY_MODULES:
-        assert module_name not in sys.modules
+        for module_name in HEAVY_MODULES:
+            assert module_name not in sys.modules
+    finally:
+        sys.modules.pop("scripts.smoke_environment", None)
+        sys.modules.update(removed_modules)

@@ -102,7 +102,9 @@ def _write_image_and_mask(
 def test_synthetic_quality_reports_metrics_and_cpu_safe_imports(tmp_path: Path) -> None:
     data_dir, raw_dir = _write_masked_fixture(tmp_path)
 
+    before_modules = set(sys.modules)
     report = inspect_synthetic_dataset(data_dir, raw_dir=raw_dir)
+    imported_modules = set(sys.modules) - before_modules
 
     assert report.ok
     assert report.schema_version == "synthetic-quality/v1"
@@ -116,9 +118,9 @@ def test_synthetic_quality_reports_metrics_and_cpu_safe_imports(tmp_path: Path) 
     assert report.character_coverage["counts"]["щ"] == 1
     assert report.font_coverage == {"Sans": 1, "Serif": 1}
     assert report.resolution_distribution == {"10x10": 2}
-    assert "paddleocr" not in sys.modules
-    assert "diffusers" not in sys.modules
-    assert "transformers" not in sys.modules
+    assert "paddleocr" not in imported_modules
+    assert "diffusers" not in imported_modules
+    assert "transformers" not in imported_modules
 
 
 def test_synthetic_quality_reports_threshold_rejections_and_optional_ocr(tmp_path: Path) -> None:
