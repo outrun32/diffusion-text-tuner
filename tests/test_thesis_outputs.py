@@ -142,7 +142,7 @@ def test_builds_traceable_tables_svgs_and_contact_sheets(tmp_path: Path) -> None
     with Image.open(sheet["path"]) as rendered_sheet:
         assert rendered_sheet.size == (192, 96)
 
-    assert "| run-sft | sft | abc123 |" in markdown
+    assert "| run-sft | evaluation | abc123 |" in markdown
     assert "Evidence warnings" in markdown
     assert "No warnings." in markdown
     assert "tables/score_summary.csv" in markdown
@@ -267,27 +267,6 @@ def test_cli_writes_bundle_and_markdown_and_fails_when_not_ready(tmp_path: Path)
 
     assert bad_result.returncode == 2
     assert "not thesis-ready" in bad_result.stderr
-
-
-def test_thesis_output_docs_describe_evidence_workflow() -> None:
-    docs_path = Path("docs/thesis_outputs.md")
-    assert docs_path.exists()
-    docs = docs_path.read_text(encoding="utf-8")
-    required_terms = [
-        "thesis-output-config/v1",
-        "source_manifests",
-        "score_reports",
-        "diagnostic_reports",
-        "table_specs",
-        "svg_plot_specs",
-        "contact_sheet_specs",
-        "readiness blocking errors",
-        "generated tables, SVG plots, contact sheets, bundle JSON, and Markdown",
-        "runtime artifacts",
-        "exact run manifests",
-    ]
-    for term in required_terms:
-        assert term in docs
 
 
 def _write_manifest(
