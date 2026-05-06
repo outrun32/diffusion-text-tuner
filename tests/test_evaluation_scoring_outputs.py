@@ -222,3 +222,27 @@ def test_artifact_validation_rejects_missing_phase6_score_fields(tmp_path):
 
     assert not report.ok
     assert any("missing required Phase 6 columns" in error for error in report.errors)
+
+
+def test_reward_evaluation_docs_describe_score_files_sidecars_and_validation():
+    docs = Path("docs/reward_evaluation.md").read_text(encoding="utf-8")
+
+    required_phrases = [
+        "Canonical score CSV/JSONL fields",
+        "score_file_schema_version",
+        "phase6-score-file/v1",
+        "phase6-score-jsonl/v1",
+        "product_score",
+        "detection_status",
+        "char_accuracy",
+        "formula_complete",
+        "--manifest_path",
+        "--source_manifest",
+        "--manifest-path",
+        "--source-manifest",
+        "validate_artifacts(\"evaluation_scores\"",
+        "Generated score files and `.schema.json` sidecars are runtime artifacts",
+        "missing_components",
+    ]
+    for phrase in required_phrases:
+        assert phrase in docs
