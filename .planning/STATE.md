@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 7 - Moderate Structure and Extension Cleanup
-current_plan: Phase 7 complete
-status: phase-7-complete
+current_plan: Roadmap complete
+status: roadmap-complete
 last_updated: "2026-05-06T16:15:26Z"
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 6
   completed_plans: 6
   percent: 100
@@ -17,7 +17,7 @@ progress:
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-06 after Phase 7 Plan 06 execution
+**Last updated:** 2026-05-06 after Phase 7 verification
 
 ## Project Reference
 
@@ -31,8 +31,8 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 7 - Moderate Structure and Extension Cleanup  
-**Current Plan:** Phase 7 complete
-**Status:** Phase 7 execution complete; phase verification/transition pending
+**Current Plan:** Roadmap complete
+**Status:** Phase 7 verified complete; all roadmap phases complete
 **Progress:** [████████████████████] 100% for Phase 7 execution
 
 ## Phase Status
@@ -45,13 +45,13 @@ progress:
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
 | 5. Training Objective and Pipeline Comparability | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, explicit config choice snapshots, import-safe shared training utilities, and integrated comparison command docs are implemented. |
 | 6. Reward and Evaluation Validity | Verified complete | 7/7 plans complete and phase verification passed 10/10 must-haves. Canonical reward interface/product formula, held-out evaluation plan contract, CPU-safe Russian slice/gold diagnostic contracts, canonical scoring outputs/sidecar validation, reward disagreement diagnostics, thesis output bundles, and integrated command docs/Makefile aliases are implemented. |
-| 7. Moderate Structure and Extension Cleanup | Complete | Plan 01 published tested structure homes and extension rules; Plan 02 moved image generation behind an import-safe `src.generation.pipeline` seam while preserving the CLI; Plan 03 moved reward scoring behind an import-safe `src.scoring.pipeline` seam while preserving canonical score outputs; Plan 04 moved synthetic dataset building behind an import-safe `src.synthesis.dataset_builder` seam while preserving the CLI; Plan 05 moved training metric plotting behind an import-safe `src.plotting.training_metrics` seam while preserving the CLI; Plan 06 published the final `src.toolkit.extension_points` registry, extension checklist, and `phase7-structure-tests` alias; 6/6 plans complete. |
+| 7. Moderate Structure and Extension Cleanup | Verified complete | 6/6 plans complete and phase verification passed 3/3 must-haves. Plan 01 published tested structure homes and extension rules; Plan 02 moved image generation behind an import-safe `src.generation.pipeline` seam while preserving the CLI; Plan 03 moved reward scoring behind an import-safe `src.scoring.pipeline` seam while preserving canonical score outputs; Plan 04 moved synthetic dataset building behind an import-safe `src.synthesis.dataset_builder` seam while preserving the CLI; Plan 05 moved training metric plotting behind an import-safe `src.plotting.training_metrics` seam while preserving the CLI; Plan 06 published the final `src.toolkit.extension_points` registry, extension checklist, and `phase7-structure-tests` alias. |
 
 ## Performance Metrics
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; STR-01 completed by Phase 7 Plan 01 and reinforced by Plan 06, STR-05 reinforced by Phase 7 Plans 02-06, and STR-06 reinforced by Phase 7 Plans 01 and 03-06 | 100% mapped; run final Phase 7 verification/transition |
+| v1 requirement coverage | 58/58 mapped; all Phase 1 through Phase 7 requirements complete and verified | 100% complete |
 | Roadmap phases planned | 7 total, Phase 7 has 6 executable plans and 6 complete | 6-8 standard-granularity phases |
 | Default test posture | 6 Phase 7 plotting seam contract tests, 9 Phase 7 synthesis seam contract tests, 7 Phase 7 scoring seam contract tests, 8 Phase 7 generation seam contract tests, 4 Phase 7 structure/extension docs tests, 4 Phase 6 command docs tests, 4 focused thesis-output bundle tests, 6 focused reward-disagreement diagnostics tests, 6 focused scoring-output contract tests, 10 focused slice/gold diagnostic tests, 6 focused reward-interface/product-formula tests, 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; heavy diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
@@ -146,6 +146,7 @@ progress:
 - Keep training metric plotting import-safe by routing reusable loading, smoothing, summary, and rendering through `src.plotting.training_metrics`, preserving `scripts.plot_metrics` compatibility re-exports, and leaving Matplotlib backend/pyplot imports inside `plot_training_metrics`.
 - Keep the final extension registry descriptive only: `src.toolkit.extension_points` indexes prompt generation, image generation, scoring, synthesis, training, evaluation, plotting, run comparison, diagnostics, and thesis outputs without dynamic plugin loading or command execution.
 - Use `phase7-structure-tests` as the focused CPU-safe verification alias for Phase 7 registry/docs/importable seam drift while preserving Phase 1-6 command surfaces.
+- Treat Phase 7 as final roadmap completion for the current milestone; remaining heavy GPU/model/OCR/SLURM validation stays as explicit smoke/diagnostic work, not default CPU-safe verification.
 
 ### Important Caveats
 
@@ -163,7 +164,7 @@ progress:
 
 ### Open Todos
 
-- Run final Phase 7 verification/transition now that all six Phase 7 plans are complete.
+- Use explicit smoke/diagnostic commands on target local/SLURM environments before making thesis runtime claims.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -173,7 +174,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Run final Phase 7 verification/transition now that the extension registry, extension checklist, focused Phase 7 verification alias, and command docs are complete.
+**Next Recommended Action:** Review remaining unrelated worktree changes and decide the next research/experiment milestone.
 
 **Files Created/Updated:**
 
@@ -428,6 +429,7 @@ progress:
 - `README.md`
 - `Makefile`
 - `.planning/phases/07-moderate-structure-and-extension-cleanup/07-06-SUMMARY.md`
+- `.planning/phases/07-moderate-structure-and-extension-cleanup/VERIFICATION.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
