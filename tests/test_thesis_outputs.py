@@ -269,6 +269,27 @@ def test_cli_writes_bundle_and_markdown_and_fails_when_not_ready(tmp_path: Path)
     assert "not thesis-ready" in bad_result.stderr
 
 
+def test_thesis_output_docs_describe_evidence_workflow() -> None:
+    docs_path = Path("docs/thesis_outputs.md")
+    assert docs_path.exists()
+    docs = docs_path.read_text(encoding="utf-8")
+    required_terms = [
+        "thesis-output-config/v1",
+        "source_manifests",
+        "score_reports",
+        "diagnostic_reports",
+        "table_specs",
+        "svg_plot_specs",
+        "contact_sheet_specs",
+        "readiness blocking errors",
+        "generated tables, SVG plots, contact sheets, bundle JSON, and Markdown",
+        "runtime artifacts",
+        "exact run manifests",
+    ]
+    for term in required_terms:
+        assert term in docs
+
+
 def _write_manifest(
     path: Path,
     *,
