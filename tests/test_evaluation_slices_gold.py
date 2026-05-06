@@ -160,7 +160,7 @@ def test_evaluate_gold_predictions_reports_agreement_missing_and_slices() -> Non
             "sample_id": "gold-mixed-case",
             "exact_text_match": True,
             "ocr_detected": True,
-            "detected_text": "Москва City",
+            "detected_text": "Москва CITY",
         },
     ]
 
