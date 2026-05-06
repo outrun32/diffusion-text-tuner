@@ -142,7 +142,10 @@ def plot_training_metrics(metrics_csv: str | Path, output_dir: str | Path | None
 
     ax = axes[1, 1]
     if len(steps) > 1:
-        speed = [step / max(elapsed_s, 0.1) for step, elapsed_s in zip(steps, data.elapsed_s)]
+        speed = [
+            step / max(elapsed_s, 0.1)
+            for step, elapsed_s in zip(steps, data.elapsed_s, strict=True)
+        ]
         ax.plot(steps, speed, color="tab:purple", alpha=0.5)
         if len(speed) >= 5:
             smoothed_speed = smooth(speed)

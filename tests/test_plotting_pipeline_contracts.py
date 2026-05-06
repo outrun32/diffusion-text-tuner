@@ -138,7 +138,10 @@ def test_plot_metrics_main_delegates_to_importable_plotter(monkeypatch: pytest.M
 
     assert plot_metrics.main(["runs/example/metrics.csv", "--output-dir", "plots"]) == 0
     assert calls == [("runs/example/metrics.csv", "plots")]
-    assert plot_metrics.plot is plot_metrics.plot_training_metrics
+    assert plot_metrics.plot("runs/compat/metrics.csv", "compat-plots") == Path(
+        "compat-plots/training_curves.png"
+    )
+    assert calls[-1] == ("runs/compat/metrics.csv", "compat-plots")
     assert plot_metrics.load_metrics.__module__ == "src.plotting.training_metrics"
     assert plot_metrics.smooth.__module__ == "src.plotting.training_metrics"
 
