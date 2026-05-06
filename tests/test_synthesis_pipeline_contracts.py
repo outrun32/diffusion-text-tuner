@@ -141,10 +141,18 @@ def test_index_writers_preserve_masked_sft_and_anyword_schemas(tmp_path: Path) -
     ]
     anyword = json.loads((out_anyword / "data.json").read_text(encoding="utf-8"))
 
-    assert (out_masked / "raw_imgs" / "sample-1.png").read_text(encoding="utf-8") == "image-sample-1"
-    assert (out_masked / "raw_masks" / "sample-2.png").read_text(encoding="utf-8") == "mask-sample-2"
-    assert (out_anyword / "imgs" / "sample-1.png").read_text(encoding="utf-8") == "image-sample-1"
-    assert (out_anyword / "masks" / "sample-2.png").read_text(encoding="utf-8") == "mask-sample-2"
+    assert (
+        out_masked / "raw_imgs" / "sample-1.png"
+    ).read_text(encoding="utf-8") == "image-sample-1"
+    assert (
+        out_masked / "raw_masks" / "sample-2.png"
+    ).read_text(encoding="utf-8") == "mask-sample-2"
+    assert (
+        out_anyword / "imgs" / "sample-1.png"
+    ).read_text(encoding="utf-8") == "image-sample-1"
+    assert (
+        out_anyword / "masks" / "sample-2.png"
+    ).read_text(encoding="utf-8") == "mask-sample-2"
     assert prompts_path == out_masked / "prompts.jsonl"
     assert rows == [
         {
@@ -417,16 +425,6 @@ def test_cli_preserves_defaults_and_compatibility_reexports(monkeypatch) -> None
     from scripts.synth import build_dataset as cli
     from src.synthesis import dataset_builder as builder
 
-    captured: list[builder.SynthesisBuildConfig] = []
-
-    def fake_build_dataset(config: builder.SynthesisBuildConfig) -> int:
-        captured.append(config)
-        return 0
-
-    monkeypatch.setattr(cli, "build_dataset", fake_build_dataset)
-
-    assert cli.main(["--num", "25"]) == 0
-    assert captured == [builder.SynthesisBuildConfig(num=25)]
     for name in [
         "SynthesisBuildConfig",
         "render_phase",
@@ -439,6 +437,17 @@ def test_cli_preserves_defaults_and_compatibility_reexports(monkeypatch) -> None
         "build_dataset",
     ]:
         assert getattr(cli, name) is getattr(builder, name)
+
+    captured: list[builder.SynthesisBuildConfig] = []
+
+    def fake_build_dataset(config: builder.SynthesisBuildConfig) -> int:
+        captured.append(config)
+        return 0
+
+    monkeypatch.setattr(cli, "build_dataset", fake_build_dataset)
+
+    assert cli.main(["--num", "25"]) == 0
+    assert captured == [builder.SynthesisBuildConfig(num=25)]
 
 
 def test_cli_wrapper_is_thin_and_keeps_heavy_imports_in_builder() -> None:
