@@ -118,6 +118,71 @@ def test_valid_config_builds_deterministic_heldout_evaluation_plan(tmp_path: Pat
     assert "scripts.score_images" in plan["planned_scoring_commands"][0]["command"]
 
 
+def test_write_evaluation_plan_materializes_json_and_markdown_reports(tmp_path: Path) -> None:
+    from src.evaluation.heldout import write_evaluation_plan
+
+    config_path = _write_json(tmp_path / "heldout_config.json", _valid_config(tmp_path))
+    output_plan = tmp_path / "reports" / "heldout_plan.json"
+    markdown_summary = tmp_path / "reports" / "heldout_plan.md"
+
+    plan = write_evaluation_plan(
+        config_path,
+        output_plan=output_plan,
+        markdown_summary=markdown_summary,
+    )
+
+    assert json.loads(output_plan.read_text(encoding="utf-8")) == plan
+    markdown = markdown_summary.read_text(encoding="utf-8")
+    assert "# Held-out evaluation plan" in markdown
+    assert "fixed_prompts_path" in markdown
+    assert "baseline" in markdown
+    assert "dpo-product-lora" in markdown
+    assert "source_run_manifest_path" in markdown
+    assert "Plan only: generation and scoring commands are not executed" in markdown
+
+
+def test_cli_materializes_plan_and_markdown_without_running_generation(tmp_path: Path) -> None:
+    from scripts import run_heldout_evaluation
+
+    config_path = _write_json(tmp_path / "heldout_config.json", _valid_config(tmp_path))
+    output_plan = tmp_path / "reports" / "heldout_plan.json"
+    markdown_summary = tmp_path / "reports" / "heldout_plan.md"
+
+    exit_code = run_heldout_evaluation.main(
+        [
+            "--config",
+            str(config_path),
+            "--output-plan",
+            str(output_plan),
+            "--markdown-summary",
+            str(markdown_summary),
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(output_plan.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "heldout-evaluation-plan/v1"
+    assert payload["execution_mode"] == "materialize-only"
+    assert all(command["status"] == "planned-not-run" for command in payload["planned_generation_commands"])
+    assert markdown_summary.is_file()
+
+
+def test_cli_returns_nonzero_for_invalid_config(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from scripts import run_heldout_evaluation
+
+    payload = _valid_config(tmp_path)
+    payload["fixed_seeds"] = []
+    config_path = _write_json(tmp_path / "invalid_config.json", payload)
+
+    exit_code = run_heldout_evaluation.main(
+        ["--config", str(config_path), "--output-plan", str(tmp_path / "plan.json")]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code != 0
+    assert "fixed_seeds" in captured.err
+
+
 def test_evaluation_target_records_manifest_outputs_and_notes() -> None:
     from src.evaluation.heldout import EvaluationTarget
 
