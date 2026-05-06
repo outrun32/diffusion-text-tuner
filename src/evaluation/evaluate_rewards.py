@@ -194,7 +194,6 @@ class PaddleOCRReward:
         if result and result[0]:
             for line in result[0]:
                 text = line[1][0]
-                conf = line[1][1]
                 detected_parts.append(text)
 
         detected_full = " ".join(detected_parts)
@@ -374,7 +373,7 @@ def main():
     # Load metadata
     print(f"Loading metadata from {args.metadata} ...")
     records = []
-    with open(args.metadata, "r", encoding="utf-8") as f:
+    with open(args.metadata, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -416,7 +415,7 @@ def main():
                 continue
 
             reward_outputs = {}
-            for name, scorer in scorers.items():
+            for scorer in scorers.values():
                 result = scorer.score(image_path, target_text)
                 reward_outputs.update(result)
 
@@ -436,10 +435,13 @@ def main():
         out_file.close()
 
     # Print summary statistics
+    source_manifests = tuple(
+        args.source_manifest or ([args.manifest_path] if args.manifest_path else [])
+    )
     sidecar = write_evaluation_score_metadata(
         out_path,
         formula=formula,
-        source_manifest_paths=tuple(args.source_manifest or ([args.manifest_path] if args.manifest_path else [])),
+        source_manifest_paths=source_manifests,
     )
     print(f"\nScores saved to: {out_path}")
     print(f"Score schema metadata saved to: {sidecar}")
@@ -451,7 +453,7 @@ def _print_summary(scores_path: str, reward_names: set):
     import numpy as np
 
     records = []
-    with open(scores_path, "r", encoding="utf-8") as f:
+    with open(scores_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -469,14 +471,14 @@ def _print_summary(scores_path: str, reward_names: set):
                 if "reward_qwen_yes_prob" in r]
         if vals:
             arr = np.array(vals)
-            print(f"\n  Qwen Yes-Prob:")
+            print("\n  Qwen Yes-Prob:")
             print(f"    mean={arr.mean():.4f}  std={arr.std():.4f}")
             print(f"    min={arr.min():.4f}  max={arr.max():.4f}")
             print(f"    median={np.median(arr):.4f}")
             # Distribution bins
             bins = [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.01]
             hist, _ = np.histogram(arr, bins=bins)
-            for lo, hi, cnt in zip(bins[:-1], bins[1:], hist):
+            for lo, hi, cnt in zip(bins[:-1], bins[1:], hist, strict=False):
                 pct = 100 * cnt / len(arr)
                 bar = "█" * int(pct / 2)
                 print(f"    [{lo:.1f}-{hi:.1f}): {cnt:4d} ({pct:5.1f}%) {bar}")
@@ -486,13 +488,13 @@ def _print_summary(scores_path: str, reward_names: set):
                 if "reward_paddleocr" in r]
         if vals:
             arr = np.array(vals)
-            print(f"\n  PaddleOCR Accuracy:")
+            print("\n  PaddleOCR Accuracy:")
             print(f"    mean={arr.mean():.4f}  std={arr.std():.4f}")
             print(f"    min={arr.min():.4f}  max={arr.max():.4f}")
             print(f"    median={np.median(arr):.4f}")
             bins = [0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.01]
             hist, _ = np.histogram(arr, bins=bins)
-            for lo, hi, cnt in zip(bins[:-1], bins[1:], hist):
+            for lo, hi, cnt in zip(bins[:-1], bins[1:], hist, strict=False):
                 pct = 100 * cnt / len(arr)
                 bar = "█" * int(pct / 2)
                 print(f"    [{lo:.1f}-{hi:.1f}): {cnt:4d} ({pct:5.1f}%) {bar}")

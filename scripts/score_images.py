@@ -194,7 +194,10 @@ def write_score_schema_sidecar(
             "required_phase6_fields": list(CANONICAL_SCORE_COLUMNS),
         }
     )
-    sidecar_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    sidecar_path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return sidecar_path
 
 
@@ -365,10 +368,13 @@ def main():
             f.flush()
 
     logger.info("Scoring complete. Results → %s", output_csv)
+    source_manifests = tuple(
+        args.source_manifest or ([args.manifest_path] if args.manifest_path else [])
+    )
     sidecar = write_score_schema_sidecar(
         output_csv,
         formula=formula,
-        source_manifest_paths=tuple(args.source_manifest or ([args.manifest_path] if args.manifest_path else [])),
+        source_manifest_paths=source_manifests,
     )
     logger.info("Score schema metadata → %s", sidecar)
 

@@ -115,6 +115,109 @@ The helper stores manifest links as strings and never opens local files, cache
 paths, model directories, or environment variables. This keeps metadata creation
 CPU-safe and secret-safe while preserving traceability to run manifests.
 
+## Canonical score CSV/JSONL fields
+
+Phase 6 scoring outputs extend the original `id`, `version`, `score`, and
+`target_text` columns rather than removing them. New score CSV files written by
+`python -m scripts.score_images` use `phase6-score-file/v1`; JSONL records
+written by `python -m src.evaluation.evaluate_rewards` use
+`phase6-score-jsonl/v1`. Both formats carry the same canonical evidence fields:
+
+| Field | Meaning |
+| --- | --- |
+| `id` / `sample_id` | Stable generated sample identifier. `id` remains for SFT/DPO compatibility; `sample_id` is the canonical Phase 6 name. |
+| `version` | Generated candidate or evaluation version. |
+| `score` / `product_score` | Primary score and explicit product-score value from `compute_product_score`. |
+| `target_text` | Expected rendered text. |
+| `score_vlm` | VLM/Qwen yes-probability evidence when the VLM scorer ran. |
+| `score_ocr` | OCR reward evidence when the OCR scorer ran. |
+| `cer` | Character error rate, lower is better. |
+| `entropy` | OCR confidence/entropy evidence, lower is better. |
+| `ocr_detected` | OCR-detected text, empty when no OCR evidence exists. |
+| `detection_status` | One of `detected_exact`, `detected_mismatch`, or `not_detected`. |
+| `exact_text_match` | Boolean exact normalized text match between detected and target text. |
+| `char_accuracy`, `char_matches`, `char_total` | Character-level text metrics used for diagnostics and slice reports. |
+| `missing_components` | Comma-separated CSV value or JSON list naming absent VLM/OCR/CER/entropy/exact evidence. |
+| `formula_complete` | `true` only when all positive-weight product formula components were available and finite. |
+| `manifest_path` | Run or evaluation manifest link for traceability. |
+| `text_metrics` | JSON object containing detected text, exact-match, character-level metrics, and detection status. |
+| `scorer_metadata` | JSON object containing formula name and scorer versions. |
+| `thresholds` | JSON object containing product-formula threshold pass/fail flags. |
+
+Missing evidence remains explicit. For example, a VLM-only scoring run writes an
+empty `score_ocr`, `cer`, and `entropy`, and records those evidence names in
+`missing_components`; it must not be treated as comparable to complete VLM+OCR
+product rows in diagnostics or thesis tables.
+
+## Score sidecars and manifest links
+
+Every canonical score output should have a sibling `.schema.json` sidecar. The
+sidecar uses `schema_version="reward-score-metadata/v1"` and includes:
+
+| Sidecar field | Meaning |
+| --- | --- |
+| `score_file_schema_version` | `phase6-score-file/v1` for CSV or `phase6-score-jsonl/v1` for JSONL. |
+| `formula.name` | Product formula name, normally `vlm_ocr_cer_entropy_exact_product_v1`. |
+| `formula.weights` | Product formula weights for VLM, OCR, CER quality, entropy quality, and exact match. |
+| `formula.thresholds` | Thresholds such as `score_vlm_min`, `score_ocr_min`, or `cer_max`. |
+| `formula.scorer_versions` | Scorer identities/revisions such as Qwen model ID and OCR settings. |
+| `source_manifest_paths` | Source run/evaluation manifests that produced or contextualized score rows. |
+| `required_phase6_fields` | Canonical fields expected in rows for validator drift checks. |
+
+The score script accepts manifest links with `--manifest_path` for each row and
+one or more `--source_manifest` values for the sidecar:
+
+```bash
+python -m scripts.score_images \
+  --images_dir outputs/generated/images \
+  --text_embeds_dir outputs/generated/text_embeds \
+  --output_csv outputs/generated/scores.csv \
+  --scorer both \
+  --manifest_path runs/scoring/manifest.json \
+  --source_manifest runs/generation/manifest.json \
+  --source_manifest runs/scoring/manifest.json
+```
+
+The evaluation scoring path uses dash-style arguments for the same links:
+
+```bash
+python -m src.evaluation.evaluate_rewards \
+  --metadata outputs/baseline/metadata.jsonl \
+  --output outputs/baseline/scores.jsonl \
+  --reward all \
+  --manifest-path runs/eval/manifest.json \
+  --source-manifest runs/baseline/manifest.json
+```
+
+## Score validation command examples
+
+Phase 6 score validation is CPU-safe and shallow. It reads CSV/JSONL rows and
+their `.schema.json` sidecars, but it does not open generated images, tensors,
+CUDA devices, Qwen, PaddleOCR, or model weights.
+
+Python callers can validate a CSV score file with:
+
+```python
+from src.runtime.artifacts import validate_artifacts
+
+report = validate_artifacts("evaluation_scores", {"scores_csv": "outputs/generated/scores.csv"})
+if not report.ok:
+    raise SystemExit(report.errors)
+```
+
+JSONL evaluation outputs use the same stage with `scores_jsonl`:
+
+```python
+report = validate_artifacts("evaluation_scores", {"scores_jsonl": "outputs/baseline/scores.jsonl"})
+```
+
+Use `require_ready=True` only at blocking preflight gates when missing score files
+or missing sidecars should fail immediately.
+
+Generated score files and `.schema.json` sidecars are runtime artifacts. Keep
+them out of git unless a later plan intentionally adds tiny fixtures for
+CPU-safe tests or documentation examples.
+
 ## Threshold semantics
 
 Threshold names end in `_min` or `_max`:
