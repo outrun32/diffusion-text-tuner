@@ -48,7 +48,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **EVAL-01**: User can use one canonical reward interface for Qwen/VLM, OCR/CER/entropy, and product reward paths across scoring, training, evaluation, and thesis reports.
 - [x] **EVAL-02**: User can reproducibly generate product score files with documented formula, scorer versions, component scores, thresholds, and manifest metadata.
 - [x] **EVAL-03**: User can run a held-out checkpoint-comparison evaluation harness with fixed prompts, fixed seeds, fixed inference settings, and comparable outputs for baseline and trained LoRAs.
-- [ ] **EVAL-04**: User can automatically score evaluation outputs with OCR CER, OCR detection rate, entropy/confidence, VLM score, product score, and exact/character-level text metrics where possible.
+- [x] **EVAL-04**: User can automatically score evaluation outputs with OCR CER, OCR detection rate, entropy/confidence, VLM score, product score, and exact/character-level text metrics where possible.
 - [x] **EVAL-05**: User can evaluate by Russian text difficulty slices: rare Cyrillic letters, word length, phrase length, digits, punctuation, mixed case, multiline layout, font/style, and scene/background type.
 - [ ] **EVAL-06**: User can inspect reward disagreement through VLM-vs-OCR scatter/correlation, false-positive/false-negative contact sheets, and per-character confusion summaries.
 - [x] **EVAL-07**: User can validate reward signals against a small hand-labeled or gold diagnostic benchmark before using them as thesis evidence.
@@ -161,7 +161,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVAL-01 | Phase 6 | Complete |
 | EVAL-02 | Phase 6 | Complete |
 | EVAL-03 | Phase 6 | Complete |
-| EVAL-04 | Phase 6 | Pending |
+| EVAL-04 | Phase 6 | Complete |
 | EVAL-05 | Phase 6 | Complete |
 | EVAL-06 | Phase 6 | Pending |
 | EVAL-07 | Phase 6 | Complete |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-06 after Phase 6 Plan 03 execution*
+*Last updated: 2026-05-06 after Phase 6 Plan 04 execution*
