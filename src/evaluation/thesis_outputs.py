@@ -373,7 +373,6 @@ def _write_svg_plot(
     width = 640
     height = 360
     margin_left = 52
-    margin_bottom = 48
     plot_width = width - margin_left - 24
     plot_height = height - 72
     numeric_values = [_coerce_float(record.get(y_field)) for record in records]
@@ -410,7 +409,8 @@ def _write_svg_plot(
         'stroke="black" />',
         f'<line x1="{margin_left}" y1="{32 + plot_height}" '
         f'x2="{margin_left + plot_width}" y2="{32 + plot_height}" stroke="black" />',
-        f'<text x="18" y="180" transform="rotate(-90 18 180)" font-size="12">{html.escape(y_field)}</text>',
+        f'<text x="18" y="180" transform="rotate(-90 18 180)" font-size="12">'
+        f"{html.escape(y_field)}</text>",
         f'<text x="320" y="346" text-anchor="middle" font-size="12">{html.escape(x_field)}</text>',
         *point_lines,
         "</svg>",
