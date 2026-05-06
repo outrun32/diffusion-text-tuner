@@ -27,8 +27,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-import torch
-from PIL import Image
 from tqdm import tqdm
 
 from src.evaluation.reward_interface import (
@@ -36,174 +34,14 @@ from src.evaluation.reward_interface import (
     build_score_metadata,
     compute_product_score,
 )
-
-PHASE6_JSONL_SCHEMA_VERSION = "phase6-score-jsonl/v1"
-
-
-# ── Qwen3.5 yes-prob reward (CUDA) ─────────────────────────────────────────
-
-PROMPT_TEMPLATE = (
-    "Carefully examine each character in this image one by one. "
-    'Does this image contain the text "{target_text}" with every single '
-    "character rendered accurately and correctly? "
-    "Respond with only 'yes' or 'no'."
+from src.training.rewards import (
+    EvaluationQwenYesProbReward as QwenYesProbReward,
+)
+from src.training.rewards import (
+    PaddleOCRAccuracyReward as PaddleOCRReward,
 )
 
-
-class QwenYesProbReward:
-    """
-    Uses a Qwen vision-language model (default: Qwen3.5-4B) to compute P(yes)
-    as a differentiable reward for text rendering accuracy.
-    """
-
-    def __init__(self, model_id: str = "Qwen/Qwen3.5-4B", device: str = "cuda"):
-        from transformers import AutoModelForImageTextToText, AutoProcessor
-
-        self.device = device
-        print(f"Loading VLM reward model: {model_id} ...")
-        self.processor = AutoProcessor.from_pretrained(model_id)
-        self.model = AutoModelForImageTextToText.from_pretrained(
-            model_id,
-            torch_dtype=torch.bfloat16,
-            device_map=device,
-        )
-        self.model.eval()
-
-        tokenizer = self.processor.tokenizer
-        # Precompute yes/no token IDs
-        yes_variants = ["yes", "Yes", "YES", "да", "Да", "ДА"]
-        no_variants = ["no", "No", "NO", "нет", "Нет", "НЕТ"]
-        self.yes_ids = []
-        self.no_ids = []
-        for w in yes_variants:
-            ids = tokenizer.encode(w, add_special_tokens=False)
-            self.yes_ids.append(ids[0])
-        for w in no_variants:
-            ids = tokenizer.encode(w, add_special_tokens=False)
-            self.no_ids.append(ids[0])
-
-        print(f"  yes token IDs: {self.yes_ids}")
-        print(f"  no  token IDs: {self.no_ids}")
-
-    def _build_prompt(self, target_text: str) -> str:
-        return PROMPT_TEMPLATE.format(target_text=target_text)
-
-    @torch.no_grad()
-    def score(self, image_path: str, target_text: str) -> dict:
-        """Compute normalized P(yes) for a single image."""
-        prompt_text = self._build_prompt(target_text)
-
-        messages = [
-            {
-                "role": "system",
-                "content": [
-                    {"type": "text", "text": (
-                        "You are a precise image analysis tool. "
-                        "Answer ONLY with a single word: 'Yes' or 'No'. Do not explain."
-                    )},
-                ],
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": f"file://{os.path.abspath(image_path)}"},
-                    {"type": "text", "text": prompt_text},
-                ],
-            },
-        ]
-
-        text = self.processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True,
-            enable_thinking=False,
-        )
-        # Process image + text into model inputs
-        image = Image.open(image_path).convert("RGB")
-        inputs = self.processor(
-            text=[text], images=[image], return_tensors="pt", padding=True,
-        ).to(self.device)
-
-        outputs = self.model(**inputs)
-        logits = outputs.logits[0, -1, :]  # last token position
-
-        # Extract yes/no probabilities
-        probs = torch.softmax(logits.float(), dim=-1)
-
-        p_yes = sum(probs[tid].item() for tid in self.yes_ids)
-        p_no = sum(probs[tid].item() for tid in self.no_ids)
-        total = p_yes + p_no
-        normalized = p_yes / total if total > 0 else 0.0
-
-        return {
-            "reward_qwen_yes_prob": normalized,
-            "p_yes_raw": p_yes,
-            "p_no_raw": p_no,
-        }
-
-
-# ── PaddleOCR v3 reward ────────────────────────────────────────────────────
-
-class PaddleOCRReward:
-    """
-    Uses PaddleOCR v3 (cyrillic_PP-OCRv3_mobile_rec) for honest
-    character-level OCR accuracy as a reward signal.
-    """
-
-    def __init__(self):
-        from paddleocr import PaddleOCR
-
-        print("Loading PaddleOCR v3 ...")
-        self.ocr = PaddleOCR(
-            use_angle_cls=True,
-            lang="cyrillic",
-            ocr_version="PP-OCRv3",
-            show_log=False,
-        )
-
-    @staticmethod
-    def _char_accuracy(predicted: str, target: str) -> float:
-        """Character-level accuracy (order-independent, case-insensitive)."""
-        pred = predicted.lower().strip()
-        tgt = target.lower().strip()
-        if not tgt:
-            return 1.0 if not pred else 0.0
-
-        # Count character matches
-        from collections import Counter
-        pred_chars = Counter(pred)
-        tgt_chars = Counter(tgt)
-
-        matches = 0
-        for ch, count in tgt_chars.items():
-            matches += min(pred_chars.get(ch, 0), count)
-
-        # Penalize extra characters
-        total_pred = sum(pred_chars.values())
-        total_tgt = sum(tgt_chars.values())
-        extra_penalty = max(0, total_pred - total_tgt) / max(total_tgt, 1)
-
-        accuracy = matches / total_tgt
-        score = max(0.0, accuracy - 0.5 * extra_penalty)
-        return score
-
-    def score(self, image_path: str, target_text: str) -> dict:
-        """Run OCR on image and compute char-level accuracy vs target."""
-        result = self.ocr.ocr(image_path, cls=True)
-
-        # Concatenate all detected text
-        detected_parts = []
-        if result and result[0]:
-            for line in result[0]:
-                text = line[1][0]
-                detected_parts.append(text)
-
-        detected_full = " ".join(detected_parts)
-        accuracy = self._char_accuracy(detected_full, target_text)
-
-        return {
-            "reward_paddleocr": accuracy,
-            "ocr_detected": detected_full,
-            "ocr_num_boxes": len(detected_parts),
-        }
+PHASE6_JSONL_SCHEMA_VERSION = "phase6-score-jsonl/v1"
 
 
 def _normalize_text(value: str) -> str:
@@ -341,24 +179,45 @@ def write_evaluation_score_metadata(
 
 # ── Main ────────────────────────────────────────────────────────────────────
 
+
 def parse_args():
     p = argparse.ArgumentParser(description="Evaluate rewards on generated images")
-    p.add_argument("--metadata", type=str, required=True,
-                    help="Path to metadata.jsonl from generate_baseline")
-    p.add_argument("--output", type=str, default=None,
-                    help="Output scores JSONL (default: <metadata_dir>/scores.jsonl)")
-    p.add_argument("--reward", type=str, nargs="+",
-                    choices=["qwen_yes_prob", "paddleocr", "all"],
-                    default=["all"],
-                    help="Which reward(s) to compute")
-    p.add_argument("--vlm-model", type=str, default="Qwen/Qwen3.5-9B",
-                    help="HuggingFace VLM model ID for yes-prob reward")
-    p.add_argument("--start-idx", type=int, default=0,
-                    help="Resume from this index")
-    p.add_argument("--manifest-path", type=str, default="",
-                    help="Run/evaluation manifest path to link in each canonical record")
-    p.add_argument("--source-manifest", action="append", default=[],
-                    help="Source manifest path to include in the JSONL schema sidecar")
+    p.add_argument(
+        "--metadata", type=str, required=True, help="Path to metadata.jsonl from generate_baseline"
+    )
+    p.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output scores JSONL (default: <metadata_dir>/scores.jsonl)",
+    )
+    p.add_argument(
+        "--reward",
+        type=str,
+        nargs="+",
+        choices=["qwen_yes_prob", "paddleocr", "all"],
+        default=["all"],
+        help="Which reward(s) to compute",
+    )
+    p.add_argument(
+        "--vlm-model",
+        type=str,
+        default="Qwen/Qwen3.5-9B",
+        help="HuggingFace VLM model ID for yes-prob reward",
+    )
+    p.add_argument("--start-idx", type=int, default=0, help="Resume from this index")
+    p.add_argument(
+        "--manifest-path",
+        type=str,
+        default="",
+        help="Run/evaluation manifest path to link in each canonical record",
+    )
+    p.add_argument(
+        "--source-manifest",
+        action="append",
+        default=[],
+        help="Source manifest path to include in the JSONL schema sidecar",
+    )
     return p.parse_args()
 
 
@@ -405,8 +264,7 @@ def main():
     # Score all records
     out_file = open(out_path, "a", encoding="utf-8")
     try:
-        for i, record in enumerate(tqdm(records[args.start_idx:],
-                                        desc="Scoring", unit="img")):
+        for i, record in enumerate(tqdm(records[args.start_idx :], desc="Scoring", unit="img")):
             image_path = record["image"]
             target_text = record.get("target_text", "")
 
@@ -462,13 +320,12 @@ def _print_summary(scores_path: str, reward_names: set):
     if not records:
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"REWARD SUMMARY ({len(records)} images)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if "qwen_yes_prob" in reward_names:
-        vals = [r.get("reward_qwen_yes_prob", 0.0) for r in records
-                if "reward_qwen_yes_prob" in r]
+        vals = [r.get("reward_qwen_yes_prob", 0.0) for r in records if "reward_qwen_yes_prob" in r]
         if vals:
             arr = np.array(vals)
             print("\n  Qwen Yes-Prob:")
@@ -484,8 +341,7 @@ def _print_summary(scores_path: str, reward_names: set):
                 print(f"    [{lo:.1f}-{hi:.1f}): {cnt:4d} ({pct:5.1f}%) {bar}")
 
     if "paddleocr" in reward_names:
-        vals = [r.get("reward_paddleocr", 0.0) for r in records
-                if "reward_paddleocr" in r]
+        vals = [r.get("reward_paddleocr", 0.0) for r in records if "reward_paddleocr" in r]
         if vals:
             arr = np.array(vals)
             print("\n  PaddleOCR Accuracy:")

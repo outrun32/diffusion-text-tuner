@@ -14,12 +14,13 @@ DOC_PATH = Path("docs/reward_evaluation.md")
 
 
 def test_reward_interface_import_is_cpu_safe() -> None:
+    modules_before = set(sys.modules)
     importlib.import_module("src.evaluation.reward_interface")
 
     newly_loaded = {
         module_name
         for module_name in HEAVY_OPTIONAL_MODULES
-        if module_name in sys.modules and module_name not in MODULES_BEFORE_REWARD_IMPORT
+        if module_name in sys.modules and module_name not in modules_before
     }
 
     assert newly_loaded == set()
@@ -206,6 +207,9 @@ def test_reward_evaluation_docs_match_canonical_contract_names() -> None:
         "source_manifest_paths",
         "reward-score-metadata/v1",
         "Generated artifacts safety",
+        "build_training_reward_result",
+        "EvaluationQwenYesProbReward",
+        "PaddleOCRAccuracyReward",
     ]
     missing = [term for term in required_terms if term not in docs]
 

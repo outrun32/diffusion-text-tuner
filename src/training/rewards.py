@@ -14,6 +14,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 from PIL import Image
 
+from src.evaluation.reward_interface import (
+    ProductScoreFormula,
+    RewardResult,
+    compute_product_score,
+)
+
 if TYPE_CHECKING:
     import torch
 
@@ -96,7 +102,9 @@ class QwenYesProbReward:
         ]
 
         text = self.processor.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True,
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
             enable_thinking=False,
         )
 
@@ -106,7 +114,10 @@ class QwenYesProbReward:
         )
 
         inputs = self.processor(
-            text=[text], images=[img_pil], return_tensors="pt", padding=True,
+            text=[text],
+            images=[img_pil],
+            return_tensors="pt",
+            padding=True,
         )
         return inputs
 
@@ -218,6 +229,159 @@ class QwenYesProbReward:
         return torch.stack(rewards)
 
 
+class EvaluationQwenYesProbReward:
+    """File-path Qwen yes-prob scorer for offline evaluation.
+
+    This shares the prompt/token semantics with the training reward module while
+    keeping optional Transformers/Torch imports inside initialization and scoring.
+    """
+
+    PROMPT_TEMPLATE = QwenYesProbReward.PROMPT_TEMPLATE
+    SYSTEM_PROMPT = QwenYesProbReward.SYSTEM_PROMPT
+
+    def __init__(self, model_id: str = "Qwen/Qwen3.5-4B", device: str = "cuda"):
+        import torch
+        from transformers import AutoModelForImageTextToText, AutoProcessor
+
+        self.torch = torch
+        self.device = device
+        print(f"Loading VLM reward model: {model_id} ...")
+        self.processor = AutoProcessor.from_pretrained(model_id)
+        self.model = AutoModelForImageTextToText.from_pretrained(
+            model_id,
+            torch_dtype=torch.bfloat16,
+            device_map=device,
+        )
+        self.model.eval()
+
+        tokenizer = self.processor.tokenizer
+        yes_variants = ["yes", "Yes", "YES", "да", "Да", "ДА"]
+        no_variants = ["no", "No", "NO", "нет", "Нет", "НЕТ"]
+        self.yes_ids = [
+            tokenizer.encode(word, add_special_tokens=False)[0] for word in yes_variants
+        ]
+        self.no_ids = [tokenizer.encode(word, add_special_tokens=False)[0] for word in no_variants]
+
+    def score(self, image_path: str, target_text: str) -> dict:
+        """Compute normalized P(yes) for a single image path."""
+        prompt_text = self.PROMPT_TEMPLATE.format(target_text=target_text)
+        messages = [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": self.SYSTEM_PROMPT}],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": f"file://{os.path.abspath(image_path)}"},
+                    {"type": "text", "text": prompt_text},
+                ],
+            },
+        ]
+        text = self.processor.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        image = Image.open(image_path).convert("RGB")
+        inputs = self.processor(text=[text], images=[image], return_tensors="pt", padding=True).to(
+            self.device
+        )
+        with self.torch.no_grad():
+            outputs = self.model(**inputs)
+        logits = outputs.logits[0, -1, :]
+        probs = self.torch.softmax(logits.float(), dim=-1)
+        p_yes = sum(probs[token_id].item() for token_id in self.yes_ids)
+        p_no = sum(probs[token_id].item() for token_id in self.no_ids)
+        total = p_yes + p_no
+        normalized = p_yes / total if total > 0 else 0.0
+        return {"reward_qwen_yes_prob": normalized, "p_yes_raw": p_yes, "p_no_raw": p_no}
+
+
+class PaddleOCRAccuracyReward:
+    """PaddleOCR v3 character-accuracy scorer for offline evaluation."""
+
+    def __init__(self):
+        from paddleocr import PaddleOCR
+
+        print("Loading PaddleOCR v3 ...")
+        self.ocr = PaddleOCR(
+            use_angle_cls=True,
+            lang="cyrillic",
+            ocr_version="PP-OCRv3",
+            show_log=False,
+        )
+
+    @staticmethod
+    def _char_accuracy(predicted: str, target: str) -> float:
+        """Character-level accuracy (order-independent, case-insensitive)."""
+        from collections import Counter
+
+        pred = predicted.lower().strip()
+        tgt = target.lower().strip()
+        if not tgt:
+            return 1.0 if not pred else 0.0
+        pred_chars = Counter(pred)
+        tgt_chars = Counter(tgt)
+        matches = sum(min(pred_chars.get(ch, 0), count) for ch, count in tgt_chars.items())
+        total_pred = sum(pred_chars.values())
+        total_tgt = sum(tgt_chars.values())
+        extra_penalty = max(0, total_pred - total_tgt) / max(total_tgt, 1)
+        accuracy = matches / total_tgt
+        return max(0.0, accuracy - 0.5 * extra_penalty)
+
+    def score(self, image_path: str, target_text: str) -> dict:
+        """Run OCR on image and compute char-level accuracy vs target."""
+        result = self.ocr.ocr(image_path, cls=True)
+        detected_parts = []
+        if result and result[0]:
+            for line in result[0]:
+                detected_parts.append(line[1][0])
+        detected_full = " ".join(detected_parts)
+        accuracy = self._char_accuracy(detected_full, target_text)
+        return {
+            "reward_paddleocr": accuracy,
+            "ocr_detected": detected_full,
+            "ocr_num_boxes": len(detected_parts),
+        }
+
+
+def build_training_reward_result(
+    *,
+    sample_id: str,
+    version: int,
+    target_text: str,
+    reward_outputs: dict,
+    formula: ProductScoreFormula | None = None,
+    manifest_path: str = "",
+) -> RewardResult:
+    """Convert training/offline reward outputs to the canonical reward interface."""
+    evidence = {
+        "score_vlm": reward_outputs.get("score_vlm", reward_outputs.get("reward_qwen_yes_prob")),
+        "score_ocr": reward_outputs.get(
+            "score_ocr",
+            reward_outputs.get("reward_ocr", reward_outputs.get("reward_paddleocr")),
+        ),
+        "cer": reward_outputs.get("cer"),
+        "entropy": reward_outputs.get("entropy"),
+        "exact_text_match": reward_outputs.get("exact_text_match"),
+    }
+    product = compute_product_score(evidence, formula=formula)
+    return RewardResult(
+        sample_id=sample_id,
+        version=version,
+        target_text=target_text,
+        score=product.score,
+        components={**evidence, "product_score": product.score},
+        text_metrics={"detected_text": reward_outputs.get("ocr_detected", "")},
+        scorer_metadata={"formula_name": product.formula.name},
+        thresholds=product.threshold_flags,
+        manifest_path=manifest_path,
+        missing_components=product.missing_components,
+    )
+
+
 # ── OCR CER + Entropy reward ───────────────────────────────────────────────
 # Patch must be applied lazily before PaddleOCR is imported, not at module import
 # time. This keeps default pytest collection import-safe without OCR extras.
@@ -251,15 +415,30 @@ def _ensure_ctc_capture_patch() -> None:
     proc_mod.CTCLabelDecode.__call__ = _patched_ctc_call
     _ctc_patch_applied = True
 
+
 # Latin → Cyrillic homoglyph map for visually identical glyphs.
 # Applied before CER so that OCR decoding "TELEFONA" vs target "ТЕЛЕФОНА"
 # only penalises genuinely different characters (Л/L, Ф/F), not visual matches.
 _LATIN_TO_CYRILLIC: dict[str, str] = {
     # uppercase
-    "A": "А", "B": "В", "C": "С", "E": "Е", "H": "Н",
-    "K": "К", "M": "М", "O": "О", "P": "Р", "T": "Т", "X": "Х",
+    "A": "А",
+    "B": "В",
+    "C": "С",
+    "E": "Е",
+    "H": "Н",
+    "K": "К",
+    "M": "М",
+    "O": "О",
+    "P": "Р",
+    "T": "Т",
+    "X": "Х",
     # lowercase
-    "a": "а", "c": "с", "e": "е", "o": "о", "p": "р", "x": "х",
+    "a": "а",
+    "c": "с",
+    "e": "е",
+    "o": "о",
+    "p": "р",
+    "x": "х",
 }
 _HOMOGLYPH_TABLE = str.maketrans(_LATIN_TO_CYRILLIC)
 

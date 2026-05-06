@@ -158,3 +158,45 @@ def test_score_images_reward_imports_remain_inside_scorer_selection_paths():
     assert "from src.training.rewards import OcrCerEntropyReward" in main_source
     assert "args.scorer in (\"vlm\", \"both\")" in main_source
     assert "args.scorer in (\"ocr\", \"both\")" in main_source
+
+
+def test_training_rewards_can_emit_canonical_reward_result():
+    from src.evaluation.reward_interface import RewardResult
+    from src.training.rewards import build_training_reward_result
+
+    result = build_training_reward_result(
+        sample_id="sample-1",
+        version=0,
+        target_text="ТЕСТ",
+        reward_outputs={
+            "reward_qwen_yes_prob": 0.8,
+            "reward_ocr": 0.7,
+            "cer": 0.1,
+            "entropy": 0.2,
+            "ocr_detected": "ТЕСТ",
+            "exact_text_match": True,
+        },
+        manifest_path="runs/train/manifest.json",
+    )
+
+    assert isinstance(result, RewardResult)
+    assert result.sample_id == "sample-1"
+    assert result.version == 0
+    assert result.target_text == "ТЕСТ"
+    assert result.components["score_vlm"] == 0.8
+    assert result.components["score_ocr"] == 0.7
+    assert result.components["product_score"] == result.score
+    assert result.text_metrics == {"detected_text": "ТЕСТ"}
+    assert result.manifest_path == "runs/train/manifest.json"
+
+
+def test_evaluate_rewards_reuses_training_reward_classes():
+    import src.evaluation.evaluate_rewards as evaluate_rewards
+    from src.training.rewards import EvaluationQwenYesProbReward, PaddleOCRAccuracyReward
+
+    module_source = inspect.getsource(evaluate_rewards)
+
+    assert evaluate_rewards.QwenYesProbReward is EvaluationQwenYesProbReward
+    assert evaluate_rewards.PaddleOCRReward is PaddleOCRAccuracyReward
+    assert "class QwenYesProbReward" not in module_source
+    assert "class PaddleOCRReward" not in module_source

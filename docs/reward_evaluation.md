@@ -45,6 +45,14 @@ Canonical fields:
 store secrets, raw cache directories, private local environment values, or model
 weights.
 
+Training/offline reward dictionaries should be converted through
+`src.training.rewards.build_training_reward_result` before they are used as
+comparison evidence. Evaluation code reuses the file-path reward adapters in
+`src.training.rewards` (`EvaluationQwenYesProbReward` and
+`PaddleOCRAccuracyReward`) instead of maintaining separate evaluator-local Qwen
+or OCR scorer classes. This keeps scoring, training, evaluation, diagnostics,
+and thesis reports on one canonical `RewardResult` / product-score contract.
+
 ## Product formula: `ProductScoreFormula`
 
 `ProductScoreFormula` records the product-score formula name, component weights,
