@@ -11,6 +11,7 @@ Start with the Phase 1 execution docs before launching experiments:
 - [`docs/pipeline_inventory.md`](docs/pipeline_inventory.md) separates supported toolkit entry points from historical experiments and manual diagnostics.
 - [`docs/commands.md`](docs/commands.md) lists setup, CPU-safe tests, lint/format commands, smoke checks, local commands, SLURM variants, manual diagnostics, and generated-artifact safety notes.
 - [`docs/runtime_contracts.md`](docs/runtime_contracts.md) defines canonical runtime paths, artifact schemas, manifest expectations, and generated-artifact git safety.
+- [`docs/structure_and_extension.md`](docs/structure_and_extension.md) is the Phase 7 structure/extension guide for reusable source modules, thin scripts, cluster launchers, configs, diagnostics, experiments, generated outputs, tests, thesis artifacts, and extension rules.
 - [`docs/training_comparability.md`](docs/training_comparability.md) explains CPU-safe Phase 5 comparability checks for baseline, SFT, DPO, masked-SFT, combined, and curriculum training approaches.
 - [`configs/experiments/README.md`](configs/experiments/README.md) documents the config-family and naming contract for new SFT, DPO, masked-SFT, reward, synthesis, evaluation, and ablation variants.
 - Phase 3 data curriculum and quality docs cover prompt curriculum configs, prompt dataset validation, synthetic quality inspection, materialized SFT/DPO selections, and generated-vs-synthetic source comparison:
