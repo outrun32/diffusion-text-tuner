@@ -79,6 +79,7 @@ metrics:
 2. **Task 2 GREEN: Implement import-safe reward interface module** - `202e7de` (`feat`)
 3. **Task 3 RED: Add reward docs drift assertion** - `bd8fd31` (`test`)
 4. **Task 3 GREEN: Document reward schema and product score formula** - `a7d68c3` (`docs`)
+5. **Post-task robustness: Make import-safety test order-independent** - `3e9ec75` (`test`)
 
 **Plan metadata:** recorded in final docs commit.
 
@@ -108,10 +109,18 @@ metrics:
 - **Verification:** Targeted pytest and Ruff command passed afterward.
 - **Committed in:** `a7d68c3`
 
+**2. [Rule 1 - Bug] Made import-safety test order-independent**
+- **Found during:** Final review after metadata commit
+- **Issue:** The import-safety test originally checked whether any heavy optional module was present in `sys.modules`, which could fail in a larger CPU-safe test run if another unrelated test had already imported `torch` or another optional stack.
+- **Fix:** Captured `MODULES_BEFORE_REWARD_IMPORT` before importing `src.evaluation.reward_interface` and asserted only newly loaded heavy modules.
+- **Files modified:** `tests/test_evaluation_reward_interface.py`
+- **Verification:** Targeted pytest and Ruff command passed afterward.
+- **Committed in:** `3e9ec75`
+
 ---
 
-**Total deviations:** 1 auto-fixed (1 Rule 3 blocking fix)
-**Impact on plan:** Lint cleanup was required for the plan's Task 3 verification. No scope expansion, generated artifacts, model/OCR/CUDA imports, or heavy runtime work were introduced.
+**Total deviations:** 2 auto-fixed (1 Rule 3 blocking fix, 1 Rule 1 test robustness bug)
+**Impact on plan:** Fixes were required for reliable Task 3 verification and import-safety evidence. No scope expansion, generated artifacts, model/OCR/CUDA imports, or heavy runtime work were introduced.
 
 ## Auth Gates
 
@@ -153,7 +162,7 @@ None. The plan threat model covered untrusted score records entering product for
 ## Self-Check: PASSED
 
 - Found `src/evaluation/reward_interface.py`, `tests/test_evaluation_reward_interface.py`, `docs/reward_evaluation.md`, and this summary file.
-- Found task commits `168ebfe`, `202e7de`, `bd8fd31`, and `a7d68c3` in git history.
+- Found task commits `168ebfe`, `202e7de`, `bd8fd31`, `a7d68c3`, and `3e9ec75` in git history.
 - Required targeted pytest, Ruff, and import-safety verification commands passed.
 
 ---
