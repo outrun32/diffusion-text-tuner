@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import importlib
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -342,3 +343,114 @@ def test_gpu_model_phases_are_exposed_but_lazy_loaded() -> None:
 
     assert callable(bake_latents_phase)
     assert callable(encode_text_phase)
+
+
+def test_cli_main_builds_config_and_delegates(monkeypatch, tmp_path: Path) -> None:
+    from scripts.synth import build_dataset as cli
+    from src.synthesis.dataset_builder import SynthesisBuildConfig
+
+    captured: list[SynthesisBuildConfig] = []
+
+    def fake_build_dataset(config: SynthesisBuildConfig) -> int:
+        captured.append(config)
+        return 7
+
+    monkeypatch.setattr(cli, "build_dataset", fake_build_dataset)
+
+    exit_code = cli.main(
+        [
+            "--num",
+            "12",
+            "--workers",
+            "3",
+            "--template",
+            str(tmp_path / "template.py"),
+            "--template-name",
+            "CustomScene",
+            "--config",
+            str(tmp_path / "config.yaml"),
+            "--runner",
+            str(tmp_path / "runner.py"),
+            "--raw-dir",
+            str(tmp_path / "raw"),
+            "--out-masked",
+            str(tmp_path / "masked"),
+            "--out-anyword",
+            str(tmp_path / "anyword"),
+            "--seed",
+            "123",
+            "--skip-render",
+            "--clean",
+            "--bake-latents",
+            "--encode-text",
+            "--model-id",
+            "test-model",
+            "--device",
+            "cpu",
+        ]
+    )
+
+    assert exit_code == 7
+    assert captured == [
+        SynthesisBuildConfig(
+            num=12,
+            workers=3,
+            template=tmp_path / "template.py",
+            template_name="CustomScene",
+            config=tmp_path / "config.yaml",
+            runner=tmp_path / "runner.py",
+            raw_dir=tmp_path / "raw",
+            out_masked=tmp_path / "masked",
+            out_anyword=tmp_path / "anyword",
+            seed=123,
+            skip_render=True,
+            clean=True,
+            bake_latents=True,
+            encode_text=True,
+            model_id="test-model",
+            device="cpu",
+        )
+    ]
+
+
+def test_cli_preserves_defaults_and_compatibility_reexports(monkeypatch) -> None:
+    from scripts.synth import build_dataset as cli
+    from src.synthesis import dataset_builder as builder
+
+    captured: list[builder.SynthesisBuildConfig] = []
+
+    def fake_build_dataset(config: builder.SynthesisBuildConfig) -> int:
+        captured.append(config)
+        return 0
+
+    monkeypatch.setattr(cli, "build_dataset", fake_build_dataset)
+
+    assert cli.main(["--num", "25"]) == 0
+    assert captured == [builder.SynthesisBuildConfig(num=25)]
+    for name in [
+        "SynthesisBuildConfig",
+        "render_phase",
+        "collate_records",
+        "fan_out",
+        "write_anyword_json",
+        "write_masked_index",
+        "bake_latents_phase",
+        "encode_text_phase",
+        "build_dataset",
+    ]:
+        assert getattr(cli, name) is getattr(builder, name)
+
+
+def test_cli_wrapper_is_thin_and_keeps_heavy_imports_in_builder() -> None:
+    from scripts.synth import build_dataset as cli
+
+    source = inspect.getsource(cli)
+
+    assert "from src.synthesis.dataset_builder import" in source
+    assert "def render_phase" not in source
+    assert "def collate_records" not in source
+    assert "def bake_latents_phase" not in source
+    assert "import torch" not in source
+    assert "from PIL" not in source
+    assert "from diffusers" not in source
+    assert "src.training.flux2_utils" not in source
