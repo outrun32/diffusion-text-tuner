@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 from src.evaluation.reward_interface import ProductScoreFormula
-from src.runtime.artifacts import validate_artifacts
 
 
 def test_score_images_builds_canonical_csv_row_with_product_and_missing_evidence():
@@ -123,6 +122,8 @@ def test_evaluate_rewards_emits_canonical_jsonl_record_with_metadata():
 
 
 def test_artifact_validation_accepts_phase6_score_csv_and_sidecar(tmp_path):
+    from src.runtime.artifacts import validate_artifacts
+
     csv_path = tmp_path / "scores.csv"
     fieldnames = [
         "id",
@@ -203,6 +204,8 @@ def test_artifact_validation_accepts_phase6_score_csv_and_sidecar(tmp_path):
 
 
 def test_artifact_validation_rejects_missing_phase6_score_fields(tmp_path):
+    from src.runtime.artifacts import validate_artifacts
+
     csv_path = tmp_path / "scores.csv"
     csv_path.write_text("id,version,score,target_text\nsample-a,1,0.5,ТЕСТ\n", encoding="utf-8")
     csv_path.with_suffix(".schema.json").write_text(

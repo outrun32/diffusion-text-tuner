@@ -7,6 +7,11 @@ FLUX, Qwen, PaddleOCR, CUDA, model weights, generated images, tensors,
 checkpoints, or logs. In lower-case operational terms, these diagnostics do not run reward models; they consume outputs that scoring/evaluation jobs already
 recorded.
 
+Related Phase 6 guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
+[`docs/evaluation_harness.md`](evaluation_harness.md),
+[`docs/thesis_outputs.md`](thesis_outputs.md), and the command catalog in
+[`docs/commands.md`](commands.md).
+
 ## Russian text difficulty slices
 
 Use `classify_text_slices(record)` to label one evaluation record by target text
@@ -145,9 +150,9 @@ private evaluation outputs under ignored runtime roots such as `runs/` or
 
 Do not commit generated diagnostic reports or contact sheets from real runs.
 Keep `reward_diagnostics.json`, `reward_diagnostics.md`, contact-sheet PNGs,
-score CSV/JSONL files, held-out outputs, and private benchmark labels under
-ignored runtime paths unless a future plan intentionally creates a tiny reviewed
-fixture.
+score CSV/JSONL files, held-out outputs, plots, thesis bundles, and private
+benchmark labels under ignored runtime paths unless a future plan intentionally
+creates a tiny reviewed fixture.
 
 These diagnostics are safeguards for reward validity. They are not a broad
 human-evaluation taxonomy and should not be treated as final thesis scoring on

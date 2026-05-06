@@ -10,6 +10,11 @@ This document describes evidence contracts only. It does not claim that any
 reward model proves visual text-rendering quality without held-out evaluation,
 diagnostics, and thesis validation.
 
+Related Phase 6 guides: [`docs/evaluation_harness.md`](evaluation_harness.md),
+[`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md),
+[`docs/thesis_outputs.md`](thesis_outputs.md), and the command catalog in
+[`docs/commands.md`](commands.md).
+
 ## Canonical record: `RewardResult`
 
 `RewardResult` represents one scored generated sample or evaluation output.

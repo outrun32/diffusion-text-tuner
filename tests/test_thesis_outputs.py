@@ -8,14 +8,13 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from src.evaluation.thesis_outputs import (
-    ThesisOutputError,
-    build_thesis_output_bundle,
-    format_thesis_output_markdown,
-)
-
 
 def test_builds_traceable_tables_svgs_and_contact_sheets(tmp_path: Path) -> None:
+    from src.evaluation.thesis_outputs import (
+        build_thesis_output_bundle,
+        format_thesis_output_markdown,
+    )
+
     manifest_a = _write_manifest(
         tmp_path / "runs" / "sft" / "manifest.json",
         run_id="run-sft",
@@ -151,6 +150,8 @@ def test_builds_traceable_tables_svgs_and_contact_sheets(tmp_path: Path) -> None
 
 
 def test_missing_or_malformed_provenance_blocks_thesis_readiness(tmp_path: Path) -> None:
+    from src.evaluation.thesis_outputs import ThesisOutputError, build_thesis_output_bundle
+
     valid_manifest = _write_manifest(tmp_path / "runs" / "valid" / "manifest.json")
     malformed_report = _write_json(tmp_path / "reports" / "bad.json", {"records": "not-a-list"})
     config = {

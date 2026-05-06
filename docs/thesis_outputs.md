@@ -4,6 +4,11 @@ Thesis output bundles turn recorded run evidence into thesis-ready tables, SVG p
 
 Use this workflow when thesis text needs a result table, visual score plot, or contact sheet that can be traced back to exact run manifests and recorded reports instead of manual/static numbers.
 
+Related Phase 6 guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
+[`docs/evaluation_harness.md`](evaluation_harness.md),
+[`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md), and the command
+catalog in [`docs/commands.md`](commands.md).
+
 ## Bundle config
 
 The input config uses `thesis-output-config/v1` and is intentionally local-file based:

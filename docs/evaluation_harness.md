@@ -10,6 +10,11 @@ The CLI is intentionally `materialize-only`: it validates config/report
 contracts and writes JSON/Markdown plans, but it does not run FLUX, Qwen, PaddleOCR, CUDA, or model weights. Generation and scoring remain explicit local
 or SLURM jobs that researchers launch after reviewing the materialized plan.
 
+Related Phase 6 guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
+[`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md),
+[`docs/thesis_outputs.md`](thesis_outputs.md), and the command catalog in
+[`docs/commands.md`](commands.md).
+
 ## Config schema
 
 Use schema `heldout-evaluation-config/v1` for JSON configs:

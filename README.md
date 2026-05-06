@@ -37,6 +37,19 @@ Use `python -m scripts.compare_run_manifests` for raw manifest diffs,
 checks, and `python -m scripts.compare_training_runs` or `make compare-training-runs`
 for the integrated baseline/SFT/DPO/masked-SFT/combined/curriculum comparison report.
 
+Phase 6 reward/evaluation validity commands are discoverable from
+[`docs/commands.md`](docs/commands.md) and the dedicated guides for
+[`docs/reward_evaluation.md`](docs/reward_evaluation.md),
+[`docs/evaluation_harness.md`](docs/evaluation_harness.md),
+[`docs/evaluation_diagnostics.md`](docs/evaluation_diagnostics.md), and
+[`docs/thesis_outputs.md`](docs/thesis_outputs.md). Use the CPU-safe aliases
+`phase6-heldout-plan`, `phase6-score-validation`, `phase6-reward-diagnostics`,
+`phase6-gold-diagnostics`, `phase6-thesis-outputs`, and
+`phase6-evaluation-tests` to materialize plans, validate recorded score sidecars,
+inspect recorded diagnostics, check gold benchmark contracts, build thesis
+bundles, and run focused tests. Held-out generation, score production, Qwen,
+PaddleOCR, CUDA, and other explicit GPU/model/OCR work remain opt-in runtime jobs.
+
 Run the manifest and preflight steps before long-running GPU/model work: create or inspect a local run manifest, run the appropriate preflight check, and confirm generated artifacts will land under ignored runtime roots such as `outputs/` and `runs/`:
 
 ```bash
