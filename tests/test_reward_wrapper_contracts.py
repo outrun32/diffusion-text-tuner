@@ -148,16 +148,16 @@ def test_score_images_import_does_not_import_reward_models(monkeypatch):
 
 def test_score_images_reward_imports_remain_inside_scorer_selection_paths():
     import scripts.score_images as score_images
+    import src.scoring.pipeline as scoring_pipeline
 
-    module_source = inspect.getsource(score_images)
-    before_main = module_source.split("def main():", maxsplit=1)[0]
-    main_source = inspect.getsource(score_images.main)
+    script_source = inspect.getsource(score_images)
+    pipeline_source = inspect.getsource(scoring_pipeline.run_scoring)
 
-    assert "from src.training.rewards import" not in before_main
-    assert "from src.training.rewards import QwenYesProbReward" in main_source
-    assert "from src.training.rewards import OcrCerEntropyReward" in main_source
-    assert "args.scorer in (\"vlm\", \"both\")" in main_source
-    assert "args.scorer in (\"ocr\", \"both\")" in main_source
+    assert "from src.training.rewards import" not in script_source
+    assert "from src.training.rewards import QwenYesProbReward" in pipeline_source
+    assert "from src.training.rewards import OcrCerEntropyReward" in pipeline_source
+    assert "config.scorer in (\"vlm\", \"both\")" in pipeline_source
+    assert "config.scorer in (\"ocr\", \"both\")" in pipeline_source
 
 
 def test_training_rewards_can_emit_canonical_reward_result():

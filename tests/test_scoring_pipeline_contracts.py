@@ -4,12 +4,10 @@ import importlib
 import inspect
 import json
 import sys
-from pathlib import Path
 
 import torch
 
 from src.evaluation.reward_interface import ProductScoreFormula
-
 
 HEAVY_OPTIONAL_ROOTS = {
     "diffusers",
