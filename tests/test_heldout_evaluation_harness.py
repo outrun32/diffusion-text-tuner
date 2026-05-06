@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+DOC_PATH = Path("docs/evaluation_harness.md")
+
 
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -211,6 +213,40 @@ def test_output_paths_reject_traversal_and_home_expansion(
 
     with pytest.raises(HeldoutEvaluationError, match=field):
         HeldoutEvaluationConfig.from_file(config_path)
+
+
+def test_evaluation_harness_docs_match_config_and_command_contracts() -> None:
+    docs = DOC_PATH.read_text(encoding="utf-8")
+
+    required_terms = [
+        "HeldoutEvaluationConfig",
+        "EvaluationTarget",
+        "build_evaluation_plan",
+        "write_evaluation_plan",
+        "heldout-evaluation-config/v1",
+        "heldout-evaluation-plan/v1",
+        "fixed_prompts_path",
+        "fixed_seeds",
+        "inference_settings",
+        "output_root",
+        "baseline",
+        "lora_checkpoint_path",
+        "source_run_manifest_path",
+        "generation_output_path",
+        "score_output_path",
+        "python -m scripts.run_heldout_evaluation",
+        "--config",
+        "--output-plan",
+        "--markdown-summary",
+        "SLURM",
+        "materialize-only",
+        "does not run FLUX, Qwen, PaddleOCR, CUDA, or model weights",
+        "generated images, tensors, checkpoints, logs",
+        "Phase 5",
+    ]
+    missing = [term for term in required_terms if term not in docs]
+
+    assert missing == []
 
 
 def test_evaluation_target_records_manifest_outputs_and_notes() -> None:
