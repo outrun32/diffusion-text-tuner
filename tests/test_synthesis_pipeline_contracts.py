@@ -106,13 +106,28 @@ def test_collate_records_drops_annotationless_samples_and_preserves_fields(
 
 
 def test_index_writers_preserve_masked_sft_and_anyword_schemas(tmp_path: Path) -> None:
-    from src.synthesis.dataset_builder import write_anyword_json, write_masked_index
+    from src.synthesis.dataset_builder import (
+        fan_out,
+        write_anyword_json,
+        write_masked_index,
+    )
 
     out_masked = tmp_path / "masked_sft"
     out_anyword = tmp_path / "anyword_format"
     out_masked.mkdir()
     out_anyword.mkdir()
+    raw_dir = tmp_path / "raw"
+    for subdir in (raw_dir / "imgs", raw_dir / "masks"):
+        subdir.mkdir(parents=True)
+    for record in _records():
+        (raw_dir / "imgs" / f"{record['id']}.png").write_text(
+            f"image-{record['id']}", encoding="utf-8"
+        )
+        (raw_dir / "masks" / f"{record['id']}.png").write_text(
+            f"mask-{record['id']}", encoding="utf-8"
+        )
 
+    fan_out(_records(), raw_dir, out_masked, out_anyword)
     prompts_path = write_masked_index(_records(), out_masked)
     write_anyword_json(_records(), out_anyword)
 
@@ -125,6 +140,10 @@ def test_index_writers_preserve_masked_sft_and_anyword_schemas(tmp_path: Path) -
     ]
     anyword = json.loads((out_anyword / "data.json").read_text(encoding="utf-8"))
 
+    assert (out_masked / "raw_imgs" / "sample-1.png").read_text(encoding="utf-8") == "image-sample-1"
+    assert (out_masked / "raw_masks" / "sample-2.png").read_text(encoding="utf-8") == "mask-sample-2"
+    assert (out_anyword / "imgs" / "sample-1.png").read_text(encoding="utf-8") == "image-sample-1"
+    assert (out_anyword / "masks" / "sample-2.png").read_text(encoding="utf-8") == "mask-sample-2"
     assert prompts_path == out_masked / "prompts.jsonl"
     assert rows == [
         {
@@ -209,3 +228,117 @@ def test_dataset_builder_import_does_not_load_heavy_synthesis_or_model_stacks() 
         "src.training.losses",
     }
     assert forbidden_imports.isdisjoint(imported_modules)
+
+
+def test_build_dataset_runs_phases_in_order_and_honors_gates(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from src.synthesis import dataset_builder as builder
+
+    phase_calls: list[str] = []
+    expected_records = _records()
+    prompts_path = tmp_path / "masked" / "prompts.jsonl"
+
+    def fake_render_phase(**kwargs) -> None:
+        phase_calls.append(
+            f"render:{kwargs['num']}:{kwargs['workers']}:{kwargs['template_name']}"
+        )
+
+    def fake_collate_records(raw_dir: Path) -> list[dict]:
+        phase_calls.append(f"collate:{raw_dir.name}")
+        return expected_records
+
+    def fake_fan_out(
+        records: list[dict], raw_dir: Path, out_masked: Path, out_anyword: Path
+    ) -> None:
+        assert records == expected_records
+        phase_calls.append(
+            f"fan_out:{raw_dir.name}:{out_masked.name}:{out_anyword.name}"
+        )
+
+    def fake_write_anyword_json(records: list[dict], out_anyword: Path) -> None:
+        assert records == expected_records
+        phase_calls.append(f"anyword:{out_anyword.name}")
+
+    def fake_write_masked_index(records: list[dict], out_masked: Path) -> Path:
+        assert records == expected_records
+        phase_calls.append(f"masked:{out_masked.name}")
+        return prompts_path
+
+    def fake_bake_latents_phase(
+        records: list[dict], out_masked: Path, model_id: str, device: str
+    ) -> None:
+        assert records == expected_records
+        phase_calls.append(f"bake:{out_masked.name}:{model_id}:{device}")
+
+    def fake_encode_text_phase(
+        received_prompts_path: Path, out_masked: Path, model_id: str, device: str
+    ) -> None:
+        assert received_prompts_path == prompts_path
+        phase_calls.append(f"encode:{out_masked.name}:{model_id}:{device}")
+
+    monkeypatch.setattr(builder, "render_phase", fake_render_phase)
+    monkeypatch.setattr(builder, "collate_records", fake_collate_records)
+    monkeypatch.setattr(builder, "fan_out", fake_fan_out)
+    monkeypatch.setattr(builder, "write_anyword_json", fake_write_anyword_json)
+    monkeypatch.setattr(builder, "write_masked_index", fake_write_masked_index)
+    monkeypatch.setattr(builder, "bake_latents_phase", fake_bake_latents_phase)
+    monkeypatch.setattr(builder, "encode_text_phase", fake_encode_text_phase)
+
+    exit_code = builder.build_dataset(
+        builder.SynthesisBuildConfig(
+            num=3,
+            workers=2,
+            template_name="CyrillicScene",
+            raw_dir=tmp_path / "raw",
+            out_masked=tmp_path / "masked",
+            out_anyword=tmp_path / "anyword",
+        )
+    )
+
+    assert exit_code == 0
+    assert phase_calls == [
+        "render:3:2:CyrillicScene",
+        "collate:raw",
+        "fan_out:raw:masked:anyword",
+        "anyword:anyword",
+        "masked:masked",
+    ]
+
+    phase_calls.clear()
+    preserved = tmp_path / "reuse_raw" / "keep.txt"
+    preserved.parent.mkdir()
+    preserved.write_text("do-not-clean-when-skipping-render", encoding="utf-8")
+    exit_code = builder.build_dataset(
+        builder.SynthesisBuildConfig(
+            num=3,
+            skip_render=True,
+            clean=True,
+            bake_latents=True,
+            encode_text=True,
+            raw_dir=preserved.parent,
+            out_masked=tmp_path / "masked-gpu",
+            out_anyword=tmp_path / "anyword-gpu",
+            model_id="test-model",
+            device="cpu",
+        )
+    )
+
+    assert exit_code == 0
+    assert preserved.read_text(encoding="utf-8") == "do-not-clean-when-skipping-render"
+    assert phase_calls == [
+        "collate:reuse_raw",
+        "fan_out:reuse_raw:masked-gpu:anyword-gpu",
+        "anyword:anyword-gpu",
+        "masked:masked-gpu",
+        "bake:masked-gpu:test-model:cpu",
+        "encode:masked-gpu:test-model:cpu",
+    ]
+
+
+def test_gpu_model_phases_are_exposed_but_lazy_loaded() -> None:
+    from src.synthesis.dataset_builder import bake_latents_phase, encode_text_phase
+
+    assert callable(bake_latents_phase)
+    assert callable(encode_text_phase)
