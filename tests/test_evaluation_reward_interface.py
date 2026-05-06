@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 import sys
 
 import pytest
@@ -15,6 +16,7 @@ from src.evaluation.reward_interface import (
 
 
 HEAVY_OPTIONAL_MODULES = {"transformers", "paddleocr", "diffusers", "torch", "vllm", "mlx"}
+DOC_PATH = Path("docs/reward_evaluation.md")
 
 
 def test_reward_interface_import_is_cpu_safe() -> None:
@@ -172,3 +174,31 @@ def test_score_metadata_records_formula_versions_thresholds_and_manifests() -> N
         },
         "source_manifest_paths": ["runs/baseline/manifest.json", "runs/lora/manifest.json"],
     }
+
+
+def test_reward_evaluation_docs_match_canonical_contract_names() -> None:
+    docs = DOC_PATH.read_text(encoding="utf-8")
+
+    required_terms = [
+        "RewardResult",
+        "ProductScoreFormula",
+        "compute_product_score",
+        "build_score_metadata",
+        "sample_id",
+        "version",
+        "target_text",
+        "score_vlm",
+        "score_ocr",
+        "cer_quality",
+        "entropy_quality",
+        "exact_text_match",
+        "missing_components",
+        "threshold_flags",
+        "scorer_versions",
+        "source_manifest_paths",
+        "reward-score-metadata/v1",
+        "Generated artifacts safety",
+    ]
+    missing = [term for term in required_terms if term not in docs]
+
+    assert missing == []
