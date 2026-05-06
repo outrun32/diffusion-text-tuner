@@ -85,12 +85,12 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 ### Structure and Refactoring
 
-- [ ] **STR-01**: User can navigate a moderately cleaned file structure where reusable source code, thin scripts, cluster launchers, configs, diagnostics, experiments, generated outputs, tests, and thesis artifacts have clear homes.
+- [x] **STR-01**: User can navigate a moderately cleaned file structure where reusable source code, thin scripts, cluster launchers, configs, diagnostics, experiments, generated outputs, tests, and thesis artifacts have clear homes.
 - [x] **STR-02**: User can use shared runtime helpers for config I/O, path resolution, seeds, manifests, and preflight validation.
 - [x] **STR-03**: User can use shared scoring/reward/evaluation modules instead of duplicated Qwen/OCR logic across training and evaluation.
 - [x] **STR-04**: User can use focused shared training modules for sampling, checkpointing, schedulers, objective helpers, and config/runtime plumbing while preserving current SFT, DPO, and masked-SFT behavior.
 - [ ] **STR-05**: User can use importable implementation modules behind CLI scripts for generation, scoring, synthesis, evaluation, plotting, and run comparison.
-- [ ] **STR-06**: User can add future experiments/pipelines through documented extension points rather than new one-off scripts with hidden assumptions.
+- [x] **STR-06**: User can add future experiments/pipelines through documented extension points rather than new one-off scripts with hidden assumptions.
 
 ## v2 Requirements
 
@@ -186,12 +186,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-05 | Phase 4 | Complete |
 | TEST-06 | Phase 1 | Complete |
 | TEST-07 | Phase 1 | Complete |
-| STR-01 | Phase 7 | Pending |
+| STR-01 | Phase 7 | Complete |
 | STR-02 | Phase 2 | Complete |
 | STR-03 | Phase 6 | Complete |
 | STR-04 | Phase 5 | Complete |
 | STR-05 | Phase 7 | Pending |
-| STR-06 | Phase 7 | Pending |
+| STR-06 | Phase 7 | Complete |
 
 **Coverage:**
 - v1 requirements: 58 total
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-06 after Phase 6 Plan 07 execution*
+*Last updated: 2026-05-06 after Phase 7 Plan 01 execution*
