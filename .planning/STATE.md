@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 6 - Reward and Evaluation Validity
-current_plan: Phase 6 Plan 06 ready
+current_plan: Phase 6 Plan 07 ready
 status: phase-6-in-progress
-last_updated: "2026-05-06T14:58:52Z"
+last_updated: "2026-05-06T15:06:27Z"
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-06 after Phase 6 Plan 05 execution
+**Last updated:** 2026-05-06 after Phase 6 Plan 06 execution
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 6 - Reward and Evaluation Validity  
-**Current Plan:** Phase 6 Plan 06 ready  
-**Status:** Phase 6 in progress; Plans 01, 02, 03, 04, and 05 complete
-**Progress:** [██████████████░░░░░░] 71% for Phase 6 execution
+**Current Plan:** Phase 6 Plan 07 ready  
+**Status:** Phase 6 in progress; Plans 01, 02, 03, 04, 05, and 06 complete
+**Progress:** [█████████████████░░░] 86% for Phase 6 execution
 
 ## Phase Status
 
@@ -44,18 +44,18 @@ progress:
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
 | 5. Training Objective and Pipeline Comparability | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, explicit config choice snapshots, import-safe shared training utilities, and integrated comparison command docs are implemented. |
-| 6. Reward and Evaluation Validity | In progress | 5/7 plans complete. Canonical reward interface/product formula, held-out evaluation plan contract, CPU-safe Russian slice/gold diagnostic contracts, canonical scoring outputs/sidecar validation, and reward disagreement diagnostics are implemented; thesis outputs and command docs remain. |
+| 6. Reward and Evaluation Validity | In progress | 6/7 plans complete. Canonical reward interface/product formula, held-out evaluation plan contract, CPU-safe Russian slice/gold diagnostic contracts, canonical scoring outputs/sidecar validation, reward disagreement diagnostics, and thesis output bundles are implemented; command docs remain. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
 
 ## Performance Metrics
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 through Phase 5 requirements complete and Phase 6 now complete through EVAL-07, RUN-05, and STR-03 except EVAL-08 | 100% mapped; continue Phase 6 reward/evaluation validity work |
+| v1 requirement coverage | 58/58 mapped; Phase 1 through Phase 5 requirements complete and Phase 6 now complete through EVAL-08, RUN-05, and STR-03 | 100% mapped; continue Phase 6 command documentation work |
 | Roadmap phases planned | 7 total, Phase 6 has 7 executable plans | 6-8 standard-granularity phases |
-| Default test posture | 6 focused reward-disagreement diagnostics tests, 6 focused scoring-output contract tests, 10 focused slice/gold diagnostic tests, 6 focused reward-interface/product-formula tests, 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; heavy diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 4 focused thesis-output bundle tests, 6 focused reward-disagreement diagnostics tests, 6 focused scoring-output contract tests, 10 focused slice/gold diagnostic tests, 6 focused reward-interface/product-formula tests, 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; heavy diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
-| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, Phase 3 runtime/docs command wiring, CPU-safe run-manifest diff tooling, CPU-safe training comparability reports, explicit SFT/DPO/masked-SFT config choice snapshots, shared training runtime metadata helpers, integrated training-run comparison reports, reward score metadata helpers with formula/scorer/threshold/manifest links, held-out evaluation plan reports linking fixed prompts/seeds/settings to target manifests, metadata-only gold diagnostic benchmark reports with per-slice missing/disagreement evidence, canonical score CSV/JSONL sidecars with manifest-linked validation, and reward disagreement diagnostics with VLM/OCR correlation, false-row, confusion, per-slice, and contact-sheet evidence | Extend evaluation traceability through thesis bundles during remaining Phase 6 plans |
+| Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, Phase 3 runtime/docs command wiring, CPU-safe run-manifest diff tooling, CPU-safe training comparability reports, explicit SFT/DPO/masked-SFT config choice snapshots, shared training runtime metadata helpers, integrated training-run comparison reports, reward score metadata helpers with formula/scorer/threshold/manifest links, held-out evaluation plan reports linking fixed prompts/seeds/settings to target manifests, metadata-only gold diagnostic benchmark reports with per-slice missing/disagreement evidence, canonical score CSV/JSONL sidecars with manifest-linked validation, reward disagreement diagnostics with VLM/OCR correlation, false-row, confusion, per-slice, and contact-sheet evidence, and thesis output bundles that trace generated tables/SVG/contact sheets back to manifests/reports/artifact paths | Publish Phase 6 command docs and aliases during the remaining plan |
 
 ## Accumulated Context
 
@@ -135,6 +135,7 @@ progress:
 - Validate Phase 6 score files through shallow `evaluation_scores` artifact checks without loading generated images, tensors, CUDA, Qwen, PaddleOCR, or model weights.
 - Keep reward disagreement diagnostics CPU-safe by consuming recorded score outputs and optional gold labels; only user-requested bounded PIL contact sheets open local images.
 - Treat CLI-discovered reward disagreements, missing evidence, and character confusions as successful diagnostic findings, while malformed score/gold inputs remain command errors.
+- Build thesis-ready tables, SVG plots, contact sheets, bundle JSON, and Markdown from recorded manifests/reports only; missing provenance is a blocking readiness error and generated thesis outputs remain runtime artifacts.
 
 ### Important Caveats
 
@@ -152,7 +153,7 @@ progress:
 
 ### Open Todos
 
-- Continue Phase 6 reward and evaluation validity work with Wave 3 Plan 06-06.
+- Continue Phase 6 reward and evaluation validity work with Wave 4 Plan 06-07.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -162,7 +163,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 6 Wave 3 Plan 06-06.
+**Next Recommended Action:** Execute Phase 6 Wave 4 Plan 06-07.
 
 **Files Created/Updated:**
 
@@ -368,6 +369,11 @@ progress:
 - `scripts/analyze_reward_diagnostics.py`
 - `docs/evaluation_diagnostics.md`
 - `.planning/phases/06-reward-and-evaluation-validity/06-05-SUMMARY.md`
+- `tests/test_thesis_outputs.py`
+- `src/evaluation/thesis_outputs.py`
+- `scripts/build_thesis_outputs.py`
+- `docs/thesis_outputs.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-06-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 

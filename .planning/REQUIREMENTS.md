@@ -52,7 +52,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **EVAL-05**: User can evaluate by Russian text difficulty slices: rare Cyrillic letters, word length, phrase length, digits, punctuation, mixed case, multiline layout, font/style, and scene/background type.
 - [x] **EVAL-06**: User can inspect reward disagreement through VLM-vs-OCR scatter/correlation, false-positive/false-negative contact sheets, and per-character confusion summaries.
 - [x] **EVAL-07**: User can validate reward signals against a small hand-labeled or gold diagnostic benchmark before using them as thesis evidence.
-- [ ] **EVAL-08**: User can generate thesis-ready tables, plots, and contact sheets from recorded run outputs rather than static/manual numbers.
+- [x] **EVAL-08**: User can generate thesis-ready tables, plots, and contact sheets from recorded run outputs rather than static/manual numbers.
 
 ### Run Tracking and Experiment Comparison
 
@@ -165,7 +165,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EVAL-05 | Phase 6 | Complete |
 | EVAL-06 | Phase 6 | Complete |
 | EVAL-07 | Phase 6 | Complete |
-| EVAL-08 | Phase 6 | Pending |
+| EVAL-08 | Phase 6 | Complete |
 | RUN-01 | Phase 2 | Complete |
 | RUN-02 | Phase 5 | Complete |
 | RUN-03 | Phase 2 | Complete |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-06 after Phase 6 Plan 05 execution*
+*Last updated: 2026-05-06 after Phase 6 Plan 06 execution*
