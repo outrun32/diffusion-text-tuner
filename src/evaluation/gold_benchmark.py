@@ -175,7 +175,8 @@ def evaluate_gold_predictions(
 def format_gold_report_markdown(report: Mapping[str, Any]) -> str:
     """Render a Markdown report suitable for diagnostics docs and summaries."""
     per_slice_lines = [
-        "| Slice | Records | Missing predictions | Exact disagreements | OCR disagreements | OCR text disagreements |",
+        "| Slice | Records | Missing predictions | Exact disagreements | "
+        "OCR disagreements | OCR text disagreements |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for label, summary in report["per_slice"].items():

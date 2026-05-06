@@ -4,7 +4,6 @@ import importlib
 import sys
 from pathlib import Path
 
-
 HEAVY_OPTIONAL_MODULES = {"transformers", "paddleocr", "diffusers", "torch", "vllm", "mlx"}
 MODULES_BEFORE_EVALUATION_IMPORT = set(sys.modules)
 FIXTURE_PATH = Path("tests/fixtures/evaluation/gold_diagnostic.jsonl")
