@@ -47,7 +47,9 @@ def analyze_reward_disagreement(
     expected pass/fail labels without invoking any reward model.
     """
 
-    normalized_records = [_normalize_score_record(record, index) for index, record in enumerate(records)]
+    normalized_records = [
+        _normalize_score_record(record, index) for index, record in enumerate(records)
+    ]
     gold_by_id = _load_gold_by_id(gold_records)
     input_errors = _validate_records(normalized_records)
 
@@ -113,7 +115,8 @@ def load_score_records(path: str | Path) -> list[dict[str, Any]]:
                 return [dict(row) for row in csv.DictReader(handle)]
         if suffix == ".jsonl":
             records: list[dict[str, Any]] = []
-            for line_number, line in enumerate(score_path.read_text(encoding="utf-8").splitlines(), 1):
+            lines = score_path.read_text(encoding="utf-8").splitlines()
+            for line_number, line in enumerate(lines, 1):
                 if not line.strip():
                     continue
                 try:
@@ -177,7 +180,8 @@ def format_diagnostics_markdown(report: Mapping[str, Any]) -> str:
         "## Missing evidence",
         "",
         f"- count: `{missing['count']}`",
-        f"- by_component: `{json.dumps(missing['by_component'], ensure_ascii=False, sort_keys=True)}`",
+        "- by_component: "
+        f"`{json.dumps(missing['by_component'], ensure_ascii=False, sort_keys=True)}`",
         "",
         "## False positives",
         "",
@@ -233,7 +237,9 @@ def _normalize_score_record(record: Mapping[str, Any], index: int) -> dict[str, 
     normalized["exact_match"] = _coerce_bool(
         normalized.get("exact_match", normalized.get("exact_text_match"))
     )
-    normalized["missing_components"] = _parse_missing_components(normalized.get("missing_components"))
+    normalized["missing_components"] = _parse_missing_components(
+        normalized.get("missing_components")
+    )
     return normalized
 
 
@@ -324,7 +330,9 @@ def _classify_false_rows(
         score = _diagnostic_score(record)
         if score is None:
             continue
-        expected_positive, gold_label = _expected_positive(record, gold_by_id.get(record["sample_id"]))
+        expected_positive, gold_label = _expected_positive(
+            record, gold_by_id.get(record["sample_id"])
+        )
         if expected_positive is None:
             continue
         row = _false_row(record, gold_label, score)
@@ -406,7 +414,13 @@ def _maybe_write_contact_sheet(
     contact_sheet_limit: int,
 ) -> dict[str, Any]:
     if contact_sheet_path is None:
-        return {"requested": False, "path": "", "limit": contact_sheet_limit, "entry_count": 0, "entries": []}
+        return {
+            "requested": False,
+            "path": "",
+            "limit": contact_sheet_limit,
+            "entry_count": 0,
+            "entries": [],
+        }
 
     selected_rows = [
         ("false_positive", row) for row in false_positives
@@ -439,7 +453,9 @@ def _write_contact_sheet_image(entries: Sequence[Mapping[str, str]], output_path
     thumb_height = 72
     caption_height = 24
     if not entries:
-        Image.new("RGB", (thumb_width, thumb_height + caption_height), color="white").save(output_path)
+        Image.new(
+            "RGB", (thumb_width, thumb_height + caption_height), color="white"
+        ).save(output_path)
         return
     sheet = Image.new("RGB", (thumb_width * len(entries), thumb_height + caption_height), "white")
     draw = ImageDraw.Draw(sheet)
@@ -546,7 +562,9 @@ def _parse_missing_components(value: Any) -> tuple[str, ...]:
     if isinstance(value, (list, tuple, set)):
         return tuple(sorted(str(component) for component in value if str(component).strip()))
     if isinstance(value, str):
-        return tuple(sorted(component.strip() for component in value.split(",") if component.strip()))
+        return tuple(
+            sorted(component.strip() for component in value.split(",") if component.strip())
+        )
     return (str(value),)
 
 

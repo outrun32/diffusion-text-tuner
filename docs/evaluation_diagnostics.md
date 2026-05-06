@@ -1,9 +1,11 @@
-# Evaluation Diagnostics: Difficulty Slices and Gold Benchmark
+# Evaluation Diagnostics: Difficulty Slices, Gold Benchmark, and Reward Disagreement
 
 Phase 6 adds CPU-safe diagnostics for Russian text-rendering evaluation. The
 contracts here are intentionally metadata-only: they inspect text fields,
-prediction rows, and JSONL labels, but they do not load FLUX, Qwen, PaddleOCR,
-CUDA, model weights, generated images, tensors, checkpoints, or logs.
+prediction rows, recorded score outputs, and JSONL labels, but they do not load
+FLUX, Qwen, PaddleOCR, CUDA, model weights, generated images, tensors,
+checkpoints, or logs. In lower-case operational terms, these diagnostics do not run reward models; they consume outputs that scoring/evaluation jobs already
+recorded.
 
 ## Russian text difficulty slices
 
@@ -69,6 +71,70 @@ A clean report can support reward-validity confidence, but a report
 with missing rows or disagreements is still useful thesis evidence because it
 identifies where reward signals fail.
 
+## Reward disagreement diagnostics
+
+Use `analyze_reward_disagreement(records, ...)` to inspect disagreement between
+canonical score fields without invoking OCR/VLM/model code. The function accepts
+recorded score outputs containing fields such as `score_vlm`, `score_ocr`,
+`cer`, `exact_match`, `char_accuracy`, `product_score`, `missing_components`,
+`target_text`, `detected_text`, and optional `image_path`. Use
+`format_diagnostics_markdown(report)` to render the resulting dictionary as a
+human-readable report.
+
+The report includes:
+
+- VLM-vs-OCR scatter/correlation summaries using rows where both `score_vlm`
+  and `score_ocr` are present;
+- missing evidence counts by component, so incomplete rows are not hidden;
+- false-positive rows where a high product score conflicts with exact-match or
+  gold diagnostic benchmark expectations;
+- false-negative rows where a low product score conflicts with expected passing
+  evidence;
+- per-character confusion summaries comparing `target_text` with recorded OCR or
+  detected text;
+- per-slice disagreement counts using `classify_text_slices`, including rare
+  Cyrillic, digits, punctuation, mixed case, multiline, font/style, and
+  scene/background slices;
+- optional bounded PIL contact-sheet metadata containing captions and source
+  paths for selected false-positive and false-negative examples.
+
+The gold diagnostic benchmark linkage is optional but recommended. Pass `--gold`
+or `gold_records=` when hand-labeled expectations are available; otherwise the
+diagnostic falls back to recorded exact-match fields when classifying
+false-positive and false-negative rows.
+
+### CLI examples
+
+Generate deterministic JSON and Markdown from a recorded score CSV plus a gold
+diagnostic JSONL file:
+
+```bash
+python scripts/analyze_reward_diagnostics.py \
+  --scores runs/eval/baseline/scores.csv \
+  --gold tests/fixtures/evaluation/gold_diagnostic.jsonl \
+  --output-report runs/eval/baseline/reward_diagnostics.json \
+  --markdown-summary runs/eval/baseline/reward_diagnostics.md \
+  --positive-threshold 0.80 \
+  --negative-threshold 0.50
+```
+
+Add a bounded contact sheet for reviewable false-positive/false-negative rows:
+
+```bash
+python scripts/analyze_reward_diagnostics.py \
+  --scores runs/eval/trained/scores.jsonl \
+  --gold runs/eval/gold_diagnostic.jsonl \
+  --output-report runs/eval/trained/reward_diagnostics.json \
+  --markdown-summary runs/eval/trained/reward_diagnostics.md \
+  --contact-sheet runs/eval/trained/reward_disagreements.png \
+  --contact-sheet-limit 24
+```
+
+The CLI returns nonzero for malformed score/gold inputs. It does not return
+nonzero merely because disagreements, false positives, false negatives, missing
+evidence, or per-character confusion rows were discovered; those findings are
+the diagnostic output.
+
 ## Generated-artifact safety
 
 Do not commit generated images, tensors, checkpoints, or logs for these
@@ -76,6 +142,12 @@ diagnostics. Keep runtime gold reports, scored predictions, contact sheets, and
 private evaluation outputs under ignored runtime roots such as `runs/` or
 `outputs/`. Only tiny reviewed fixtures like
 `tests/fixtures/evaluation/gold_diagnostic.jsonl` should be committed.
+
+Do not commit generated diagnostic reports or contact sheets from real runs.
+Keep `reward_diagnostics.json`, `reward_diagnostics.md`, contact-sheet PNGs,
+score CSV/JSONL files, held-out outputs, and private benchmark labels under
+ignored runtime paths unless a future plan intentionally creates a tiny reviewed
+fixture.
 
 These diagnostics are safeguards for reward validity. They are not a broad
 human-evaluation taxonomy and should not be treated as final thesis scoring on
