@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import math
 import sys
@@ -7,24 +8,26 @@ from pathlib import Path
 
 import pytest
 
-from src.evaluation.reward_interface import (
-    ProductScoreFormula,
-    RewardResult,
-    build_score_metadata,
-    compute_product_score,
-)
-
 HEAVY_OPTIONAL_MODULES = {"transformers", "paddleocr", "diffusers", "torch", "vllm", "mlx"}
+MODULES_BEFORE_REWARD_IMPORT = set(sys.modules)
 DOC_PATH = Path("docs/reward_evaluation.md")
 
 
 def test_reward_interface_import_is_cpu_safe() -> None:
-    newly_loaded = HEAVY_OPTIONAL_MODULES.intersection(sys.modules)
+    importlib.import_module("src.evaluation.reward_interface")
+
+    newly_loaded = {
+        module_name
+        for module_name in HEAVY_OPTIONAL_MODULES
+        if module_name in sys.modules and module_name not in MODULES_BEFORE_REWARD_IMPORT
+    }
 
     assert newly_loaded == set()
 
 
 def test_reward_result_serializes_canonical_safe_row() -> None:
+    from src.evaluation.reward_interface import RewardResult
+
     result = RewardResult(
         sample_id="prompt-0001",
         version=2,
@@ -77,6 +80,8 @@ def test_reward_result_serializes_canonical_safe_row() -> None:
 
 
 def test_compute_product_score_combines_weighted_components_and_flags_thresholds() -> None:
+    from src.evaluation.reward_interface import ProductScoreFormula, compute_product_score
+
     formula = ProductScoreFormula(
         name="thesis_product_v1",
         weights={
@@ -128,6 +133,8 @@ def test_compute_product_score_combines_weighted_components_and_flags_thresholds
 
 
 def test_missing_or_invalid_evidence_is_reported_not_imputed() -> None:
+    from src.evaluation.reward_interface import ProductScoreFormula, compute_product_score
+
     formula = ProductScoreFormula(
         name="missing-aware",
         weights={"score_vlm": 0.5, "score_ocr": 0.3, "cer_quality": 0.2},
@@ -148,6 +155,8 @@ def test_missing_or_invalid_evidence_is_reported_not_imputed() -> None:
 
 
 def test_score_metadata_records_formula_versions_thresholds_and_manifests() -> None:
+    from src.evaluation.reward_interface import ProductScoreFormula, build_score_metadata
+
     formula = ProductScoreFormula(
         name="metadata-product-v1",
         weights={"score_vlm": 0.6, "score_ocr": 0.4},
