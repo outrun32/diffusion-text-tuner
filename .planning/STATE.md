@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 7 - Moderate Structure and Extension Cleanup
-current_plan: Phase 7 Plan 02 next
+current_plan: Phase 7 Plan 03 next
 status: phase-7-in-progress
-last_updated: "2026-05-06T15:42:58Z"
+last_updated: "2026-05-06T15:48:19Z"
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-06 after Phase 7 Plan 01 execution
+**Last updated:** 2026-05-06 after Phase 7 Plan 02 execution
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 7 - Moderate Structure and Extension Cleanup  
-**Current Plan:** Phase 7 Plan 02 next  
-**Status:** Phase 7 in progress; Plan 01 complete
-**Progress:** [███░░░░░░░░░░░░░░░░░] 17% for Phase 7 execution
+**Current Plan:** Phase 7 Plan 03 next  
+**Status:** Phase 7 in progress; Plans 01-02 complete
+**Progress:** [███████░░░░░░░░░░░░░] 33% for Phase 7 execution
 
 ## Phase Status
 
@@ -45,15 +45,15 @@ progress:
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
 | 5. Training Objective and Pipeline Comparability | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, explicit config choice snapshots, import-safe shared training utilities, and integrated comparison command docs are implemented. |
 | 6. Reward and Evaluation Validity | Verified complete | 7/7 plans complete and phase verification passed 10/10 must-haves. Canonical reward interface/product formula, held-out evaluation plan contract, CPU-safe Russian slice/gold diagnostic contracts, canonical scoring outputs/sidecar validation, reward disagreement diagnostics, thesis output bundles, and integrated command docs/Makefile aliases are implemented. |
-| 7. Moderate Structure and Extension Cleanup | In progress | Plan 01 published tested structure homes, script-family navigation, generated-artifact boundaries, and extension rules; 1/6 plans complete. |
+| 7. Moderate Structure and Extension Cleanup | In progress | Plan 01 published tested structure homes and extension rules; Plan 02 moved image generation behind an import-safe `src.generation.pipeline` seam while preserving the CLI; 2/6 plans complete. |
 
 ## Performance Metrics
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; STR-01 and STR-06 completed by Phase 7 Plan 01, STR-05 remains pending | 100% mapped; complete Phase 7 cleanup work |
+| v1 requirement coverage | 58/58 mapped; STR-01 and STR-06 completed by Phase 7 Plan 01, STR-05 completed by Phase 7 Plan 02 | 100% mapped; complete Phase 7 cleanup work |
 | Roadmap phases planned | 7 total, Phase 7 has 6 executable plans and 1 complete | 6-8 standard-granularity phases |
-| Default test posture | 4 Phase 7 structure/extension docs tests, 4 Phase 6 command docs tests, 4 focused thesis-output bundle tests, 6 focused reward-disagreement diagnostics tests, 6 focused scoring-output contract tests, 10 focused slice/gold diagnostic tests, 6 focused reward-interface/product-formula tests, 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; heavy diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
+| Default test posture | 8 Phase 7 generation seam contract tests, 4 Phase 7 structure/extension docs tests, 4 Phase 6 command docs tests, 4 focused thesis-output bundle tests, 6 focused reward-disagreement diagnostics tests, 6 focused scoring-output contract tests, 10 focused slice/gold diagnostic tests, 6 focused reward-interface/product-formula tests, 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; heavy diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
 | Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, Phase 3 runtime/docs command wiring, CPU-safe run-manifest diff tooling, CPU-safe training comparability reports, explicit SFT/DPO/masked-SFT config choice snapshots, shared training runtime metadata helpers, integrated training-run comparison reports, reward score metadata helpers with formula/scorer/threshold/manifest links, held-out evaluation plan reports linking fixed prompts/seeds/settings to target manifests, metadata-only gold diagnostic benchmark reports with per-slice missing/disagreement evidence, canonical score CSV/JSONL sidecars with manifest-linked validation, reward disagreement diagnostics with VLM/OCR correlation, false-row, confusion, per-slice, and contact-sheet evidence, thesis output bundles that trace generated tables/SVG/contact sheets back to manifests/reports/artifact paths, Phase 6 command docs/Makefile aliases, and Phase 7 structure/extension docs guarded by docs drift tests | Complete remaining Phase 7 importable seam plans |
 
@@ -140,6 +140,7 @@ progress:
 - Use `src.training.rewards.build_training_reward_result` and shared file-path reward adapters from `src.training.rewards` so training, scoring, evaluation, diagnostics, and thesis reports share the canonical reward-result/product-score contract.
 - Use `docs/structure_and_extension.md` as the Phase 7 canonical navigation contract for repository homes and extension rules before moving generation, scoring, synthesis, or plotting behind importable seams.
 - Keep script guidance behavior-preserving: supported commands remain thin wrappers, diagnostics stay opt-in, and generated runtime outputs remain ignored/private by default.
+- Keep image generation import-safe by routing reusable orchestration through `src.generation.pipeline` and leaving FLUX, torchvision, CUDA/model, and training utility imports inside `run_generation`.
 
 ### Important Caveats
 
@@ -157,7 +158,7 @@ progress:
 
 ### Open Todos
 
-- Execute Phase 7 Plan 02 to move image generation behind an importable `src.generation.pipeline` module while preserving the CLI.
+- Execute Phase 7 Plan 03 to move reward scoring behind an importable `src.scoring.pipeline` module while preserving canonical score outputs.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -167,7 +168,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Execute Phase 7 Plan 02 to move image generation behind an importable `src.generation.pipeline` module while preserving the CLI.
+**Next Recommended Action:** Execute Phase 7 Plan 03 to move reward scoring behind an importable `src.scoring.pipeline` module while preserving canonical score outputs.
 
 **Files Created/Updated:**
 
@@ -393,6 +394,11 @@ progress:
 - `scripts/README.md`
 - `README.md`
 - `.planning/phases/07-moderate-structure-and-extension-cleanup/07-01-SUMMARY.md`
+- `tests/test_generation_pipeline_contracts.py`
+- `src/generation/__init__.py`
+- `src/generation/pipeline.py`
+- `scripts/generate_images.py`
+- `.planning/phases/07-moderate-structure-and-extension-cleanup/07-02-SUMMARY.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 

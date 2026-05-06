@@ -20,7 +20,7 @@
 - [x] **Phase 4: CPU-Safe Characterization Tests** - Users can rely on lightweight fixtures and deterministic tests for fragile config, data, reward, prompt, and objective behavior. *(6/6 plans complete)*
 - [ ] **Phase 5: Training Objective and Pipeline Comparability** - Users can run and compare SFT, DPO, masked-SFT, and combined variants under explicit, controlled choices. *(6/6 plans complete; verification pending)*
 - [ ] **Phase 6: Reward and Evaluation Validity** - Users can produce comparable held-out evaluations, reward diagnostics, and thesis-ready outputs from recorded runs. *(7/7 plans complete; verification pending)*
-- [ ] **Phase 7: Moderate Structure and Extension Cleanup** - Users can navigate clearer source/script/config homes and add future pipelines through documented extension points. *(1/6 plans complete)*
+- [ ] **Phase 7: Moderate Structure and Extension Cleanup** - Users can navigate clearer source/script/config homes and add future pipelines through documented extension points. *(2/6 plans complete)*
 
 ## Phase Details
 
@@ -223,7 +223,7 @@ Plans:
 
 **Wave 1**
 - [x] 07-01-PLAN.md — Publish tested structure homes, script-family navigation, and generated-artifact boundaries.
-- [ ] 07-02-PLAN.md — Move image generation behind an importable `src.generation.pipeline` module while preserving the CLI.
+- [x] 07-02-PLAN.md — Move image generation behind an importable `src.generation.pipeline` module while preserving the CLI.
 - [ ] 07-03-PLAN.md — Move reward scoring behind an importable `src.scoring.pipeline` module while preserving canonical score outputs.
 - [ ] 07-04-PLAN.md — Move synthetic dataset building behind an importable `src.synthesis.dataset_builder` module while preserving the CLI.
 - [ ] 07-05-PLAN.md — Move training metric plotting behind an importable `src.plotting.training_metrics` module while preserving the CLI.
@@ -246,7 +246,7 @@ Cross-cutting constraints:
 | 4. CPU-Safe Characterization Tests | 6/6 | Complete | 04-01, 04-02, 04-03, 04-04, 04-05, 04-06 |
 | 5. Training Objective and Pipeline Comparability | 6/6 | Verified complete | 05-01, 05-02, 05-03, 05-04, 05-05, and 05-06 complete |
 | 6. Reward and Evaluation Validity | 7/7 | Verified complete | 06-01, 06-02, 06-03, 06-04, 06-05, 06-06, and 06-07 complete |
-| 7. Moderate Structure and Extension Cleanup | 1/6 | In progress | 07-01 complete |
+| 7. Moderate Structure and Extension Cleanup | 2/6 | In progress | 07-01 and 07-02 complete |
 
 ## Requirement Coverage
 
