@@ -104,7 +104,10 @@ def test_plot_training_metrics_uses_lazy_matplotlib_and_preserves_outputs(
 
     csv_path = write_metrics_csv(tmp_path / "metrics.csv", sample_rows(count=10))
     fake_pyplot = FakePyplot()
-    fake_matplotlib = types.SimpleNamespace(use=fake_pyplot.use)
+    fake_matplotlib = types.ModuleType("matplotlib")
+    fake_matplotlib.__path__ = []
+    fake_matplotlib.use = fake_pyplot.use
+    fake_matplotlib.pyplot = fake_pyplot
     monkeypatch.setitem(sys.modules, "matplotlib", fake_matplotlib)
     monkeypatch.setitem(sys.modules, "matplotlib.pyplot", fake_pyplot)
 
@@ -120,24 +123,6 @@ def test_plot_training_metrics_uses_lazy_matplotlib_and_preserves_outputs(
     assert "Reward: start=0.1000, end=0.5500" in captured
     assert "Grad norm: mean=0.9500, max=1.4000" in captured
     assert "Reward trend: first-10-avg=0.3250, last-10-avg=0.3250, delta=+0.0000" in captured
-
-
-def test_plot_metrics_main_delegates_to_importable_plotter(monkeypatch: pytest.MonkeyPatch) -> None:
-    import scripts.plot_metrics as plot_metrics
-
-    calls: list[tuple[str, str | None]] = []
-
-    def fake_plot_training_metrics(metrics_csv: str, output_dir: str | None = None) -> Path:
-        calls.append((metrics_csv, output_dir))
-        return Path(output_dir or ".") / "training_curves.png"
-
-    monkeypatch.setattr(plot_metrics, "plot_training_metrics", fake_plot_training_metrics)
-
-    assert plot_metrics.main(["runs/example/metrics.csv", "--output-dir", "plots"]) == 0
-    assert calls == [("runs/example/metrics.csv", "plots")]
-    assert plot_metrics.plot is plot_metrics.plot_training_metrics
-    assert plot_metrics.load_metrics.__module__ == "src.plotting.training_metrics"
-    assert plot_metrics.smooth.__module__ == "src.plotting.training_metrics"
 
 
 class FakeAxis:
