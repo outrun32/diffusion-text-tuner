@@ -8,6 +8,7 @@ from pathlib import Path
 HEAVY_OPTIONAL_MODULES = {"transformers", "paddleocr", "diffusers", "torch", "vllm", "mlx"}
 MODULES_BEFORE_EVALUATION_IMPORT = set(sys.modules)
 FIXTURE_PATH = Path("tests/fixtures/evaluation/gold_diagnostic.jsonl")
+DOC_PATH = Path("docs/evaluation_diagnostics.md")
 
 
 def test_gold_benchmark_module_import_is_cpu_safe() -> None:
@@ -208,4 +209,40 @@ def test_format_gold_report_markdown_surfaces_diagnostic_evidence() -> None:
     ]
 
     missing = [term for term in required_terms if term not in markdown]
+    assert missing == []
+
+
+def test_evaluation_diagnostics_docs_match_slice_and_gold_contracts() -> None:
+    docs = DOC_PATH.read_text(encoding="utf-8")
+
+    required_terms = [
+        "classify_text_slices",
+        "summarize_slices",
+        "rare_cyrillic",
+        "short_word",
+        "long_word",
+        "multi_word_phrase",
+        "has_digits",
+        "has_punctuation",
+        "mixed_case",
+        "multiline",
+        "font_or_style",
+        "scene_or_background",
+        "load_gold_benchmark",
+        "evaluate_gold_predictions",
+        "format_gold_report_markdown",
+        "gold-diagnostic-benchmark/v1",
+        "sample_id",
+        "target_text",
+        "image_path",
+        "expected_exact_match",
+        "expected_ocr_detected",
+        "human_label",
+        "notes",
+        "missing predictions/disagreements are explicit evidence",
+        "metadata-only fixture",
+        "Do not commit generated images, tensors, checkpoints, or logs",
+    ]
+    missing = [term for term in required_terms if term not in docs]
+
     assert missing == []
