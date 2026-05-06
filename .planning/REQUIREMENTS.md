@@ -47,7 +47,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 - [x] **EVAL-01**: User can use one canonical reward interface for Qwen/VLM, OCR/CER/entropy, and product reward paths across scoring, training, evaluation, and thesis reports.
 - [x] **EVAL-02**: User can reproducibly generate product score files with documented formula, scorer versions, component scores, thresholds, and manifest metadata.
-- [ ] **EVAL-03**: User can run a held-out checkpoint-comparison evaluation harness with fixed prompts, fixed seeds, fixed inference settings, and comparable outputs for baseline and trained LoRAs.
+- [x] **EVAL-03**: User can run a held-out checkpoint-comparison evaluation harness with fixed prompts, fixed seeds, fixed inference settings, and comparable outputs for baseline and trained LoRAs.
 - [ ] **EVAL-04**: User can automatically score evaluation outputs with OCR CER, OCR detection rate, entropy/confidence, VLM score, product score, and exact/character-level text metrics where possible.
 - [ ] **EVAL-05**: User can evaluate by Russian text difficulty slices: rare Cyrillic letters, word length, phrase length, digits, punctuation, mixed case, multiline layout, font/style, and scene/background type.
 - [ ] **EVAL-06**: User can inspect reward disagreement through VLM-vs-OCR scatter/correlation, false-positive/false-negative contact sheets, and per-character confusion summaries.
@@ -60,7 +60,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 - [x] **RUN-02**: User can compare two local run manifests to see changed configs, data sources, rewards, seeds, inference settings, metrics, and artifacts.
 - [x] **RUN-03**: User can record long-running pipeline stage outputs in a consistent artifact layout without committing generated tensors, images, checkpoints, or logs.
 - [x] **RUN-04**: User can resume or inspect long-running generation, scoring, training, and evaluation stages using documented manifest and output conventions.
-- [ ] **RUN-05**: User can map thesis plots/results back to the exact run manifests and artifacts that produced them.
+- [x] **RUN-05**: User can map thesis plots/results back to the exact run manifests and artifacts that produced them.
 
 ### Configuration and Artifact Contracts
 
@@ -160,7 +160,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRN-07 | Phase 5 | Complete |
 | EVAL-01 | Phase 6 | Complete |
 | EVAL-02 | Phase 6 | Complete |
-| EVAL-03 | Phase 6 | Pending |
+| EVAL-03 | Phase 6 | Complete |
 | EVAL-04 | Phase 6 | Pending |
 | EVAL-05 | Phase 6 | Pending |
 | EVAL-06 | Phase 6 | Pending |
@@ -170,7 +170,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RUN-02 | Phase 5 | Complete |
 | RUN-03 | Phase 2 | Complete |
 | RUN-04 | Phase 2 | Complete |
-| RUN-05 | Phase 6 | Pending |
+| RUN-05 | Phase 6 | Complete |
 | CFG-01 | Phase 2 | Complete |
 | CFG-02 | Phase 2 | Complete |
 | CFG-03 | Phase 2 | Complete |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-06 after Phase 6 Plan 01 execution*
+*Last updated: 2026-05-06 after Phase 6 Plan 02 execution*

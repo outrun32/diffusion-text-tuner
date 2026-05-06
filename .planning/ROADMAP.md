@@ -19,7 +19,7 @@
 - [x] **Phase 3: Data Curriculum and Dataset Quality** - Users can define, generate, validate, and compare prompt/synthetic/reward-filtered training data. *(6/6 plans complete)*
 - [x] **Phase 4: CPU-Safe Characterization Tests** - Users can rely on lightweight fixtures and deterministic tests for fragile config, data, reward, prompt, and objective behavior. *(6/6 plans complete)*
 - [ ] **Phase 5: Training Objective and Pipeline Comparability** - Users can run and compare SFT, DPO, masked-SFT, and combined variants under explicit, controlled choices. *(6/6 plans complete; verification pending)*
-- [ ] **Phase 6: Reward and Evaluation Validity** - Users can produce comparable held-out evaluations, reward diagnostics, and thesis-ready outputs from recorded runs. *(1/7 plans complete)*
+- [ ] **Phase 6: Reward and Evaluation Validity** - Users can produce comparable held-out evaluations, reward diagnostics, and thesis-ready outputs from recorded runs. *(2/7 plans complete)*
 - [ ] **Phase 7: Moderate Structure and Extension Cleanup** - Users can navigate clearer source/script/config homes and add future pipelines through documented extension points.
 
 ## Phase Details
@@ -191,7 +191,7 @@ Plans:
 
 **Wave 1**
 - [x] 06-01-PLAN.md — Define the canonical reward result interface and reproducible product score formula.
-- [ ] 06-02-PLAN.md — Add a held-out checkpoint-comparison evaluation harness contract with fixed prompts, seeds, settings, and manifests.
+- [x] 06-02-PLAN.md — Add a held-out checkpoint-comparison evaluation harness contract with fixed prompts, seeds, settings, and manifests.
 - [ ] 06-03-PLAN.md — Add Russian text difficulty slicing and a small gold diagnostic benchmark contract.
 
 **Wave 2** *(blocked on canonical reward and slice/gold contracts)*
@@ -228,7 +228,7 @@ Cross-cutting constraints:
 | 3. Data Curriculum and Dataset Quality | 6/6 | Complete | 03-01, 03-02, 03-03, 03-04, 03-05, 03-06 |
 | 4. CPU-Safe Characterization Tests | 6/6 | Complete | 04-01, 04-02, 04-03, 04-04, 04-05, 04-06 |
 | 5. Training Objective and Pipeline Comparability | 6/6 | Plans complete; verification pending | 05-01, 05-02, 05-03, 05-04, 05-05, and 05-06 complete |
-| 6. Reward and Evaluation Validity | 1/7 | In progress | 06-01 |
+| 6. Reward and Evaluation Validity | 2/7 | In progress | 06-01 and 06-02 |
 | 7. Moderate Structure and Extension Cleanup | 0/TBD | Not started | - |
 
 ## Requirement Coverage
