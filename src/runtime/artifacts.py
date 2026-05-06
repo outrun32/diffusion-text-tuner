@@ -292,7 +292,10 @@ def _validate_scores_csv(context: _ValidationContext, path: Path, *, phase6: boo
         _validate_score_sidecar(context, sidecar, phase6=phase6)
     else:
         message = f"{sidecar}: score schema metadata sidecar is missing"
-        context.error(message) if phase6 else context.warn(f"{sidecar}: optional {message}")
+        if phase6:
+            context.error(message)
+        else:
+            context.warn(f"{sidecar}: optional score schema metadata sidecar is missing")
 
 
 def _validate_evaluation_scores(
