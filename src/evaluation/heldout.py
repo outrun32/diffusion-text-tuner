@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import shlex
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -160,9 +160,10 @@ def write_evaluation_plan(
 def format_markdown_summary(plan: dict[str, Any]) -> str:
     """Render a concise Markdown report for a held-out evaluation plan."""
     target_lines = [
-        "| Target | LoRA checkpoint | source_run_manifest_path | Generation output | Score output |",
-        "| --- | --- | --- | --- | --- |",
+        "| Target | LoRA checkpoint | source_run_manifest_path | "
+        "Generation output | Score output |"
     ]
+    target_lines.append("| --- | --- | --- | --- | --- |")
     for target in plan["targets"]:
         lora_path = target["lora_checkpoint_path"] or "baseline/no LoRA"
         target_lines.append(
@@ -174,7 +175,9 @@ def format_markdown_summary(plan: dict[str, Any]) -> str:
                 score=target["score_output_path"],
             )
         )
-    generation_lines = [f"- `{entry['command']}`" for entry in plan["planned_generation_commands"]]
+    generation_lines = [
+        f"- `{entry['command']}`" for entry in plan["planned_generation_commands"]
+    ]
     scoring_lines = [f"- `{entry['command']}`" for entry in plan["planned_scoring_commands"]]
     return "\n".join(
         [
@@ -330,7 +333,9 @@ def _validate_inference_settings(value: Any) -> dict[str, Any]:
 
 def _validate_targets(value: Any, *, output_root: str) -> tuple[EvaluationTarget, ...]:
     if not isinstance(value, list) or len(value) < 2:
-        raise HeldoutEvaluationError("targets must include at least baseline plus one trained target")
+        raise HeldoutEvaluationError(
+            "targets must include at least baseline plus one trained target"
+        )
     targets: list[EvaluationTarget] = []
     names: set[str] = set()
     for index, raw_target in enumerate(value):
@@ -348,13 +353,20 @@ def _validate_targets(value: Any, *, output_root: str) -> tuple[EvaluationTarget
             raise HeldoutEvaluationError(f"targets contain duplicate name {target.name!r}")
         names.add(target.name)
         _validate_manifest_link(target.source_run_manifest_path, target_name=target.name)
-        _validate_under_root(target.generation_output_path, output_root, field="generation_output_path")
+        _validate_under_root(
+            target.generation_output_path,
+            output_root,
+            field="generation_output_path",
+        )
         _validate_under_root(target.score_output_path, output_root, field="score_output_path")
         targets.append(target)
     baseline_targets = [target for target in targets if target.name.lower() == "baseline"]
     if len(baseline_targets) != 1 or baseline_targets[0].lora_checkpoint_path is not None:
-        raise HeldoutEvaluationError("targets must include exactly one baseline target without LoRA")
-    if not any(target.lora_checkpoint_path for target in targets if target.name.lower() != "baseline"):
+        raise HeldoutEvaluationError(
+            "targets must include exactly one baseline target without LoRA"
+        )
+    trained_targets = [target for target in targets if target.name.lower() != "baseline"]
+    if not any(target.lora_checkpoint_path for target in trained_targets):
         raise HeldoutEvaluationError("targets must include at least one trained target with LoRA")
     return tuple(targets)
 
@@ -388,11 +400,17 @@ def _validate_manifest_link(path: str, *, target_name: str) -> None:
     except json.JSONDecodeError as exc:
         raise HeldoutEvaluationError(f"{target_name}: malformed source_run_manifest_path") from exc
     except OSError as exc:
-        raise HeldoutEvaluationError(f"{target_name}: could not read source_run_manifest_path") from exc
+        raise HeldoutEvaluationError(
+            f"{target_name}: could not read source_run_manifest_path"
+        ) from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != "run-manifest/v1":
-        raise HeldoutEvaluationError(f"{target_name}: source_run_manifest_path is not a run manifest")
+        raise HeldoutEvaluationError(
+            f"{target_name}: source_run_manifest_path is not a run manifest"
+        )
     if not payload.get("run_id") or not payload.get("command"):
-        raise HeldoutEvaluationError(f"{target_name}: source_run_manifest_path lacks run_id/command")
+        raise HeldoutEvaluationError(
+            f"{target_name}: source_run_manifest_path lacks run_id/command"
+        )
 
 
 def _validate_writable_path(value: str, *, field: str, target_name: str | None = None) -> None:
@@ -400,7 +418,9 @@ def _validate_writable_path(value: str, *, field: str, target_name: str | None =
         raise HeldoutEvaluationError(f"{field} must be a non-empty path")
     path = Path(value)
     if path.expanduser() != path:
-        raise HeldoutEvaluationError(_field_message(field, target_name, "must not use home expansion"))
+        raise HeldoutEvaluationError(
+            _field_message(field, target_name, "must not use home expansion")
+        )
     if ".." in path.parts:
         raise HeldoutEvaluationError(_field_message(field, target_name, "must not use traversal"))
 

@@ -53,7 +53,10 @@ def _write_manifest(path: Path, run_id: str) -> Path:
 
 def _valid_config(tmp_path: Path) -> dict[str, object]:
     prompts_path = _write_prompts(tmp_path / "fixtures" / "heldout_prompts.jsonl")
-    baseline_manifest = _write_manifest(tmp_path / "runs" / "baseline" / "manifest.json", "baseline")
+    baseline_manifest = _write_manifest(
+        tmp_path / "runs" / "baseline" / "manifest.json",
+        "baseline",
+    )
     lora_manifest = _write_manifest(tmp_path / "runs" / "lora" / "manifest.json", "lora")
     output_root = tmp_path / "heldout" / "eval-001"
     return {
@@ -113,7 +116,10 @@ def test_valid_config_builds_deterministic_heldout_evaluation_plan(tmp_path: Pat
     ]
     assert plan["targets"][0]["lora_checkpoint_path"] is None
     assert plan["targets"][1]["lora_checkpoint_path"] == "runs/dpo-product/checkpoints/final"
-    assert all(target["source_run_manifest_path"].endswith("manifest.json") for target in plan["targets"])
+    assert all(
+        target["source_run_manifest_path"].endswith("manifest.json")
+        for target in plan["targets"]
+    )
     assert len(plan["planned_generation_commands"]) == 4
     assert len(plan["planned_scoring_commands"]) == 2
     assert "src.evaluation.generate_baseline" in plan["planned_generation_commands"][0]["command"]
@@ -165,11 +171,17 @@ def test_cli_materializes_plan_and_markdown_without_running_generation(tmp_path:
     payload = json.loads(output_plan.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "heldout-evaluation-plan/v1"
     assert payload["execution_mode"] == "materialize-only"
-    assert all(command["status"] == "planned-not-run" for command in payload["planned_generation_commands"])
+    assert all(
+        command["status"] == "planned-not-run"
+        for command in payload["planned_generation_commands"]
+    )
     assert markdown_summary.is_file()
 
 
-def test_cli_returns_nonzero_for_invalid_config(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_returns_nonzero_for_invalid_config(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     from scripts import run_heldout_evaluation
 
     payload = _valid_config(tmp_path)

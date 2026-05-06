@@ -34,7 +34,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "plans without running FLUX generation or reward scoring."
         )
     )
-    parser.add_argument("--config", required=True, type=Path, help="Held-out evaluation config JSON.")
+    parser.add_argument(
+        "--config",
+        required=True,
+        type=Path,
+        help="Held-out evaluation config JSON.",
+    )
     parser.add_argument(
         "--output-plan",
         required=True,
