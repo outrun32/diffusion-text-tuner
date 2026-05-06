@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: Phase 6 - Reward and Evaluation Validity
-current_plan: Phase 6 planning pending
-status: phase-5-verified-complete
-last_updated: "2026-05-05T19:33:07Z"
+current_plan: Phase 6 plans ready
+status: phase-6-planned
+last_updated: "2026-05-06T00:00:00Z"
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_plans: 7
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-05 after Phase 5 verification
+**Last updated:** 2026-05-06 after Phase 6 planning
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ progress:
 ## Current Position
 
 **Current Phase:** Phase 6 - Reward and Evaluation Validity  
-**Current Plan:** Phase 6 planning pending  
-**Status:** Phase 5 verified complete; ready to plan Phase 6
-**Progress:** [████████████████████] 100% for Phase 5 execution
+**Current Plan:** Phase 6 plans ready  
+**Status:** Phase 6 planned; ready to execute Wave 1
+**Progress:** [░░░░░░░░░░░░░░░░░░░░] 0% for Phase 6 execution
 
 ## Phase Status
 
@@ -44,7 +44,7 @@ progress:
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
 | 5. Training Objective and Pipeline Comparability | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, explicit config choice snapshots, import-safe shared training utilities, and integrated comparison command docs are implemented. |
-| 6. Reward and Evaluation Validity | Not started | Canonical rewards, held-out eval, diagnostic/gold checks, thesis outputs. |
+| 6. Reward and Evaluation Validity | Plans ready | 7 plans across canonical rewards, held-out eval, slice/gold checks, canonical scoring outputs, diagnostics, thesis outputs, and command docs. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
 
 ## Performance Metrics
@@ -52,7 +52,7 @@ progress:
 | Metric | Current | Target |
 |--------|---------|--------|
 | v1 requirement coverage | 58/58 mapped; Phase 1 through Phase 5 requirements complete and verified through TRN-07, RUN-02, and STR-04 | 100% mapped; proceed to Phase 6 reward/evaluation validity work |
-| Roadmap phases planned | 7 total, Phase 3 has 6 executable plans | 6-8 standard-granularity phases |
+| Roadmap phases planned | 7 total, Phase 6 has 7 executable plans | 6-8 standard-granularity phases |
 | Default test posture | 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
 | Run tracking | Local file-backed manifests with immutable config snapshots, secret-safe reproducibility metadata, trainer config-loader wiring, CPU-safe preflight reports, config-family docs, README/Makefile command aliases, prompt-side dataset manifests, synthetic quality dataset manifests, selection summary manifests, generated-vs-synthetic comparison reports, Phase 3 runtime/docs command wiring, CPU-safe run-manifest diff tooling, CPU-safe training comparability reports, explicit SFT/DPO/masked-SFT config choice snapshots, shared training runtime metadata helpers, and integrated training-run comparison reports | Run Phase 5 verification, then extend evaluation traceability during Phase 6 |
@@ -142,7 +142,7 @@ progress:
 
 ### Open Todos
 
-- Plan Phase 6 reward and evaluation validity work.
+- Execute Phase 6 reward and evaluation validity work starting with Wave 1 plans.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -152,7 +152,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Plan Phase 6 reward and evaluation validity work.
+**Next Recommended Action:** Execute Phase 6 Wave 1 plans: 06-01, 06-02, and 06-03.
 
 **Files Created/Updated:**
 
@@ -324,6 +324,14 @@ progress:
 - `Makefile`
 - `.planning/phases/05-training-objective-and-pipeline-comparability/05-06-SUMMARY.md`
 - `.planning/phases/05-training-objective-and-pipeline-comparability/VERIFICATION.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-RESEARCH.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-01-PLAN.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-02-PLAN.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-03-PLAN.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-04-PLAN.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-05-PLAN.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-06-PLAN.md`
+- `.planning/phases/06-reward-and-evaluation-validity/06-07-PLAN.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 
