@@ -183,6 +183,36 @@ def test_cli_returns_nonzero_for_invalid_config(tmp_path: Path, capsys: pytest.C
     assert "fixed_seeds" in captured.err
 
 
+@pytest.mark.parametrize(
+    ("field", "unsafe_value"),
+    [
+        ("output_root", "../outside-eval"),
+        ("output_root", "~/private-eval"),
+        ("generation_output_path", "../outside-generated"),
+        ("score_output_path", "~/outside-scores.jsonl"),
+    ],
+)
+def test_output_paths_reject_traversal_and_home_expansion(
+    tmp_path: Path,
+    field: str,
+    unsafe_value: str,
+) -> None:
+    from src.evaluation.heldout import HeldoutEvaluationConfig, HeldoutEvaluationError
+
+    payload = _valid_config(tmp_path)
+    if field == "output_root":
+        payload[field] = unsafe_value
+    else:
+        targets = list(payload["targets"])
+        first_target = dict(targets[0])
+        first_target[field] = unsafe_value
+        payload["targets"] = [first_target, *targets[1:]]
+    config_path = _write_json(tmp_path / f"unsafe_{field}.json", payload)
+
+    with pytest.raises(HeldoutEvaluationError, match=field):
+        HeldoutEvaluationConfig.from_file(config_path)
+
+
 def test_evaluation_target_records_manifest_outputs_and_notes() -> None:
     from src.evaluation.heldout import EvaluationTarget
 
