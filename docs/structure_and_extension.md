@@ -4,6 +4,8 @@ This Phase 7 guide is the canonical navigation contract for moderate brownfield 
 
 Use this guide together with [`docs/pipeline_inventory.md`](pipeline_inventory.md), [`docs/commands.md`](commands.md), and [`docs/runtime_contracts.md`](runtime_contracts.md). The intent is behavior-preserving structure cleanup: existing commands remain discoverable, generated artifacts stay out of git, and future extension work starts from stable homes instead of one-off hidden assumptions.
 
+Run the focused Phase 7 CPU-safe registry/docs/command check with `make phase7-structure-tests`. The alias exercises structure docs drift tests, the importable seam contracts from Wave 1, and the final `src.toolkit.extension_points` registry without launching GPU/model/OCR jobs or writing generated artifacts.
+
 ## Canonical repository homes
 
 | Home | Classification | What belongs here | What does not belong here |
@@ -49,6 +51,35 @@ Before adding a new experiment, trainer, reward variant, dataset, pipeline, plot
 | New dataset or data pipeline | Importable dataset, quality, manifest, or synthesis helpers under `src/data_quality/`, `src/training/`, or future `src/synthesis/`. | Explicit CLI wrapper plus config under `configs/experiments/synthesis/` or the relevant data family. | Update dataset quality/runtime docs and keep generated datasets out of git. |
 | New generation, scoring, synthesis, evaluation, or plotting pipeline | Importable pipeline module under `src/generation/`, `src/scoring/`, `src/synthesis/`, `src/evaluation/`, or `src/plotting/` as those seams are introduced. | Thin wrapper under `scripts/`, `scripts/synth/`, or `scripts/thesis_plots/`; cluster variant under `scripts/cluster/` when needed. | Add CPU-safe tests and exact command docs before considering the pipeline supported. |
 | New thesis-output step | `src/evaluation/` or future `src/plotting/` for reproducible table/plot/bundle builders. | Wrapper under `scripts/` or `scripts/thesis_plots/`; config under `configs/thesis/` or `configs/experiments/evaluation/`. | Link outputs to manifests/reports and keep thesis bundles under ignored runtime roots. |
+
+## Extension-point registry
+
+The importable registry in `src/toolkit/extension_points.py` exposes `list_extension_points()` and `get_extension_point(name)`. The table below mirrors the registry entries so users can navigate prompt generation, image generation, scoring, synthesis, training, evaluation, plotting, run comparison, diagnostics, and thesis outputs from one index.
+
+| Stage | Purpose | Implementation module | Thin script / command | Config home | Docs path | Test target | Generated-artifact notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| prompt generation | Create multilingual/Cyrillic text-rendering prompt JSONL datasets from config-driven curricula. | `src.prompt_pipeline.generate` | `python -m src.prompt_pipeline.generate` | `configs/prompts/` | `docs/data_curriculum.md` | `tests/test_prompt_curriculum.py` | Prompt JSONL outputs are generated data; keep full datasets under ignored data/runs roots unless intentionally tiny fixtures. |
+| image generation | Generate FLUX images, latents, and text embeddings through an importable orchestration seam. | `src.generation.pipeline` | `scripts/generate_images.py` | `configs/experiments/evaluation/ or runtime generation arguments` | `docs/commands.md` | `tests/test_generation_pipeline_contracts.py` | Generated images, latents, embeddings, metadata, and manifests stay in ignored outputs/ or runs/ roots. |
+| scoring | Score generated images and write canonical reward rows, sidecars, and scorer provenance. | `src.scoring.pipeline` | `scripts/score_images.py` | `configs/experiments/reward/` | `docs/reward_evaluation.md` | `tests/test_scoring_pipeline_contracts.py` | Score CSV/JSONL files and sidecars may contain prompt text, local paths, and reward evidence; keep runtime score outputs ignored by default. |
+| synthesis | Build synthetic masked-SFT datasets through reusable render, collation, latent, and text-encoding phases. | `src.synthesis.dataset_builder` | `scripts/synth/build_dataset.py` | `configs/experiments/synthesis/ and configs/synth/` | `docs/synthetic_quality.md` | `tests/test_synthesis_pipeline_contracts.py` | Synthetic images, masks, latents, embeddings, indexes, and quality reports remain generated artifacts under ignored data/ or runs/ roots. |
+| training | Extend SFT, DPO, masked-SFT, runtime metadata, objective helpers, sampling, schedulers, and checkpointing without hiding trainer choices. | `src.training.runtime` | `accelerate launch -m src.training.sft_trainer / src.training.dpo_trainer; python -m src.training.masked_sft_trainer` | `configs/experiments/sft/, configs/experiments/dpo/, and configs/experiments/masked_sft/` | `docs/training_comparability.md` | `tests/test_training_shared_utilities.py` | Checkpoints, logs, sample images, tensors, and run manifests are runtime artifacts; record provenance but do not commit generated outputs. |
+| evaluation | Materialize held-out evaluation plans and validate recorded reward/evaluation evidence without launching expensive work by default. | `src.evaluation.heldout` | `scripts/run_heldout_evaluation.py` | `configs/experiments/evaluation/` | `docs/evaluation_harness.md` | `tests/test_heldout_evaluation_harness.py` | Held-out plans, generated eval outputs, scores, and manifests belong under ignored runs/ or outputs/ roots. |
+| plotting | Load, summarize, smooth, and plot training metrics through import-safe helpers with lazy plotting backends. | `src.plotting.training_metrics` | `scripts/plot_metrics.py` | `runtime metric CSV paths and configs/experiments/ metadata` | `docs/commands.md` | `tests/test_plotting_pipeline_contracts.py` | Training curves and thesis plots are generated artifacts; keep figures under ignored run/output roots unless reviewed as tiny docs assets. |
+| run comparison | Compare local run manifests and controlled training settings before interpreting experiments as thesis evidence. | `src.runtime.manifest_diff` | `scripts/compare_training_runs.py` | `runs/<run_id>/manifest.json and configs/experiments/` | `docs/training_comparability.md` | `tests/test_runtime_manifest_diff.py` | Comparison Markdown/JSON reports should be written under ignored runs/comparisons/ unless intentionally tiny reviewed evidence. |
+| diagnostics | Inspect reward disagreements, gold slices, gradients, and manual checks through explicit opt-in diagnostics outside default heavy jobs. | `src.evaluation.diagnostics` | `scripts/analyze_reward_diagnostics.py and scripts/diagnose_*.py` | `configs/experiments/evaluation/ and explicit diagnostic arguments` | `docs/evaluation_diagnostics.md` | `tests/test_reward_diagnostics.py` | Diagnostic reports, contact sheets, local paths, prompt text, scores, and logs are runtime/private artifacts by default. |
+| thesis outputs | Build thesis-ready tables, SVG plots, contact sheets, bundles, and Markdown summaries from recorded manifests and reports. | `src.evaluation.thesis_outputs` | `scripts/build_thesis_outputs.py` | `configs/thesis/ and configs/experiments/evaluation/` | `docs/thesis_outputs.md` | `tests/test_thesis_outputs.py` | Thesis tables, plots, bundles, and contact sheets stay in ignored outputs/thesis/ or runs/ roots unless a future plan approves fixtures. |
+
+## Extension checklist
+
+Use this checklist before adding future experiments or pipelines:
+
+1. **config** — Add a reviewed root compatibility config or a variant under the appropriate `configs/experiments/` family instead of editing hidden constants.
+2. **artifact/manifest contract** — Define the input/output schema, sidecar, run manifest, and provenance fields before relying on generated evidence.
+3. **importable module** — Put reusable implementation logic under `src/` and keep import-time behavior CPU-safe.
+4. **thin CLI wrapper** — Keep `scripts/`, `scripts/synth/`, `scripts/thesis_plots/`, or cluster wrappers focused on argument parsing, logging, and delegation.
+5. **CPU-safe tests** — Add or update focused tests under `tests/` that avoid FLUX, Qwen, PaddleOCR, CUDA, model downloads, SynthTIGER, and generated artifacts by default.
+6. **command docs** — Document exact local/SLURM or Makefile commands, including `phase7-structure-tests` when the change affects structure seams.
+7. **generated-artifact safety** — Write images, tensors, checkpoints, logs, score files, plots, thesis bundles, contact sheets, and private run outputs only to ignored runtime roots unless a future plan approves tiny fixtures.
 
 ## Review checklist
 

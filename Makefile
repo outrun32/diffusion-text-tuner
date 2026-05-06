@@ -1,4 +1,4 @@
-.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards compare-training-runs phase6-heldout-plan phase6-score-validation phase6-reward-diagnostics phase6-gold-diagnostics phase6-thesis-outputs phase6-evaluation-tests
+.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards compare-training-runs phase6-heldout-plan phase6-score-validation phase6-reward-diagnostics phase6-gold-diagnostics phase6-thesis-outputs phase6-evaluation-tests phase7-structure-tests
 
 RUN_MANIFEST ?= runs/example/manifest.json
 PROMPT_CONFIG ?= configs/prompts/curriculum.json
@@ -136,3 +136,6 @@ phase6-thesis-outputs:
 
 phase6-evaluation-tests:
 	uv run pytest tests/test_evaluation_command_docs.py tests/test_evaluation_reward_interface.py tests/test_heldout_evaluation_harness.py tests/test_evaluation_slices_gold.py tests/test_evaluation_scoring_outputs.py tests/test_reward_diagnostics.py tests/test_thesis_outputs.py -q
+
+phase7-structure-tests:
+	uv run pytest tests/test_structure_extension_docs.py tests/test_generation_pipeline_contracts.py tests/test_scoring_pipeline_contracts.py tests/test_synthesis_pipeline_contracts.py tests/test_plotting_pipeline_contracts.py tests/test_extension_points_docs.py -q

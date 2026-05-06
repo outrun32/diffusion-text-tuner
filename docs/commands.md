@@ -198,6 +198,23 @@ The Makefile aliases above preserve the Phase 1-5 command surfaces and add dry-r
 make -n phase6-heldout-plan phase6-score-validation phase6-reward-diagnostics phase6-gold-diagnostics phase6-thesis-outputs phase6-evaluation-tests
 ```
 
+## Phase 7 structure and extension seams
+
+Phase 7 publishes the final CPU-safe structure and extension command surface.
+Use the focused alias when editing repository-home docs, `src.toolkit.extension_points`,
+or the importable generation, scoring, synthesis, plotting, run-comparison,
+diagnostic, evaluation, and thesis-output seams:
+
+```bash
+PATH="/root/.local/bin:$PATH" uv run pytest tests/test_structure_extension_docs.py tests/test_generation_pipeline_contracts.py tests/test_scoring_pipeline_contracts.py tests/test_synthesis_pipeline_contracts.py tests/test_plotting_pipeline_contracts.py tests/test_extension_points_docs.py -q
+make phase7-structure-tests
+```
+
+The `phase7-structure-tests` alias is CPU-safe: it runs docs/registry/command
+drift tests and import-safety seam tests only. It does not launch FLUX, Qwen,
+PaddleOCR, CUDA, SynthTIGER, model downloads, generation, scoring, training,
+OCR, SLURM, or generated-artifact production.
+
 ## Runtime contracts
 
 Read [`docs/runtime_contracts.md`](runtime_contracts.md) and [`configs/experiments/README.md`](../configs/experiments/README.md) before launching long-running generation, scoring, training, synthesis, or evaluation jobs. The runtime contract helpers are CPU-safe gates: they validate configs, manifests, and local artifact layout, but they do not launch CUDA, FLUX, Qwen, PaddleOCR, OCR, or SLURM work.

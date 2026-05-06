@@ -51,6 +51,12 @@ inspect recorded diagnostics, check gold benchmark contracts, build thesis
 bundles, and run focused tests. Held-out generation, score production, Qwen,
 PaddleOCR, CUDA, and other explicit GPU/model/OCR work remain opt-in runtime jobs.
 
+Phase 7 structure and extension seams are documented in
+[`docs/structure_and_extension.md`](docs/structure_and_extension.md). Run the
+focused CPU-safe verification alias with `make phase7-structure-tests` when
+editing the final extension-point registry, structure guide, preserved command
+surface, or importable generation/scoring/synthesis/plotting seams.
+
 Run the manifest and preflight steps before long-running GPU/model work: create or inspect a local run manifest, run the appropriate preflight check, and confirm generated artifacts will land under ignored runtime roots such as `outputs/` and `runs/`:
 
 ```bash
