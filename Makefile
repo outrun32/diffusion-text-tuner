@@ -1,4 +1,4 @@
-.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards compare-training-runs
+.PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards compare-training-runs phase6-heldout-plan phase6-score-validation phase6-reward-diagnostics phase6-gold-diagnostics phase6-thesis-outputs phase6-evaluation-tests
 
 RUN_MANIFEST ?= runs/example/manifest.json
 PROMPT_CONFIG ?= configs/prompts/curriculum.json
@@ -19,6 +19,17 @@ DATA_SOURCE_COMPARISON_MD ?= runs/comparisons/generated-vs-synthetic.md
 LEFT_MANIFEST ?= runs/a/manifest.json
 RIGHT_MANIFEST ?= runs/b/manifest.json
 TRAINING_RUN_COMPARISON ?= runs/comparisons/training-run-comparison.md
+HELDOUT_EVAL_CONFIG ?= configs/experiments/evaluation/heldout_product_vs_baseline.json
+HELDOUT_EVAL_PLAN ?= runs/evaluation/heldout-001/plan.json
+HELDOUT_EVAL_PLAN_MD ?= runs/evaluation/heldout-001/plan.md
+EVAL_SCORES_CSV ?= outputs/generated/scores.csv
+REWARD_DIAGNOSTIC_SCORES ?= runs/eval/baseline/scores.csv
+GOLD_DIAGNOSTIC_JSONL ?= tests/fixtures/evaluation/gold_diagnostic.jsonl
+REWARD_DIAGNOSTIC_REPORT ?= runs/eval/baseline/reward_diagnostics.json
+REWARD_DIAGNOSTIC_MD ?= runs/eval/baseline/reward_diagnostics.md
+THESIS_OUTPUT_CONFIG ?= configs/thesis/eval_bundle.json
+THESIS_OUTPUT_BUNDLE ?= outputs/thesis/eval_bundle/bundle.json
+THESIS_OUTPUT_MD ?= outputs/thesis/eval_bundle/bundle.md
 
 setup:
 	uv sync --group dev
@@ -107,3 +118,21 @@ characterization-rewards:
 
 compare-training-runs:
 	uv run python -m scripts.compare_training_runs --left-manifest $(LEFT_MANIFEST) --right-manifest $(RIGHT_MANIFEST) --markdown --output $(TRAINING_RUN_COMPARISON)
+
+phase6-heldout-plan:
+	uv run python -m scripts.run_heldout_evaluation --config $(HELDOUT_EVAL_CONFIG) --output-plan $(HELDOUT_EVAL_PLAN) --markdown-summary $(HELDOUT_EVAL_PLAN_MD)
+
+phase6-score-validation:
+	uv run python -c "from src.runtime.artifacts import validate_artifacts; report = validate_artifacts('evaluation_scores', {'scores_csv': '$(EVAL_SCORES_CSV)'}); raise SystemExit(0 if report.ok else 1)"
+
+phase6-reward-diagnostics:
+	uv run python scripts/analyze_reward_diagnostics.py --scores $(REWARD_DIAGNOSTIC_SCORES) --gold $(GOLD_DIAGNOSTIC_JSONL) --output-report $(REWARD_DIAGNOSTIC_REPORT) --markdown-summary $(REWARD_DIAGNOSTIC_MD) --positive-threshold 0.80 --negative-threshold 0.50
+
+phase6-gold-diagnostics:
+	uv run python -c "from src.evaluation.gold_benchmark import evaluate_gold_predictions; report = evaluate_gold_predictions('$(GOLD_DIAGNOSTIC_JSONL)', []); raise SystemExit(0 if report['missing_prediction_count'] >= 0 else 1)"
+
+phase6-thesis-outputs:
+	uv run python scripts/build_thesis_outputs.py --config $(THESIS_OUTPUT_CONFIG) --output-bundle $(THESIS_OUTPUT_BUNDLE) --markdown-summary $(THESIS_OUTPUT_MD)
+
+phase6-evaluation-tests:
+	uv run pytest tests/test_evaluation_command_docs.py tests/test_evaluation_reward_interface.py tests/test_heldout_evaluation_harness.py tests/test_evaluation_slices_gold.py tests/test_evaluation_scoring_outputs.py tests/test_reward_diagnostics.py tests/test_thesis_outputs.py -q

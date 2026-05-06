@@ -124,6 +124,80 @@ Blocking mismatches mean the runs are not controlled enough for thesis-grade
 claims unless the mismatch is intentionally documented; warnings identify step,
 metric, or artifact evidence that needs interpretation notes.
 
+## Phase 6 reward/evaluation validity
+
+Phase 6 publishes the reward/evaluation command surface for held-out plan materialization, canonical score files and product sidecars, reward diagnostics, gold diagnostic checks, thesis output bundles, and CPU-safe Phase 6 verification. GPU/model/OCR jobs remain explicit: the default docs and Makefile checks either inspect local metadata, validate score sidecars, materialize plans, or run pytest selections; they do not generate images, initialize Qwen/PaddleOCR, load CUDA, or load model weights.
+
+Read the Phase 6 guides before using results as thesis evidence: [`docs/reward_evaluation.md`](reward_evaluation.md), [`docs/evaluation_harness.md`](evaluation_harness.md), [`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md), and [`docs/thesis_outputs.md`](thesis_outputs.md).
+
+### CPU-safe Phase 6 verification
+
+Run the focused CPU-safe Phase 6 suite, including docs drift coverage, with:
+
+```bash
+PATH="/root/.local/bin:$PATH" uv run pytest tests/test_evaluation_command_docs.py tests/test_evaluation_reward_interface.py tests/test_heldout_evaluation_harness.py tests/test_evaluation_slices_gold.py tests/test_evaluation_scoring_outputs.py tests/test_reward_diagnostics.py tests/test_thesis_outputs.py -q
+make phase6-evaluation-tests
+```
+
+### Held-out plan materialization
+
+Materialize a held-out comparison plan and Markdown review without running image generation or reward scoring:
+
+```bash
+python -m scripts.run_heldout_evaluation --config configs/experiments/evaluation/heldout_product_vs_baseline.json --output-plan runs/evaluation/heldout-001/plan.json --markdown-summary runs/evaluation/heldout-001/plan.md
+make phase6-heldout-plan HELDOUT_EVAL_CONFIG=configs/experiments/evaluation/heldout_product_vs_baseline.json HELDOUT_EVAL_PLAN=runs/evaluation/heldout-001/plan.json HELDOUT_EVAL_PLAN_MD=runs/evaluation/heldout-001/plan.md
+```
+
+The plan records fixed prompts, fixed seeds, inference settings, baseline/trained target manifests, planned generation commands, and planned scoring commands with `status: planned-not-run`. Users launch any expensive generation/scoring work separately after reviewing the plan.
+
+### Score validation and product sidecars
+
+Canonical Phase 6 score files use `phase6-score-file/v1` or `phase6-score-jsonl/v1` rows plus sibling `.schema.json` sidecars with product formula, scorer versions, thresholds, and manifest links. A complete scoring command is explicit runtime work:
+
+```bash
+python -m scripts.score_images --images_dir outputs/generated/images --text_embeds_dir outputs/generated/text_embeds --output_csv outputs/generated/scores.csv --scorer both --manifest_path runs/scoring/manifest.json --source_manifest runs/generation/manifest.json --source_manifest runs/scoring/manifest.json
+```
+
+Validate recorded score rows and sidecars CPU-safely before diagnostics or thesis output generation:
+
+```bash
+python -c "from src.runtime.artifacts import validate_artifacts; report = validate_artifacts('evaluation_scores', {'scores_csv': 'outputs/generated/scores.csv'}); raise SystemExit(0 if report.ok else 1)"
+make phase6-score-validation EVAL_SCORES_CSV=outputs/generated/scores.csv
+```
+
+### Reward diagnostics and gold checks
+
+Analyze recorded score outputs against optional gold labels without invoking OCR/VLM/model code:
+
+```bash
+python scripts/analyze_reward_diagnostics.py --scores runs/eval/baseline/scores.csv --gold tests/fixtures/evaluation/gold_diagnostic.jsonl --output-report runs/eval/baseline/reward_diagnostics.json --markdown-summary runs/eval/baseline/reward_diagnostics.md --positive-threshold 0.80 --negative-threshold 0.50
+make phase6-reward-diagnostics REWARD_DIAGNOSTIC_SCORES=runs/eval/baseline/scores.csv GOLD_DIAGNOSTIC_JSONL=tests/fixtures/evaluation/gold_diagnostic.jsonl REWARD_DIAGNOSTIC_REPORT=runs/eval/baseline/reward_diagnostics.json REWARD_DIAGNOSTIC_MD=runs/eval/baseline/reward_diagnostics.md
+```
+
+Run a focused gold diagnostic contract check when editing benchmark labels or prediction joins:
+
+```bash
+python -c "from src.evaluation.gold_benchmark import evaluate_gold_predictions; report = evaluate_gold_predictions('tests/fixtures/evaluation/gold_diagnostic.jsonl', []); raise SystemExit(0 if report['missing_prediction_count'] >= 0 else 1)"
+make phase6-gold-diagnostics GOLD_DIAGNOSTIC_JSONL=tests/fixtures/evaluation/gold_diagnostic.jsonl
+```
+
+### Thesis output bundles
+
+Build thesis-ready tables, SVG plots, bundle JSON, Markdown summaries, and optional bounded contact sheets from recorded manifests/reports only:
+
+```bash
+python scripts/build_thesis_outputs.py --config configs/thesis/eval_bundle.json --output-bundle outputs/thesis/eval_bundle/bundle.json --markdown-summary outputs/thesis/eval_bundle/bundle.md
+make phase6-thesis-outputs THESIS_OUTPUT_CONFIG=configs/thesis/eval_bundle.json THESIS_OUTPUT_BUNDLE=outputs/thesis/eval_bundle/bundle.json THESIS_OUTPUT_MD=outputs/thesis/eval_bundle/bundle.md
+```
+
+generated score files, diagnostics, contact sheets, thesis bundles, plots, images, tensors, checkpoints, logs, and run outputs remain runtime artifacts. Keep them under ignored roots such as `runs/`, `outputs/`, or generated `data/` subtrees unless a future plan intentionally adds tiny reviewed fixtures.
+
+The Makefile aliases above preserve the Phase 1-5 command surfaces and add dry-run discoverability for Phase 6:
+
+```bash
+make -n phase6-heldout-plan phase6-score-validation phase6-reward-diagnostics phase6-gold-diagnostics phase6-thesis-outputs phase6-evaluation-tests
+```
+
 ## Runtime contracts
 
 Read [`docs/runtime_contracts.md`](runtime_contracts.md) and [`configs/experiments/README.md`](../configs/experiments/README.md) before launching long-running generation, scoring, training, synthesis, or evaluation jobs. The runtime contract helpers are CPU-safe gates: they validate configs, manifests, and local artifact layout, but they do not launch CUDA, FLUX, Qwen, PaddleOCR, OCR, or SLURM work.
