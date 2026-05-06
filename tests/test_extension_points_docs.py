@@ -24,7 +24,6 @@ HEAVY_OPTIONAL_MODULES = frozenset(
         "mlx_lm",
         "paddle",
         "paddleocr",
-        "PIL",
         "qwen_vl_utils",
         "synthtiger",
         "torchvision",
