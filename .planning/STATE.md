@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: Phase 6 - Reward and Evaluation Validity
-current_plan: Phase 6 Plan 07 complete
-status: phase-6-plans-complete
+current_phase: Phase 7 - Moderate Structure and Extension Cleanup
+current_plan: Phase 7 planning pending
+status: phase-6-verified-complete
 last_updated: "2026-05-06T15:16:01Z"
 progress:
   total_phases: 7
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 7
   completed_plans: 7
   percent: 100
@@ -17,7 +17,7 @@ progress:
 # Project State: Diffusion Text Tuner
 
 **Initialized:** 2026-05-04  
-**Last updated:** 2026-05-06 after Phase 6 Plan 07 execution
+**Last updated:** 2026-05-06 after Phase 6 verification
 
 ## Project Reference
 
@@ -30,9 +30,9 @@ progress:
 
 ## Current Position
 
-**Current Phase:** Phase 6 - Reward and Evaluation Validity  
-**Current Plan:** Phase 6 Plan 07 complete  
-**Status:** Phase 6 plans complete; phase verification/transition pending
+**Current Phase:** Phase 7 - Moderate Structure and Extension Cleanup  
+**Current Plan:** Phase 7 planning pending  
+**Status:** Phase 6 verified complete; ready to plan Phase 7
 **Progress:** [████████████████████] 100% for Phase 6 execution
 
 ## Phase Status
@@ -44,14 +44,14 @@ progress:
 | 3. Data Curriculum and Dataset Quality | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Phase 3 now includes prompt curriculum configs, prompt dataset validation/manifests, synthetic masked-SFT quality reports/contact sheets/manifests, materialized SFT/DPO selection artifacts, generated-vs-synthetic source comparison reports, runtime contracts, command docs, README links, Makefile aliases, and docs tests. |
 | 4. CPU-Safe Characterization Tests | Verified complete | 6/6 plans complete and phase verification passed 8/8 must-haves. Phase 4 includes committed-config/tiny-artifact characterization, dataset/collator/selection/resolution-bucket characterization, objective math/scheduler/latent-geometry/DPO sign-beta characterization, fixed-seed prompt-generation determinism/provenance/no-LLM import-safety tests, import-safe fake/mock reward wrapper tests, and published docs/Makefile aliases guarded by docs drift tests. |
 | 5. Training Objective and Pipeline Comparability | Verified complete | 6/6 plans complete and phase verification passed 5/5 must-haves. Explicit SFT/DPO selection and pair-construction modes, CPU-safe run-manifest diff tooling, controlled training comparability checks, explicit config choice snapshots, import-safe shared training utilities, and integrated comparison command docs are implemented. |
-| 6. Reward and Evaluation Validity | Plans complete; verification pending | 7/7 plans complete. Canonical reward interface/product formula, held-out evaluation plan contract, CPU-safe Russian slice/gold diagnostic contracts, canonical scoring outputs/sidecar validation, reward disagreement diagnostics, thesis output bundles, and integrated command docs/Makefile aliases are implemented. |
+| 6. Reward and Evaluation Validity | Verified complete | 7/7 plans complete and phase verification passed 10/10 must-haves. Canonical reward interface/product formula, held-out evaluation plan contract, CPU-safe Russian slice/gold diagnostic contracts, canonical scoring outputs/sidecar validation, reward disagreement diagnostics, thesis output bundles, and integrated command docs/Makefile aliases are implemented. |
 | 7. Moderate Structure and Extension Cleanup | Not started | Safe file structure cleanup, importable modules, extension seams. |
 
 ## Performance Metrics
 
 | Metric | Current | Target |
 |--------|---------|--------|
-| v1 requirement coverage | 58/58 mapped; Phase 1 through Phase 6 requirements complete through EVAL-08, RUN-05, and STR-03 | 100% mapped; run Phase 6 verification/transition before Phase 7 |
+| v1 requirement coverage | 58/58 mapped; Phase 1 through Phase 6 requirements complete and verified through EVAL-08, RUN-05, and STR-03 | 100% mapped; proceed to Phase 7 cleanup work |
 | Roadmap phases planned | 7 total, Phase 6 has 7 executable plans | 6-8 standard-granularity phases |
 | Default test posture | 4 Phase 6 command docs tests, 4 focused thesis-output bundle tests, 6 focused reward-disagreement diagnostics tests, 6 focused scoring-output contract tests, 10 focused slice/gold diagnostic tests, 6 focused reward-interface/product-formula tests, 16 focused Phase 5 selection tests, 4 focused manifest diff tests, 7 focused training comparability tests, 9 focused shared training utility tests, 4 integrated comparison docs/CLI tests, and 36 focused runtime config/characterization tests plus the previously verified CPU-safe suite; heavy diagnostics remain opt-in `diagnose_*.py` scripts | CPU-safe standard command |
 | Reproducible environment | `.python-version`, `pyproject.toml`, and `uv.lock` committed in Phase 1 Plan 02 | Smoke-tested setup commands after Phase 1 |
@@ -137,6 +137,7 @@ progress:
 - Treat CLI-discovered reward disagreements, missing evidence, and character confusions as successful diagnostic findings, while malformed score/gold inputs remain command errors.
 - Build thesis-ready tables, SVG plots, contact sheets, bundle JSON, and Markdown from recorded manifests/reports only; missing provenance is a blocking readiness error and generated thesis outputs remain runtime artifacts.
 - Publish reward/evaluation command surfaces through exact docs drift tests and Makefile dry-run aliases so CPU-safe checks remain discoverable while GPU/model/OCR jobs stay explicit.
+- Use `src.training.rewards.build_training_reward_result` and shared file-path reward adapters from `src.training.rewards` so training, scoring, evaluation, diagnostics, and thesis reports share the canonical reward-result/product-score contract.
 
 ### Important Caveats
 
@@ -154,7 +155,7 @@ progress:
 
 ### Open Todos
 
-- Run Phase 6 verification and transition planning before Phase 7.
+- Plan Phase 7 moderate structure and extension cleanup.
 - Validate exact dependency pins and CUDA/module constraints on target machines with explicit smoke checks.
 - Keep ROADMAP.md and REQUIREMENTS.md traceability synchronized after phase revisions.
 
@@ -164,7 +165,7 @@ progress:
 
 ## Session Continuity
 
-**Next Recommended Action:** Run Phase 6 verification/transition before Phase 7 planning.
+**Next Recommended Action:** Plan Phase 7 moderate structure and extension cleanup.
 
 **Files Created/Updated:**
 
@@ -384,6 +385,7 @@ progress:
 - `docs/evaluation_diagnostics.md`
 - `docs/thesis_outputs.md`
 - `.planning/phases/06-reward-and-evaluation-validity/06-07-SUMMARY.md`
+- `.planning/phases/06-reward-and-evaluation-validity/VERIFICATION.md`
 
 **Do Not Forget:** Commit approved planning artifacts only; leave unrelated worktree changes untouched.
 

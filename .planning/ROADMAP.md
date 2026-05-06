@@ -227,8 +227,8 @@ Cross-cutting constraints:
 | 2. Runtime Contracts and Run Provenance | 5/5 | Complete | 02-01, 02-02, 02-03, 02-04, 02-05 |
 | 3. Data Curriculum and Dataset Quality | 6/6 | Complete | 03-01, 03-02, 03-03, 03-04, 03-05, 03-06 |
 | 4. CPU-Safe Characterization Tests | 6/6 | Complete | 04-01, 04-02, 04-03, 04-04, 04-05, 04-06 |
-| 5. Training Objective and Pipeline Comparability | 6/6 | Plans complete; verification pending | 05-01, 05-02, 05-03, 05-04, 05-05, and 05-06 complete |
-| 6. Reward and Evaluation Validity | 7/7 | Plans complete; verification pending | 06-01, 06-02, 06-03, 06-04, 06-05, 06-06, and 06-07 complete |
+| 5. Training Objective and Pipeline Comparability | 6/6 | Verified complete | 05-01, 05-02, 05-03, 05-04, 05-05, and 05-06 complete |
+| 6. Reward and Evaluation Validity | 7/7 | Verified complete | 06-01, 06-02, 06-03, 06-04, 06-05, 06-06, and 06-07 complete |
 | 7. Moderate Structure and Extension Cleanup | 0/TBD | Not started | - |
 
 ## Requirement Coverage
