@@ -217,7 +217,24 @@ Cross-cutting constraints:
   1. User can find reusable source code, thin scripts, cluster launchers, configs, diagnostics, experiments, generated outputs, tests, and thesis artifacts in clear homes after moderate safe moves.
   2. User can invoke generation, scoring, synthesis, evaluation, plotting, and run comparison through thin CLI scripts backed by importable implementation modules.
   3. User can follow documented extension points to add future experiments, trainers, reward variants, datasets, or pipelines without creating hidden assumptions in unrelated scripts.
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 07-01-PLAN.md — Publish tested structure homes, script-family navigation, and generated-artifact boundaries.
+- [ ] 07-02-PLAN.md — Move image generation behind an importable `src.generation.pipeline` module while preserving the CLI.
+- [ ] 07-03-PLAN.md — Move reward scoring behind an importable `src.scoring.pipeline` module while preserving canonical score outputs.
+- [ ] 07-04-PLAN.md — Move synthetic dataset building behind an importable `src.synthesis.dataset_builder` module while preserving the CLI.
+- [ ] 07-05-PLAN.md — Move training metric plotting behind an importable `src.plotting.training_metrics` module while preserving the CLI.
+
+**Wave 2** *(blocked on Wave 1 structure docs and importable module seams)*
+- [ ] 07-06-PLAN.md — Publish the final extension-point registry, extension checklist, focused Phase 7 verification alias, and command docs.
+
+Cross-cutting constraints:
+- Preserve existing public commands and file/artifact layouts while extracting importable seams.
+- Default automated tests stay CPU-safe and do not load CUDA, FLUX, Qwen, PaddleOCR, SynthTIGER, vLLM, MLX, or external model weights.
+- Generated images, tensors, checkpoints, logs, score files, synthetic data, plots, contact sheets, thesis bundles, and private run outputs remain ignored runtime artifacts unless intentionally tiny fixtures.
 
 ## Progress
 
