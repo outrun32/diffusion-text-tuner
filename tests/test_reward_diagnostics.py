@@ -274,3 +274,29 @@ def test_format_diagnostics_markdown_includes_required_sections(tmp_path: Path) 
     assert "Per-character confusion" in markdown
     assert "Per-slice disagreement" in markdown
     assert "Missing evidence" in markdown
+
+
+def test_evaluation_diagnostics_docs_cover_reward_disagreement_cli() -> None:
+    docs = Path("docs/evaluation_diagnostics.md").read_text(encoding="utf-8")
+
+    required_terms = [
+        "analyze_reward_disagreement",
+        "format_diagnostics_markdown",
+        "scripts/analyze_reward_diagnostics.py",
+        "--scores",
+        "--gold",
+        "--output-report",
+        "--markdown-summary",
+        "--contact-sheet",
+        "VLM-vs-OCR scatter/correlation",
+        "false-positive",
+        "false-negative",
+        "per-character confusion",
+        "per-slice disagreement",
+        "gold diagnostic benchmark",
+        "recorded score outputs",
+        "do not run reward models",
+        "Do not commit generated diagnostic reports or contact sheets",
+    ]
+    for term in required_terms:
+        assert term in docs
