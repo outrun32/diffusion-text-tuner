@@ -25,10 +25,19 @@ import argparse
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import torch
 from PIL import Image
 from tqdm import tqdm
+
+from src.evaluation.reward_interface import (
+    ProductScoreFormula,
+    build_score_metadata,
+    compute_product_score,
+)
+
+PHASE6_JSONL_SCHEMA_VERSION = "phase6-score-jsonl/v1"
 
 
 # ── Qwen3.5 yes-prob reward (CUDA) ─────────────────────────────────────────
@@ -198,6 +207,139 @@ class PaddleOCRReward:
         }
 
 
+def _normalize_text(value: str) -> str:
+    return " ".join(value.casefold().strip().split())
+
+
+def _character_metrics(detected_text: str, target_text: str) -> dict[str, int | float | bool | str]:
+    detected = _normalize_text(detected_text)
+    target = _normalize_text(target_text)
+    compared_total = max(len(detected), len(target))
+    matches = sum(1 for left, right in zip(detected, target, strict=False) if left == right)
+    accuracy = 1.0 if compared_total == 0 else matches / compared_total
+    exact = detected == target and bool(target)
+    if not detected:
+        detection_status = "not_detected"
+    elif exact:
+        detection_status = "detected_exact"
+    else:
+        detection_status = "detected_mismatch"
+    return {
+        "detected_text": detected_text,
+        "exact_text_match": exact,
+        "char_accuracy": accuracy,
+        "char_matches": matches,
+        "char_total": compared_total,
+        "detection_status": detection_status,
+    }
+
+
+def _sample_id_from_record(record: dict[str, Any]) -> str:
+    for key in ("sample_id", "id", "prompt_id"):
+        value = record.get(key)
+        if isinstance(value, str) and value:
+            return value
+    image_path = str(record.get("image") or record.get("image_path") or "")
+    return Path(image_path).stem if image_path else "unknown"
+
+
+def build_canonical_evaluation_record(
+    *,
+    source_record: dict[str, Any],
+    reward_outputs: dict[str, Any],
+    version: int = 0,
+    formula: ProductScoreFormula | None = None,
+    manifest_path: str = "",
+) -> dict[str, Any]:
+    """Convert raw evaluation reward outputs into canonical Phase 6 JSONL fields."""
+
+    active_formula = formula or ProductScoreFormula()
+    target_text = str(source_record.get("target_text") or "")
+    detected_text = str(reward_outputs.get("ocr_detected") or "")
+    text_metrics = _character_metrics(detected_text, target_text)
+    evidence = {
+        "score_vlm": reward_outputs.get("score_vlm", reward_outputs.get("reward_qwen_yes_prob")),
+        "score_ocr": reward_outputs.get("score_ocr", reward_outputs.get("reward_paddleocr")),
+        "cer": reward_outputs.get("cer"),
+        "entropy": reward_outputs.get("entropy"),
+        "exact_text_match": text_metrics["exact_text_match"],
+    }
+    product = compute_product_score(evidence, formula=active_formula)
+    sample_id = _sample_id_from_record(source_record)
+
+    return {
+        **source_record,
+        "schema_version": "reward-result/v1",
+        "score_file_schema_version": PHASE6_JSONL_SCHEMA_VERSION,
+        "sample_id": sample_id,
+        "version": version,
+        "target_text": target_text,
+        "score": product.score,
+        "product_score": product.score,
+        "score_vlm": evidence["score_vlm"],
+        "score_ocr": evidence["score_ocr"],
+        "cer": evidence["cer"],
+        "entropy": evidence["entropy"],
+        "ocr_detected": detected_text,
+        "detection_status": text_metrics["detection_status"],
+        "exact_text_match": text_metrics["exact_text_match"],
+        "char_accuracy": text_metrics["char_accuracy"],
+        "char_matches": text_metrics["char_matches"],
+        "char_total": text_metrics["char_total"],
+        "missing_components": list(product.missing_components),
+        "formula_complete": product.formula_complete,
+        "manifest_path": manifest_path,
+        "text_metrics": text_metrics,
+        "scorer_metadata": {
+            "formula_name": active_formula.name,
+            "scorer_versions": dict(active_formula.scorer_versions),
+        },
+        "thresholds": dict(product.threshold_flags),
+    }
+
+
+def write_evaluation_score_metadata(
+    output_path: str | Path,
+    *,
+    formula: ProductScoreFormula | None = None,
+    source_manifest_paths: list[str] | tuple[str, ...] = (),
+    generated_at: str | None = None,
+) -> Path:
+    """Write canonical JSONL score sidecar metadata."""
+
+    path = Path(output_path)
+    sidecar = path.with_suffix(".schema.json")
+    metadata = build_score_metadata(
+        formula=formula,
+        source_manifest_paths=source_manifest_paths,
+        generated_at=generated_at,
+    )
+    metadata.update(
+        {
+            "score_file_schema_version": PHASE6_JSONL_SCHEMA_VERSION,
+            "required_phase6_fields": [
+                "sample_id",
+                "version",
+                "score",
+                "product_score",
+                "target_text",
+                "score_vlm",
+                "score_ocr",
+                "cer",
+                "entropy",
+                "detection_status",
+                "exact_text_match",
+                "char_accuracy",
+                "missing_components",
+                "formula_complete",
+                "manifest_path",
+            ],
+        }
+    )
+    sidecar.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return sidecar
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def parse_args():
@@ -214,6 +356,10 @@ def parse_args():
                     help="HuggingFace VLM model ID for yes-prob reward")
     p.add_argument("--start-idx", type=int, default=0,
                     help="Resume from this index")
+    p.add_argument("--manifest-path", type=str, default="",
+                    help="Run/evaluation manifest path to link in each canonical record")
+    p.add_argument("--source-manifest", action="append", default=[],
+                    help="Source manifest path to include in the JSONL schema sidecar")
     return p.parse_args()
 
 
@@ -250,6 +396,13 @@ def main():
     if "paddleocr" in rewards_to_run:
         scorers["paddleocr"] = PaddleOCRReward()
 
+    scorer_versions = {}
+    if "qwen_yes_prob" in rewards_to_run:
+        scorer_versions["vlm"] = args.vlm_model
+    if "paddleocr" in rewards_to_run:
+        scorer_versions["ocr"] = "paddleocr-PP-OCRv3-cyrillic"
+    formula = ProductScoreFormula(scorer_versions=scorer_versions)
+
     # Score all records
     out_file = open(out_path, "a", encoding="utf-8")
     try:
@@ -262,10 +415,18 @@ def main():
                 print(f"  SKIP: {image_path} not found")
                 continue
 
-            scored = {**record}
+            reward_outputs = {}
             for name, scorer in scorers.items():
                 result = scorer.score(image_path, target_text)
-                scored.update(result)
+                reward_outputs.update(result)
+
+            scored = build_canonical_evaluation_record(
+                source_record=record,
+                reward_outputs=reward_outputs,
+                version=int(record.get("version", 0) or 0),
+                formula=formula,
+                manifest_path=args.manifest_path,
+            )
 
             out_file.write(json.dumps(scored, ensure_ascii=False) + "\n")
 
@@ -275,7 +436,13 @@ def main():
         out_file.close()
 
     # Print summary statistics
+    sidecar = write_evaluation_score_metadata(
+        out_path,
+        formula=formula,
+        source_manifest_paths=tuple(args.source_manifest or ([args.manifest_path] if args.manifest_path else [])),
+    )
     print(f"\nScores saved to: {out_path}")
+    print(f"Score schema metadata saved to: {sidecar}")
     _print_summary(out_path, rewards_to_run)
 
 

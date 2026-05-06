@@ -13,6 +13,41 @@ import torch
 
 ARTIFACT_SCHEMA_VERSION = "runtime-artifacts/v1"
 REQUIRED_SCORE_COLUMNS = frozenset({"id", "version", "score", "target_text"})
+PHASE6_SCORE_FILE_SCHEMA_VERSION = "phase6-score-file/v1"
+PHASE6_SCORE_JSONL_SCHEMA_VERSION = "phase6-score-jsonl/v1"
+PHASE6_REQUIRED_SCORE_FIELDS = frozenset(
+    {
+        "sample_id",
+        "version",
+        "score",
+        "product_score",
+        "target_text",
+        "score_vlm",
+        "score_ocr",
+        "cer",
+        "entropy",
+        "ocr_detected",
+        "detection_status",
+        "exact_text_match",
+        "char_accuracy",
+        "char_matches",
+        "char_total",
+        "missing_components",
+        "formula_complete",
+        "manifest_path",
+        "text_metrics",
+        "scorer_metadata",
+        "thresholds",
+    }
+)
+PHASE6_REQUIRED_SIDECAR_FIELDS = frozenset(
+    {
+        "schema_version",
+        "score_file_schema_version",
+        "formula",
+        "source_manifest_paths",
+    }
+)
 PHASE3_JSON_SCHEMAS = {
     "dataset_manifest": {
         "key": "dataset_manifest",
@@ -100,6 +135,8 @@ def validate_artifacts(
         _validate_prompt_jsonl(context, _required_path(context, normalized, "prompts_jsonl"))
     elif stage_key == "scores":
         _validate_scores_csv(context, _required_path(context, normalized, "scores_csv"))
+    elif stage_key == "evaluation_scores":
+        _validate_evaluation_scores(context, normalized, require_ready=require_ready)
     elif stage_key == "generated":
         _validate_generated_layout(context, normalized)
     elif stage_key == "masked_sft":
@@ -173,6 +210,9 @@ def _normalize_stage(stage: str) -> str:
         "data-comparison": "data_source_comparison",
         "manifests": "run_manifest",
         "manifest": "run_manifest",
+        "evaluation-scores": "evaluation_scores",
+        "score_outputs": "evaluation_scores",
+        "score-outputs": "evaluation_scores",
     }
     return aliases.get(stage, stage)
 
@@ -215,7 +255,7 @@ def _validate_prompt_jsonl(context: _ValidationContext, path: Path) -> None:
     context.metadata["prompt_count"] = count
 
 
-def _validate_scores_csv(context: _ValidationContext, path: Path) -> None:
+def _validate_scores_csv(context: _ValidationContext, path: Path, *, phase6: bool = False) -> None:
     context.checked(path)
     if not path.is_file():
         context.error(f"{path}: scores CSV file is missing")
@@ -228,11 +268,19 @@ def _validate_scores_csv(context: _ValidationContext, path: Path) -> None:
         if missing:
             context.error(f"{path}: scores CSV missing required columns: {', '.join(missing)}")
             return
+        if phase6:
+            missing_phase6 = sorted(PHASE6_REQUIRED_SCORE_FIELDS - fieldnames)
+            if missing_phase6:
+                context.error(
+                    f"{path}: missing required Phase 6 columns: {', '.join(missing_phase6)}"
+                )
         rows = list(reader)
 
     for row_number, row in enumerate(rows, start=2):
         _validate_float(context, path, row_number, "score", row.get("score"))
         _validate_int(context, path, row_number, "version", row.get("version"))
+        if phase6:
+            _validate_phase6_score_row(context, path, row_number, row)
         if not row.get("id"):
             context.error(f"{path}: row {row_number}: id is required")
         if row.get("target_text") is None:
@@ -241,19 +289,142 @@ def _validate_scores_csv(context: _ValidationContext, path: Path) -> None:
 
     sidecar = path.with_suffix(".schema.json")
     if sidecar.is_file():
-        context.checked(sidecar)
-        try:
-            metadata = json.loads(sidecar.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            context.error(f"{sidecar}: malformed JSON schema metadata")
-        else:
-            version = metadata.get("schema_version") if isinstance(metadata, dict) else None
-            if isinstance(version, str) and version:
-                context.metadata["scores_schema_version"] = version
-            else:
-                context.error(f"{sidecar}: missing schema_version")
+        _validate_score_sidecar(context, sidecar, phase6=phase6)
     else:
-        context.warn(f"{sidecar}: optional score schema metadata sidecar is missing")
+        message = f"{sidecar}: score schema metadata sidecar is missing"
+        context.error(message) if phase6 else context.warn(f"{sidecar}: optional {message}")
+
+
+def _validate_evaluation_scores(
+    context: _ValidationContext, paths: Mapping[str, Path], *, require_ready: bool
+) -> None:
+    scores_csv = paths.get("scores_csv")
+    scores_jsonl = paths.get("scores_jsonl")
+    if scores_csv is None and scores_jsonl is None:
+        if require_ready:
+            context.error("evaluation_scores: scores_csv or scores_jsonl path is required")
+        return
+    if scores_csv is not None:
+        _validate_scores_csv(context, scores_csv, phase6=True)
+    if scores_jsonl is not None:
+        _validate_phase6_scores_jsonl(context, scores_jsonl)
+
+
+def _validate_phase6_score_row(
+    context: _ValidationContext, path: Path, row_number: int, row: Mapping[str, str]
+) -> None:
+    _validate_float(context, path, row_number, "product_score", row.get("product_score"))
+    for field_name in ("score_vlm", "score_ocr", "cer", "entropy", "char_accuracy"):
+        if row.get(field_name):
+            _validate_float(context, path, row_number, field_name, row.get(field_name))
+    for field_name in ("char_matches", "char_total"):
+        if row.get(field_name):
+            _validate_int(context, path, row_number, field_name, row.get(field_name))
+    if row.get("detection_status") not in {"detected_exact", "detected_mismatch", "not_detected"}:
+        context.error(f"{path}: row {row_number}: detection_status is invalid")
+    if row.get("exact_text_match") not in {"true", "false", "True", "False", "0", "1"}:
+        context.error(f"{path}: row {row_number}: exact_text_match must be boolean-like")
+    if row.get("formula_complete") not in {"true", "false", "True", "False", "0", "1"}:
+        context.error(f"{path}: row {row_number}: formula_complete must be boolean-like")
+    for json_field in ("text_metrics", "scorer_metadata", "thresholds"):
+        if row.get(json_field):
+            _validate_json_field(context, path, row_number, json_field, row.get(json_field))
+
+
+def _validate_score_sidecar(context: _ValidationContext, sidecar: Path, *, phase6: bool) -> None:
+    context.checked(sidecar)
+    try:
+        metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        context.error(f"{sidecar}: malformed JSON schema metadata")
+        return
+    if not isinstance(metadata, dict):
+        context.error(f"{sidecar}: score schema metadata must be an object")
+        return
+    version = metadata.get("schema_version")
+    if isinstance(version, str) and version:
+        context.metadata["scores_schema_version"] = version
+    else:
+        context.error(f"{sidecar}: missing schema_version")
+    if not phase6:
+        return
+    missing_sidecar = sorted(PHASE6_REQUIRED_SIDECAR_FIELDS - metadata.keys())
+    if missing_sidecar:
+        context.error(
+            f"{sidecar}: missing required Phase 6 sidecar fields: {', '.join(missing_sidecar)}"
+        )
+    if metadata.get("schema_version") != "reward-score-metadata/v1":
+        context.error(f"{sidecar}: schema_version must be reward-score-metadata/v1")
+    file_schema = metadata.get("score_file_schema_version")
+    if file_schema not in {PHASE6_SCORE_FILE_SCHEMA_VERSION, PHASE6_SCORE_JSONL_SCHEMA_VERSION}:
+        context.error(f"{sidecar}: score_file_schema_version is invalid")
+    else:
+        context.metadata["score_file_schema_version"] = file_schema
+    formula = metadata.get("formula")
+    if not isinstance(formula, dict):
+        context.error(f"{sidecar}: formula must be an object")
+    else:
+        for key in ("name", "weights", "thresholds", "scorer_versions"):
+            if key not in formula:
+                context.error(f"{sidecar}: formula missing required field {key!r}")
+    if not isinstance(metadata.get("source_manifest_paths"), list):
+        context.error(f"{sidecar}: source_manifest_paths must be a list")
+    required_fields = set(metadata.get("required_phase6_fields") or [])
+    if required_fields and not PHASE6_REQUIRED_SCORE_FIELDS <= required_fields:
+        missing = sorted(PHASE6_REQUIRED_SCORE_FIELDS - required_fields)
+        context.error(
+            f"{sidecar}: required_phase6_fields missing canonical fields: {', '.join(missing)}"
+        )
+
+
+def _validate_json_field(
+    context: _ValidationContext,
+    path: Path,
+    row_number: int,
+    field_name: str,
+    value: str | None,
+) -> None:
+    try:
+        payload = json.loads(value or "")
+    except json.JSONDecodeError:
+        context.error(f"{path}: row {row_number}: {field_name} must be JSON")
+        return
+    if not isinstance(payload, dict):
+        context.error(f"{path}: row {row_number}: {field_name} must be a JSON object")
+
+
+def _validate_phase6_scores_jsonl(context: _ValidationContext, path: Path) -> None:
+    context.checked(path)
+    if not path.is_file():
+        context.error(f"{path}: scores JSONL file is missing")
+        return
+    record_count = 0
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            record_count += 1
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                context.error(f"{path}: line {line_number}: malformed JSONL")
+                continue
+            if not isinstance(payload, dict):
+                context.error(f"{path}: line {line_number}: record must be an object")
+                continue
+            missing = sorted(PHASE6_REQUIRED_SCORE_FIELDS - payload.keys())
+            if missing:
+                context.error(
+                    f"{path}: line {line_number}: missing required Phase 6 fields: "
+                    f"{', '.join(missing)}"
+                )
+    context.metadata["scores_rows"] = record_count
+    sidecar = path.with_suffix(".schema.json")
+    if sidecar.is_file():
+        _validate_score_sidecar(context, sidecar, phase6=True)
+    else:
+        context.error(f"{sidecar}: score schema metadata sidecar is missing")
 
 
 def _validate_generated_layout(context: _ValidationContext, paths: Mapping[str, Path]) -> None:
