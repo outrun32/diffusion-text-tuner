@@ -125,6 +125,24 @@ def test_plot_training_metrics_uses_lazy_matplotlib_and_preserves_outputs(
     assert "Reward trend: first-10-avg=0.3250, last-10-avg=0.3250, delta=+0.0000" in captured
 
 
+def test_plot_metrics_main_delegates_to_importable_plotter(monkeypatch: pytest.MonkeyPatch) -> None:
+    import scripts.plot_metrics as plot_metrics
+
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_plot_training_metrics(metrics_csv: str, output_dir: str | None = None) -> Path:
+        calls.append((metrics_csv, output_dir))
+        return Path(output_dir or ".") / "training_curves.png"
+
+    monkeypatch.setattr(plot_metrics, "plot_training_metrics", fake_plot_training_metrics)
+
+    assert plot_metrics.main(["runs/example/metrics.csv", "--output-dir", "plots"]) == 0
+    assert calls == [("runs/example/metrics.csv", "plots")]
+    assert plot_metrics.plot is plot_metrics.plot_training_metrics
+    assert plot_metrics.load_metrics.__module__ == "src.plotting.training_metrics"
+    assert plot_metrics.smooth.__module__ == "src.plotting.training_metrics"
+
+
 class FakeAxis:
     def plot(self, *args: object, **kwargs: object) -> None:
         pass
