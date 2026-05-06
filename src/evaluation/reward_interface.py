@@ -7,13 +7,13 @@ importing optional model/OCR stacks.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 import json
 import math
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import Any, Mapping, Sequence
-
+from typing import Any
 
 SCHEMA_VERSION = "reward-result/v1"
 METADATA_SCHEMA_VERSION = "reward-score-metadata/v1"
@@ -61,7 +61,11 @@ def _component_source_name(component_name: str) -> str:
     return component_name
 
 
-def _normalize_component(component_name: str, evidence: Mapping[str, Any], entropy_scale: float) -> float | None:
+def _normalize_component(
+    component_name: str,
+    evidence: Mapping[str, Any],
+    entropy_scale: float,
+) -> float | None:
     if component_name == "cer_quality":
         cer = _coerce_unit_interval(evidence.get("cer"))
         return None if cer is None else 1.0 - cer
@@ -100,14 +104,16 @@ class ProductScoreFormula:
         weights = {key: _coerce_finite_float(value) for key, value in self.weights.items()}
         invalid_weights = [key for key, value in weights.items() if value is None or value < 0]
         if invalid_weights:
-            raise ValueError(f"Invalid product formula weights: {', '.join(sorted(invalid_weights))}")
+            joined = ", ".join(sorted(invalid_weights))
+            raise ValueError(f"Invalid product formula weights: {joined}")
         if sum(value for value in weights.values() if value is not None) <= 0:
             raise ValueError("Product formula weights must include a positive total weight")
 
         thresholds = {key: _coerce_finite_float(value) for key, value in self.thresholds.items()}
         invalid_thresholds = [key for key, value in thresholds.items() if value is None]
         if invalid_thresholds:
-            raise ValueError(f"Invalid product formula thresholds: {', '.join(sorted(invalid_thresholds))}")
+            joined = ", ".join(sorted(invalid_thresholds))
+            raise ValueError(f"Invalid product formula thresholds: {joined}")
 
         entropy_scale = _coerce_finite_float(self.entropy_scale)
         if entropy_scale is None or entropy_scale < 0:
@@ -250,7 +256,11 @@ def compute_product_score(
     else:
         score = math.exp(weighted_log_sum / available_weight)
 
-    threshold_flags = _compute_threshold_flags(raw_evidence, active_formula.thresholds, active_formula.entropy_scale)
+    threshold_flags = _compute_threshold_flags(
+        raw_evidence,
+        active_formula.thresholds,
+        active_formula.entropy_scale,
+    )
     return ProductScoreResult(
         score=score,
         components=components,
@@ -299,7 +309,9 @@ def build_score_metadata(
     variables, or secrets.
     """
     active_formula = formula or ProductScoreFormula()
-    timestamp = generated_at or datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    timestamp = generated_at or (
+        datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
     return {
         "schema_version": METADATA_SCHEMA_VERSION,
         "generated_at": timestamp,

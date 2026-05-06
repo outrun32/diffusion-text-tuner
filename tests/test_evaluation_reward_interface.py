@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -13,7 +13,6 @@ from src.evaluation.reward_interface import (
     build_score_metadata,
     compute_product_score,
 )
-
 
 HEAVY_OPTIONAL_MODULES = {"transformers", "paddleocr", "diffusers", "torch", "vllm", "mlx"}
 DOC_PATH = Path("docs/reward_evaluation.md")
