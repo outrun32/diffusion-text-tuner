@@ -45,8 +45,8 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 ### Reward and Evaluation Validity
 
-- [ ] **EVAL-01**: User can use one canonical reward interface for Qwen/VLM, OCR/CER/entropy, and product reward paths across scoring, training, evaluation, and thesis reports.
-- [ ] **EVAL-02**: User can reproducibly generate product score files with documented formula, scorer versions, component scores, thresholds, and manifest metadata.
+- [x] **EVAL-01**: User can use one canonical reward interface for Qwen/VLM, OCR/CER/entropy, and product reward paths across scoring, training, evaluation, and thesis reports.
+- [x] **EVAL-02**: User can reproducibly generate product score files with documented formula, scorer versions, component scores, thresholds, and manifest metadata.
 - [ ] **EVAL-03**: User can run a held-out checkpoint-comparison evaluation harness with fixed prompts, fixed seeds, fixed inference settings, and comparable outputs for baseline and trained LoRAs.
 - [ ] **EVAL-04**: User can automatically score evaluation outputs with OCR CER, OCR detection rate, entropy/confidence, VLM score, product score, and exact/character-level text metrics where possible.
 - [ ] **EVAL-05**: User can evaluate by Russian text difficulty slices: rare Cyrillic letters, word length, phrase length, digits, punctuation, mixed case, multiline layout, font/style, and scene/background type.
@@ -87,7 +87,7 @@ Requirements for turning the current thesis research repo into a reproducible an
 
 - [ ] **STR-01**: User can navigate a moderately cleaned file structure where reusable source code, thin scripts, cluster launchers, configs, diagnostics, experiments, generated outputs, tests, and thesis artifacts have clear homes.
 - [x] **STR-02**: User can use shared runtime helpers for config I/O, path resolution, seeds, manifests, and preflight validation.
-- [ ] **STR-03**: User can use shared scoring/reward/evaluation modules instead of duplicated Qwen/OCR logic across training and evaluation.
+- [x] **STR-03**: User can use shared scoring/reward/evaluation modules instead of duplicated Qwen/OCR logic across training and evaluation.
 - [x] **STR-04**: User can use focused shared training modules for sampling, checkpointing, schedulers, objective helpers, and config/runtime plumbing while preserving current SFT, DPO, and masked-SFT behavior.
 - [ ] **STR-05**: User can use importable implementation modules behind CLI scripts for generation, scoring, synthesis, evaluation, plotting, and run comparison.
 - [ ] **STR-06**: User can add future experiments/pipelines through documented extension points rather than new one-off scripts with hidden assumptions.
@@ -158,8 +158,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TRN-05 | Phase 5 | Complete |
 | TRN-06 | Phase 5 | Complete |
 | TRN-07 | Phase 5 | Complete |
-| EVAL-01 | Phase 6 | Pending |
-| EVAL-02 | Phase 6 | Pending |
+| EVAL-01 | Phase 6 | Complete |
+| EVAL-02 | Phase 6 | Complete |
 | EVAL-03 | Phase 6 | Pending |
 | EVAL-04 | Phase 6 | Pending |
 | EVAL-05 | Phase 6 | Pending |
@@ -188,7 +188,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TEST-07 | Phase 1 | Complete |
 | STR-01 | Phase 7 | Pending |
 | STR-02 | Phase 2 | Complete |
-| STR-03 | Phase 6 | Pending |
+| STR-03 | Phase 6 | Complete |
 | STR-04 | Phase 5 | Complete |
 | STR-05 | Phase 7 | Pending |
 | STR-06 | Phase 7 | Pending |
@@ -201,4 +201,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-05-04*
-*Last updated: 2026-05-05 after Phase 5 Plan 06 execution*
+*Last updated: 2026-05-06 after Phase 6 Plan 01 execution*
