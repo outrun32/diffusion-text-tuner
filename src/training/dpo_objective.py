@@ -18,9 +18,9 @@ def compute_sigma(t: torch.Tensor, shift: float = 3.0) -> torch.Tensor:
 
 
 def time_dependent_beta(t: torch.Tensor, beta_conf: float, shift: float = 3.0) -> torch.Tensor:
-    """Return the existing negative DPO beta schedule used by the trainer."""
+    """Return the positive DPO beta schedule used by the trainer."""
     sigma_t = compute_sigma(t, shift=shift)
-    return -beta_conf * (1.0 - sigma_t) ** 2 / 2.0
+    return beta_conf * (1.0 - sigma_t) ** 2 / 2.0
 
 
 def compute_dpo_objective(
@@ -35,8 +35,8 @@ def compute_dpo_objective(
     """Compute DPO sigmoid loss from precomputed per-sample MSE losses.
 
     Lower model MSE corresponds to a higher implicit likelihood, so log-ratios
-    are computed as ``-(policy_loss - ref_loss)``. The beta schedule intentionally
-    preserves the trainer's existing negative-beta convention.
+    are computed as ``-(policy_loss - ref_loss)``. A positive winner-over-loser
+    margin should therefore produce a positive DPO logit and lower loss.
     """
     w_log_ratio = -(w_policy_loss.float() - w_ref_loss.float())
     l_log_ratio = -(l_policy_loss.float() - l_ref_loss.float())

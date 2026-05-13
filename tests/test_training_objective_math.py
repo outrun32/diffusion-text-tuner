@@ -88,22 +88,22 @@ def test_compute_sigma_is_monotonic_and_bounded_for_training_range():
     assert sigma[-1].item() < 1.0
 
 
-def test_time_dependent_beta_is_negative_noisier_early_and_scales_with_beta_conf():
+def test_time_dependent_beta_is_positive_noisier_early_and_scales_with_beta_conf():
     timesteps = torch.tensor([0.0, 500.0, 999.0])
 
     beta = time_dependent_beta(timesteps, beta_conf=2.0, shift=3.0)
     doubled = time_dependent_beta(timesteps, beta_conf=4.0, shift=3.0)
 
-    assert torch.all(beta <= 0.0)
-    assert abs(beta[0].item()) > abs(beta[1].item()) > abs(beta[2].item())
+    assert torch.all(beta >= 0.0)
+    assert beta[0].item() > beta[1].item() > beta[2].item()
     assert torch.allclose(doubled, beta * 2.0)
 
 
 @pytest.mark.parametrize(
     ("w_policy", "l_policy", "expected_accuracy", "case_name"),
     [
-        (torch.tensor([0.5]), torch.tensor([1.0]), 0.0, "winner policy loss improves"),
-        (torch.tensor([1.0]), torch.tensor([0.5]), 1.0, "loser policy loss improves"),
+        (torch.tensor([0.5]), torch.tensor([1.0]), 1.0, "winner policy loss improves"),
+        (torch.tensor([1.0]), torch.tensor([0.5]), 0.0, "loser policy loss improves"),
     ],
 )
 def test_dpo_objective_distinguishes_winner_and_loser_better_cases(
@@ -133,7 +133,7 @@ def test_dpo_objective_distinguishes_winner_and_loser_better_cases(
     assert torch.isfinite(loss)
 
 
-def test_negative_beta_convention_gives_lower_loss_when_loser_log_ratio_is_larger():
+def test_dpo_objective_gives_lower_loss_when_winner_log_ratio_is_larger():
     ref_loss = torch.tensor([1.0])
 
     winner_better_loss, winner_metrics = compute_dpo_objective(
@@ -157,7 +157,29 @@ def test_negative_beta_convention_gives_lower_loss_when_loser_log_ratio_is_large
 
     assert winner_metrics["reward_margin"].item() > 0.0
     assert loser_metrics["reward_margin"].item() < 0.0
-    assert winner_better_loss.item() > loser_better_loss.item()
+    assert winner_better_loss.item() < loser_better_loss.item()
+
+
+def test_dpo_objective_gradients_decrease_winner_and_increase_loser_mse():
+    w_policy = torch.tensor([0.8], requires_grad=True)
+    l_policy = torch.tensor([0.8], requires_grad=True)
+    ref_loss = torch.tensor([1.0])
+
+    loss, _metrics = compute_dpo_objective(
+        w_policy_loss=w_policy,
+        l_policy_loss=l_policy,
+        w_ref_loss=ref_loss,
+        l_ref_loss=ref_loss,
+        t=torch.tensor([0.0]),
+        beta_conf=2.0,
+        shift=3.0,
+    )
+    loss.backward()
+
+    assert w_policy.grad is not None
+    assert l_policy.grad is not None
+    assert w_policy.grad.item() > 0.0
+    assert l_policy.grad.item() < 0.0
 
 
 def test_dpo_trainer_re_exports_objective_helpers():
