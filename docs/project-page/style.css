@@ -77,19 +77,63 @@ p {
   flex-wrap: wrap;
 }
 
-.buttons a {
-  display: inline-block;
-  color: var(--link);
-  background: #fff;
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 999px;
   text-decoration: none;
   padding: 8px 14px;
-  font-weight: 600;
+  font-weight: 650;
+  color: var(--ink);
+  background: #fff;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
-.buttons a:hover {
-  background: var(--soft);
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.button.github {
+  border-color: #24292f;
+}
+
+.button.github .icon {
+  color: #fff;
+  background: #24292f;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.button.huggingface {
+  border-color: #ffd166;
+  background: #fff9e8;
+}
+
+.button.huggingface .icon {
+  background: #ffcc4d;
+}
+
+.button.readme {
+  border-color: #c9d7f0;
+  color: #174ea6;
+}
+
+.button.readme .icon {
+  color: #174ea6;
+  background: #e8f0fe;
 }
 
 img {
