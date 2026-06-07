@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reward-filtered self-training for Cyrillic text rendering</title>
+    <meta
+      name="description"
+      content="Project page for reward-filtered self-training of FLUX.2 Klein LoRA adapters for Cyrillic/Russian text rendering."
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p class="venue">Bachelor thesis project · Innopolis University · 2026</p>
+        <h1>Reward-filtered self-training is the reliable route for Cyrillic text rendering</h1>
+        <p class="subtitle">
+          Adapting an open diffusion transformer to Russian/Cyrillic text rendering with generated
+          candidates, automatic rewards, and LoRA fine-tuning.
+        </p>
+        <p class="authors">
+          <strong>Iakov Saparov</strong><br />
+          Supervisor: Andrey Kuznetsov
+        </p>
+        <div class="buttons">
+          <a href="https://github.com/outrun32/diffusion-text-tuner">Code</a>
+          <a href="https://huggingface.co/datasets/Outrun32/cyrillic-prompts-15k">Prompt dataset</a>
+          <a href="../../README.md">README</a>
+        </div>
+      </section>
+
+      <section class="teaser card">
+        <img
+          src="assets/teaser_success.webp"
+          alt="Qualitative examples where product-score self-training improves Cyrillic rendering"
+        />
+        <p class="caption">
+          Product-score self-training improves readability on held-out Cyrillic prompts while preserving
+          image style. The reported evidence is limited to Cyrillic/Russian, not broad multilingual text.
+        </p>
+      </section>
+
+      <section class="grid two">
+        <div class="card claim-card">
+          <h2>Main claim</h2>
+          <p>
+            <strong>Reward-filtered generated-output self-training</strong> is the most reliable route in
+            this setup. It uses the base model's successful generations as supervised LoRA training data.
+          </p>
+          <p>
+            DPO-style refinement trains stably and can improve some automatic scores, but it is more
+            fragile under noisy and off-policy preference pairs.
+          </p>
+        </div>
+        <div class="card claim-card muted">
+          <h2>Why this matters</h2>
+          <p>
+            Open diffusion models often understand text prompts semantically but still lose
+            character-level control outside English: missing glyphs, script mixing, and artifact text.
+          </p>
+          <p>
+            The constraint here is practical: adapt with LoRA and automatic rewards, without full model
+            retraining or manual image annotation.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Method</h2>
+        <p>
+          One prompt becomes several generated candidates. Each candidate is scored by a VLM judge, an
+          OCR/CER reward, and their product. High-scoring images become self-training examples; best vs.
+          worst scored variants become DPO-style preference pairs.
+        </p>
+        <img
+          src="assets/method_candidates.webp"
+          alt="Generated candidates with VLM, OCR, and product rewards used for SFT and DPO"
+        />
+        <div class="method-flow" aria-label="Method flow">
+          <span>Base candidates</span>
+          <span>VLM/OCR/Product scores</span>
+          <span>Reward-filtered SFT</span>
+          <span>DPO-style refinement</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Held-out benchmark</h2>
+        <p>
+          A 120-prompt diagnostic benchmark was used in the final analysis. Each model generated one
+          image per prompt under matched settings. Strict CER, homoglyph-normalized CER, exact match,
+          OCR score, VLM score, product score, and script-mixing diagnostics were reported separately.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Strict CER ↓</th>
+                <th>Norm. CER ↓</th>
+                <th>Norm. exact ↑</th>
+                <th>OCR ↑</th>
+                <th>VLM ↑</th>
+                <th>Product ↑</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Base</td>
+                <td>0.984</td>
+                <td>0.859</td>
+                <td>41.7%</td>
+                <td>0.560</td>
+                <td>0.658</td>
+                <td>0.392</td>
+              </tr>
+              <tr class="highlight">
+                <td>Product SFT</td>
+                <td>0.238</td>
+                <td><strong>0.126</strong></td>
+                <td>50.0%</td>
+                <td>0.635</td>
+                <td>0.681</td>
+                <td>0.444</td>
+              </tr>
+              <tr>
+                <td>Product DPO</td>
+                <td>0.287</td>
+                <td>0.168</td>
+                <td><strong>52.5%</strong></td>
+                <td><strong>0.639</strong></td>
+                <td><strong>0.704</strong></td>
+                <td><strong>0.470</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caption">
+          Product DPO improves exact/VLM/product metrics but has worse CER than Product SFT. The safest
+          qualitative demo checkpoint remains Product SFT.
+        </p>
+        <img src="assets/heldout_cer.webp" alt="Held-out normalized CER bar chart" />
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h2>DPO is mixed</h2>
+          <img src="assets/dpo_tradeoff.webp" alt="DPO tradeoff chart comparing CER and exact match" />
+          <p>
+            DPO is stable, but its pair data is off-policy: pairs are base-generated, while the policy is
+            initialized from SFT. This makes the preference signal less informative after self-training.
+          </p>
+        </div>
+        <div class="card">
+          <h2>Product reward is biased</h2>
+          <img src="assets/product_bias.webp" alt="Product reward selection bias chart" />
+          <p>
+            Product filtering is high precision, but it selects shorter and easier examples. Median target
+            length drops from 15 to 8 characters, so product SFT is not proof that the product reward is
+            universally best.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Remaining failures</h2>
+        <p>
+          The remaining errors are glyph-level: hard-sign ambiguity, visually similar Cyrillic letters,
+          unstable Ё rendering, and occasional extra artifact text. Better coverage likely requires
+          synthetic glyph supervision or a warm start trained on masks and known labels.
+        </p>
+        <img src="assets/failure_cases.webp" alt="Remaining Cyrillic glyph-level failure cases" />
+      </section>
+
+      <section class="grid three takeaways">
+        <div>
+          <h3>Reliable route</h3>
+          <p>Base-generated candidates → automatic reward filtering → LoRA self-training.</p>
+        </div>
+        <div>
+          <h3>Best demo model</h3>
+          <p>Product-score SFT: strongest CER reduction and best qualitative balance.</p>
+        </div>
+        <div>
+          <h3>DPO outcome</h3>
+          <p>Stable but mixed under noisy/off-policy preferences; useful as a diagnostic stage.</p>
+        </div>
+      </section>
+
+      <section class="card citation">
+        <h2>Citation</h2>
+        <pre><code>@thesis{saparov2026cyrillic,
+  title  = {Developing a Diffusion-based Training Toolkit for Multilingual Text Rendering},
+  author = {Saparov, Iakov},
+  school = {Innopolis University},
+  year   = {2026}
+}</code></pre>
+      </section>
+    </main>
+  </body>
+</html>

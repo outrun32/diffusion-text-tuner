@@ -2,6 +2,8 @@
 
 This repository contains the code for a bachelor-thesis study on adapting an open diffusion transformer to **Cyrillic/Russian text rendering** without full retraining.
 
+Project page source: [`docs/project-page/`](docs/project-page/). If GitHub Pages is enabled from `/docs`, it will be available at `https://outrun32.github.io/diffusion-text-tuner/project-page/`.
+
 **Main result:** in this setup, **reward-filtered generated-output self-training** is the most reliable adaptation route. DPO-style preference refinement trains stably and can improve some automatic scores, but it does not cleanly supersede product-score self-training.
 
 The project uses **FLUX.2-klein-base-4B** with LoRA adapters. Generated image candidates are scored with a Qwen VLM reward, a PaddleOCR/CER reward, and their product. High-scoring candidates become self-training data; scored winner/loser variants become DPO-style preference pairs.
