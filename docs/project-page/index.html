@@ -13,15 +13,10 @@
   <body>
     <main>
       <section class="hero">
-        <p class="venue">Bachelor thesis project · Innopolis University · 2026</p>
         <h1>Reward-filtered self-training is the reliable route for Cyrillic text rendering</h1>
         <p class="subtitle">
           Adapting an open diffusion transformer to Russian/Cyrillic text rendering with generated
           candidates, automatic rewards, and LoRA fine-tuning.
-        </p>
-        <p class="authors">
-          <strong>Iakov Saparov</strong><br />
-          Supervisor: Andrey Kuznetsov
         </p>
         <div class="buttons">
           <a href="https://github.com/outrun32/diffusion-text-tuner">Code</a>
@@ -41,32 +36,21 @@
         </p>
       </section>
 
-      <section class="grid two">
-        <div class="card claim-card">
-          <h2>Main claim</h2>
-          <p>
-            <strong>Reward-filtered generated-output self-training</strong> is the most reliable route in
-            this setup. It uses the base model's successful generations as supervised LoRA training data.
-          </p>
-          <p>
-            DPO-style refinement trains stably and can improve some automatic scores, but it is more
-            fragile under noisy and off-policy preference pairs.
-          </p>
-        </div>
-        <div class="card claim-card muted">
-          <h2>Why this matters</h2>
-          <p>
-            Open diffusion models often understand text prompts semantically but still lose
-            character-level control outside English: missing glyphs, script mixing, and artifact text.
-          </p>
-          <p>
-            The constraint here is practical: adapt with LoRA and automatic rewards, without full model
-            retraining or manual image annotation.
-          </p>
-        </div>
+      <section>
+        <h2>Main idea</h2>
+        <p>
+          <strong>Reward-filtered generated-output self-training</strong> is the most reliable route in
+          this setup. The base model already produces occasional successful Cyrillic renderings; the
+          method turns those successes into supervised LoRA training data. DPO-style refinement is
+          stable, but more fragile under noisy and off-policy preference pairs.
+        </p>
+        <p>
+          The practical constraint is simple: improve character-level control without full model
+          retraining or manual image annotation.
+        </p>
       </section>
 
-      <section class="card">
+      <section>
         <h2>Method</h2>
         <p>
           One prompt becomes several generated candidates. Each candidate is scored by a VLM judge, an
@@ -85,7 +69,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section>
         <h2>Held-out benchmark</h2>
         <p>
           A 120-prompt diagnostic benchmark was used in the final analysis. Each model generated one
@@ -144,7 +128,7 @@
       </section>
 
       <section class="grid two">
-        <div class="card">
+        <div>
           <h2>DPO is mixed</h2>
           <img src="assets/dpo_tradeoff.webp" alt="DPO tradeoff chart comparing CER and exact match" />
           <p>
@@ -152,7 +136,7 @@
             initialized from SFT. This makes the preference signal less informative after self-training.
           </p>
         </div>
-        <div class="card">
+        <div>
           <h2>Product reward is biased</h2>
           <img src="assets/product_bias.webp" alt="Product reward selection bias chart" />
           <p>
@@ -163,7 +147,7 @@
         </div>
       </section>
 
-      <section class="card">
+      <section>
         <h2>Remaining failures</h2>
         <p>
           The remaining errors are glyph-level: hard-sign ambiguity, visually similar Cyrillic letters,
@@ -188,7 +172,7 @@
         </div>
       </section>
 
-      <section class="card citation">
+      <section class="citation">
         <h2>Citation</h2>
         <pre><code>@thesis{saparov2026cyrillic,
   title  = {Developing a Diffusion-based Training Toolkit for Multilingual Text Rendering},
