@@ -208,6 +208,8 @@ class _SFTModel(_StrictRuntimeModel):
     sample_prompt: str = SFTConfig.sample_prompt
     sample_target_text: str = SFTConfig.sample_target_text
     sample_interval: int = Field(200, ge=0)
+    eval_suite_path: str | None = None
+    eval_suite_n_per_step: int = Field(0, ge=0)
     num_inference_steps: int = Field(28, gt=0)
     log_interval: int = Field(..., gt=0)
     save_interval: int = Field(..., gt=0)
@@ -253,6 +255,8 @@ class _DPOModel(_StrictRuntimeModel):
     sample_prompt: str = DPOConfig.sample_prompt
     sample_target_text: str = DPOConfig.sample_target_text
     sample_interval: int = Field(200, ge=0)
+    eval_suite_path: str | None = None
+    eval_suite_n_per_step: int = Field(0, ge=0)
     num_inference_steps: int = Field(28, gt=0)
     log_interval: int = Field(..., gt=0)
     save_interval: int = Field(..., gt=0)

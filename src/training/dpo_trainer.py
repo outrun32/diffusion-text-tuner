@@ -30,7 +30,8 @@ from tqdm import tqdm
 from .config import DPOConfig, LoraConfig
 from .dataset import DPODataset, dpo_collate_fn
 from .dpo_objective import compute_dpo_objective, compute_sigma, time_dependent_beta
-from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids
+from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids, decode_latents
+from .sft_trainer import setup_sample_states, save_samples
 from src.runtime import config_io
 
 logger = logging.getLogger(__name__)
@@ -104,9 +105,9 @@ def compute_dpo_loss(
     """Compute DPO sigmoid loss with time-dependent beta and shared noise."""
 
     B = winner_packed.shape[0]
-    sigma = compute_sigma(t, shift=shift)
+    sigma = compute_sigma(t, shift=shift).to(winner_packed.dtype)
     sigma_bc = sigma.view(B, 1, 1)
-    timestep = t.float() / 1000.0
+    timestep = (t / 1000.0).to(winner_packed.dtype)
 
     # Noisy latents with shared noise
     w_noisy = (1.0 - sigma_bc) * winner_packed + sigma_bc * noise
@@ -191,6 +192,15 @@ def train(cfg: DPOConfig):
     # ── Load models ──
     policy, ref_model, vae = load_models(cfg, device, dtype)
 
+    # ── Setup sampling ──
+    sample_states = []
+    samples_dir = None
+    if accelerator.is_main_process and cfg.sample_interval > 0:
+        samples_dir = os.path.join(cfg.output_dir, "samples")
+        os.makedirs(samples_dir, exist_ok=True)
+        sample_states = setup_sample_states(cfg, device, dtype)
+        logger.info("Sampling enabled: every %d steps → %s", cfg.sample_interval, samples_dir)
+
     if cfg.gradient_checkpointing:
         base = policy.get_base_model()
         if hasattr(base, "enable_gradient_checkpointing"):
@@ -245,6 +255,19 @@ def train(cfg: DPOConfig):
 
     # Move reference model to device (not wrapped by accelerate — frozen)
     ref_model = ref_model.to(device)
+
+    if accelerator.is_main_process and sample_states:
+        unwrapped = accelerator.unwrap_model(policy)
+        save_samples(
+            unwrapped,
+            vae,
+            sample_states,
+            cfg,
+            device,
+            dtype,
+            samples_dir,
+            "step_000000",
+        )
 
     # ── Training loop ──
     global_step = 0
@@ -357,6 +380,20 @@ def train(cfg: DPOConfig):
                         unwrapped.save_pretrained(ckpt_dir)
                         logger.info("Saved checkpoint: %s", ckpt_dir)
 
+                if global_step % cfg.sample_interval == 0 and cfg.sample_interval > 0:
+                    if accelerator.is_main_process and sample_states:
+                        unwrapped = accelerator.unwrap_model(policy)
+                        save_samples(
+                            unwrapped,
+                            vae,
+                            sample_states,
+                            cfg,
+                            device,
+                            dtype,
+                            samples_dir,
+                            f"step_{global_step:06d}",
+                        )
+
     accelerator.end_training()
     progress_bar.close()
 
@@ -366,6 +403,17 @@ def train(cfg: DPOConfig):
         unwrapped = accelerator.unwrap_model(policy)
         unwrapped.save_pretrained(final_dir)
         logger.info("Training complete. Final checkpoint: %s", final_dir)
+        if sample_states:
+            save_samples(
+                unwrapped,
+                vae,
+                sample_states,
+                cfg,
+                device,
+                dtype,
+                samples_dir,
+                "step_final",
+            )
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────

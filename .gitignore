@@ -71,6 +71,7 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+
 # PyBuilder
 .pybuilder/
 target/
@@ -174,10 +175,29 @@ cython_debug/
 outputs/
 runs/
 
-# Large data files (prompts pushed to HuggingFace)
+# Large/generated data files
 data/prompts_llm.jsonl
 data/prompts_simple.jsonl
 data/prompts.jsonl
+data/backgrounds/
+data/synth_cyrillic/
+data/fonts/
+
+# Local thesis/presentation build artifacts
+docs/thesis/
+docs/presentation/node_modules/
+docs/presentation/*.aux
+docs/presentation/*.fdb_latexmk
+docs/presentation/*.fls
+docs/presentation/*.log
+docs/presentation/*.nav
+docs/presentation/*.out
+docs/presentation/*.snm
+docs/presentation/*.toc
+docs/presentation/*.pdf
+docs/presentation/*.pptx
+docs/presentation/pptx_pdf_export_v2/
+docs/presentation/presentation/
 
 # Model weights & tensors
 *.pt
@@ -250,3 +270,6 @@ Thumbs.db
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local defense presentation scratch/build workspace (kept outside final toolkit push)
+docs/presentation/

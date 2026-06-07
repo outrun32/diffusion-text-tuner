@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "name": "01_simple_mir",
+      "prompt": "A clean white poster with the exact Russian text 'МИР'.",
+      "target_text": "МИР",
+      "seed": 3101,
+      "resolution": 512
+    },
+    {
+      "name": "02_simple_yulya",
+      "prompt": "A clean white poster with the exact Russian text 'ЮЛЯ'.",
+      "target_text": "ЮЛЯ",
+      "seed": 3102,
+      "resolution": 512
+    },
+    {
+      "name": "03_hard_podezd",
+      "prompt": "A simple black-and-white typography poster with the exact Russian text 'ПОДЪЕЗД', bold sans-serif font.",
+      "target_text": "ПОДЪЕЗД",
+      "seed": 3103,
+      "resolution": 512
+    },
+    {
+      "name": "04_hard_shchuka",
+      "prompt": "A red brick wall with graffiti text 'ЩУКА' in bright yellow paint, urban style.",
+      "target_text": "ЩУКА",
+      "seed": 3104,
+      "resolution": 512
+    },
+    {
+      "name": "05_hard_semka",
+      "prompt": "A cozy cafe neon sign on a dark wall with the exact Russian text 'СЪЕМКА', teal glowing letters.",
+      "target_text": "СЪЕМКА",
+      "seed": 3105,
+      "resolution": 512
+    },
+    {
+      "name": "06_phrase_welcome",
+      "prompt": "A concert poster on a purple background with the exact Russian text 'ДОБРО ПОЖАЛОВАТЬ', centered bold text.",
+      "target_text": "ДОБРО ПОЖАЛОВАТЬ",
+      "seed": 3106,
+      "resolution": 512
+    }
+  ]
+}

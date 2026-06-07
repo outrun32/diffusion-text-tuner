@@ -42,6 +42,8 @@ class SFTConfig:
     max_grad_norm: float = 1.0
     warmup_steps: int = 100
     seed: int = 42
+    resume_lora_path: str | None = None
+    resume_step: int = 0
 
     # Flow-matching
     num_train_timesteps: int = 1000
@@ -53,11 +55,119 @@ class SFTConfig:
     # LoRA
     lora: LoraConfig = field(default_factory=LoraConfig)
 
+    # Sampling
+    sample_prompt: str = "Фотография уютного кафе с тёплым ламповым освещением. Текст 'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+    sample_target_text: str = "СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО"
+    sample_interval: int = 200          # generate sample every N steps (0 = disabled)
+    eval_suite_path: str | None = None
+    eval_suite_n_per_step: int = 0
+    num_inference_steps: int = 28
+
     # Logging & saving
     log_interval: int = 10
     save_interval: int = 200
     output_dir: str = "outputs/sft"
     experiment_name: str = "sft_v1"
+
+    # Hardware
+    gradient_checkpointing: bool = True
+    mixed_precision: str = "bf16"
+
+
+# ── Masked SFT config ───────────────────────────────────────────────────────
+
+
+@dataclass
+class MultiRankLoraConfig:
+    """Multi-group LoRA config: separate ranks for attention / FFN / joint-attn.
+
+    Used by the masked-SFT trainer. Module names below are matched as suffixes
+    against the FLUX.2 transformer parameter graph:
+        attn:       to_q, to_k, to_v, to_out.0
+        ffn:        ff/ff_context linear_in + linear_out (disabled by default)
+        joint_attn: add_q_proj, add_k_proj, add_v_proj
+    """
+
+    attn_r: int = 64
+    attn_alpha: int = 64
+    ffn_r: int = 0
+    ffn_alpha: int = 0
+    joint_attn_r: int = 16
+    joint_attn_alpha: int = 16
+    dropout: float = 0.0
+
+    attn_modules: list[str] = field(default_factory=lambda: [
+        "to_q", "to_k", "to_v", "to_out.0",
+    ])
+    ffn_modules: list[str] = field(default_factory=lambda: [
+        "ff.linear_in", "ff.linear_out", "ff_context.linear_in", "ff_context.linear_out",
+    ])
+    joint_attn_modules: list[str] = field(default_factory=lambda: [
+        "add_q_proj", "add_k_proj", "add_v_proj",
+    ])
+
+
+@dataclass
+class MaskedSFTConfig:
+    """Config for SFT with a region-weighted (text-mask) flow-matching loss.
+
+    Consumes a synthetic dataset laid out as:
+        {data_dir}/latents/{sample_id}.pt      # {"latent", "mask_lat"}
+        {data_dir}/text_embeds/{sample_id}.pt  # {"prompt_embeds"}
+    """
+
+    # Model
+    model_id: str = "black-forest-labs/FLUX.2-klein-base-4B"
+
+    # Data
+    data_dir: str = "data/synth_cyrillic/masked_sft"
+    val_n_samples: int = 200          # held-out tail of the dataset for val loss
+
+    # Training
+    num_training_steps: int = 5000
+    batch_size: int = 4
+    gradient_accumulation_steps: int = 2
+    lr: float = 2e-5
+    lr_min: float = 1e-6
+    lr_schedule: str = "cosine"        # "cosine" | "constant"
+    weight_decay: float = 0.0
+    max_grad_norm: float = 1.0
+    warmup_steps: int = 100
+    seed: int = 42
+    resume_lora_path: str | None = None
+    resume_step: int = 0
+
+    # Flow-matching
+    num_train_timesteps: int = 1000
+    shift: float = 3.0
+
+    # Loss: L = lam * L_masked + (1 - lam) * L_global
+    masked_lambda: float = 0.65
+
+    # Resolution (latent shape validation only; samples may be heterogeneous)
+    resolution: int = 512
+
+    # LoRA — multi-rank groups
+    lora: MultiRankLoraConfig = field(default_factory=MultiRankLoraConfig)
+
+    # Sampling (single legacy fixed prompt, kept for back-compat / smoke checks)
+    sample_prompt: str = "Фотография уютного кафе с тёплым ламповым освещением. Текст 'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+    sample_target_text: str = "СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО"
+    sample_interval: int = 0           # 0 = use eval_suite instead
+    num_inference_steps: int = 28
+
+    # Validation + multi-prompt eval suite
+    validation_interval: int = 250     # run val loss + eval suite every N steps
+    val_t_anchors: list[int] = field(default_factory=lambda: [100, 300, 500, 700, 900])
+    eval_suite_path: str | None = None  # JSON file: {"items": [{"prompt": ..., "bg": ...}, ...]}
+    eval_suite_n_per_step: int = 4      # how many items to sample per validation step
+
+    # Logging & saving
+    log_interval: int = 10
+    save_interval: int = 500
+    output_dir: str = "outputs/masked_sft"
+    experiment_name: str = "masked_sft_v1"
+    progress_bar_mininterval: float = 30.0
 
     # Hardware
     gradient_checkpointing: bool = True
@@ -106,6 +216,14 @@ class DPOConfig:
 
     # LoRA
     lora: LoraConfig = field(default_factory=LoraConfig)
+
+    # Sampling
+    sample_prompt: str = "Фотография уютного кафе с тёплым ламповым освещением. Текст 'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+    sample_target_text: str = "СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО"
+    sample_interval: int = 200
+    eval_suite_path: str | None = None
+    eval_suite_n_per_step: int = 0
+    num_inference_steps: int = 28
 
     # Logging & saving
     log_interval: int = 10

@@ -101,8 +101,8 @@ def _write_manifest(config: GenerationConfig, paths: GenerationPaths, num_prompt
 
 def run_generation(config: GenerationConfig) -> None:
     """Generate prompt variants, latents, text embeddings, images, and a manifest."""
+    import numpy as np
     import torch
-    import torchvision.transforms.functional as TF
     from diffusers import Flux2KleinPipeline
     from tqdm import tqdm
 
@@ -131,7 +131,19 @@ def run_generation(config: GenerationConfig) -> None:
 
     if config.lora_path:
         logger.info("Loading LoRA: %s", config.lora_path)
-        pipe.load_lora_weights(config.lora_path)
+        try:
+            pipe.load_lora_weights(config.lora_path)
+        except ValueError as exc:
+            logger.warning(
+                "Diffusers LoRA loading failed; trying PEFT adapter format: %s",
+                exc,
+            )
+            from peft import PeftModel
+
+            pipe.transformer = PeftModel.from_pretrained(
+                pipe.transformer,
+                config.lora_path,
+            ).to("cuda")
 
     vae = pipe.vae
 
@@ -198,7 +210,15 @@ def run_generation(config: GenerationConfig) -> None:
                 pil_image.save(image_path)
 
             if config.save_latents:
-                img_tensor = TF.to_tensor(pil_image).unsqueeze(0).to("cuda", dtype=torch.bfloat16)
+                img_array = np.asarray(pil_image.convert("RGB"), dtype="uint8")
+                img_tensor = (
+                    torch.from_numpy(img_array)
+                    .permute(2, 0, 1)
+                    .float()
+                    .unsqueeze(0)
+                    .div(255.0)
+                    .to("cuda", dtype=torch.bfloat16)
+                )
                 latent = encode_image(img_tensor, vae)
                 torch.save({"latent": latent[0].cpu()}, latent_path)
 

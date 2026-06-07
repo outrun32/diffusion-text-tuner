@@ -30,19 +30,27 @@ import torch
 import torch.nn.functional as F
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from peft import LoraConfig as PeftLoraConfig, get_peft_model
+from peft import (
+    LoraConfig as PeftLoraConfig,
+    get_peft_model,
+    load_peft_weights,
+    set_peft_model_state_dict,
+)
+from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .config import SFTConfig, LoraConfig
 from .dataset import SFTDataset, sft_collate_fn
 from .flux2_utils import (
+    decode_latents,
     pack_latents,
     prepare_latent_ids,
     prepare_text_ids,
     bn_normalize,
     patchify_latents,
 )
+from .refl_trainer import FlowMatchScheduler
 from src.runtime import config_io
 
 logger = logging.getLogger(__name__)
@@ -96,6 +104,176 @@ def load_transformer(model_id: str, lora_cfg: LoraConfig, device, dtype):
     return transformer, vae
 
 
+# ── Sampling ────────────────────────────────────────────────────────────────
+
+
+def _sample_items(cfg) -> list[dict]:
+    if cfg.sample_interval <= 0:
+        return []
+    if cfg.eval_suite_path:
+        suite_path = Path(cfg.eval_suite_path)
+        payload = json.loads(suite_path.read_text(encoding="utf-8"))
+        items = payload.get("items", [])
+        limit = cfg.eval_suite_n_per_step or len(items)
+        return items[:limit]
+    if not cfg.sample_prompt:
+        return []
+    return [
+        {
+            "name": "sample",
+            "prompt": cfg.sample_prompt,
+            "target_text": cfg.sample_target_text,
+            "seed": 0,
+            "resolution": cfg.resolution,
+        }
+    ]
+
+
+def setup_sample_states(cfg, device, dtype):
+    """Pre-encode sample prompts and prepare fixed noise for consistent sampling."""
+    items = _sample_items(cfg)
+    if not items:
+        return []
+
+    from .flux2_utils import precompute_text_embeddings
+    import tempfile, shutil
+
+    # Write a temp JSONL for precompute_text_embeddings
+    tmpdir = tempfile.mkdtemp()
+    try:
+        prompts_file = os.path.join(tmpdir, "prompts.jsonl")
+        with open(prompts_file, "w", encoding="utf-8") as f:
+            for index, item in enumerate(items):
+                json.dump(
+                    {
+                        "id": item.get("name", f"sample_{index:02d}"),
+                        "prompt": item["prompt"],
+                        "target_text": item.get("target_text", ""),
+                    },
+                    f,
+                    ensure_ascii=False,
+                )
+                f.write("\n")
+
+        embeds_dir = os.path.join(tmpdir, "embeds")
+        precompute_text_embeddings(
+            prompts_path=prompts_file,
+            output_dir=embeds_dir,
+            model_id=cfg.model_id,
+            device=str(device),
+        )
+        embed_data = [
+            torch.load(
+                os.path.join(embeds_dir, f"{index:06d}.pt"),
+                map_location=device,
+                weights_only=True,
+            )
+            for index in range(len(items))
+        ]
+    finally:
+        shutil.rmtree(tmpdir)
+
+    sample_states = []
+    for index, (item, embed) in enumerate(zip(items, embed_data, strict=True)):
+        prompt_embeds = embed["prompt_embeds"].unsqueeze(0).to(dtype)  # (1, L, D)
+        text_ids = prepare_text_ids(prompt_embeds).to(device)
+        resolution = int(item.get("resolution", cfg.resolution))
+        h = resolution // 8 // 2
+        w = h
+        fixed_noise = torch.randn(
+            (1, 128, h, w),
+            device=device,
+            dtype=dtype,
+            generator=torch.Generator(device).manual_seed(int(item.get("seed", index))),
+        )
+        sample_states.append(
+            {
+                "name": item.get("name", f"sample_{index:02d}"),
+                "prompt_embeds": prompt_embeds,
+                "text_ids": text_ids,
+                "fixed_noise": pack_latents(fixed_noise),
+                "latent_ids": prepare_latent_ids(fixed_noise).to(device),
+            }
+        )
+    return sample_states
+
+
+def setup_sample_state(cfg, device, dtype):
+    states = setup_sample_states(cfg, device, dtype)
+    return states[0] if states else None
+
+
+@torch.no_grad()
+def generate_sample(transformer, vae, sample_state, cfg, device, dtype):
+    """Run full denoising loop and decode to PIL image."""
+    if sample_state is None:
+        return None
+
+    transformer.eval()
+
+    scheduler = FlowMatchScheduler(num_train_timesteps=cfg.num_train_timesteps, shift=cfg.shift)
+    scheduler.set_timesteps(cfg.num_inference_steps, device=device)
+    scheduler.reset()
+
+    latents = sample_state["fixed_noise"].clone()
+    prompt_embeds = sample_state["prompt_embeds"]
+    text_ids = sample_state["text_ids"]
+    latent_ids = sample_state["latent_ids"]
+
+    for i in range(cfg.num_inference_steps):
+        ts = scheduler.timesteps[i]
+        ts_input = (ts / 1000).expand(1).to(dtype)
+        pred = transformer(
+            hidden_states=latents.to(transformer.dtype),
+            timestep=ts_input,
+            encoder_hidden_states=prompt_embeds,
+            txt_ids=text_ids,
+            img_ids=latent_ids,
+            return_dict=False,
+        )[0]
+        pred = pred[:, :latents.size(1)]
+        latents = scheduler.step(pred, latents)
+
+    latents = latents.to(vae.dtype)
+    images = decode_latents(latents, latent_ids, vae)
+    pil_img = Image.fromarray(
+        (images[0].cpu().clamp(0, 1) * 255).byte().permute(1, 2, 0).numpy()
+    )
+
+    transformer.train()
+    return pil_img
+
+
+def save_sample(transformer, vae, sample_state, cfg, device, dtype, samples_dir, step_name: str):
+    """Generate and save one fixed-noise sample if sampling is enabled."""
+    if sample_state is None or samples_dir is None:
+        return
+    pil_img = generate_sample(transformer, vae, sample_state, cfg, device, dtype)
+    if pil_img is None:
+        return
+    path = os.path.join(samples_dir, f"{step_name}.png")
+    pil_img.save(path)
+    logger.info("Saved sample: %s", path)
+
+
+def save_samples(transformer, vae, sample_states, cfg, device, dtype, samples_dir, step_name: str):
+    """Generate and save fixed-noise samples for one checkpoint step."""
+    if not sample_states or samples_dir is None:
+        return
+    if len(sample_states) == 1:
+        save_sample(transformer, vae, sample_states[0], cfg, device, dtype, samples_dir, step_name)
+        return
+    step_dir = os.path.join(samples_dir, step_name)
+    os.makedirs(step_dir, exist_ok=True)
+    for state in sample_states:
+        pil_img = generate_sample(transformer, vae, state, cfg, device, dtype)
+        if pil_img is None:
+            continue
+        path = os.path.join(step_dir, f"{state['name']}.png")
+        pil_img.save(path)
+        logger.info("Saved sample: %s", path)
+
+
 # ── Training ────────────────────────────────────────────────────────────────
 
 
@@ -117,6 +295,25 @@ def train(cfg: SFTConfig):
 
     # ── Load model ──
     transformer, vae = load_transformer(cfg.model_id, cfg.lora, device, dtype)
+    if cfg.resume_lora_path:
+        logger.info("Loading LoRA weights from checkpoint: %s", cfg.resume_lora_path)
+        peft_state = load_peft_weights(cfg.resume_lora_path, device="cpu")
+        set_peft_model_state_dict(transformer, peft_state, adapter_name="default")
+        if cfg.resume_step > 0:
+            logger.warning(
+                "Resuming weights from step %d without optimizer or dataloader state; "
+                "optimizer/scheduler will be re-initialized.",
+                cfg.resume_step,
+            )
+
+    # ── Setup sampling ──
+    sample_states = []
+    samples_dir = None
+    if accelerator.is_main_process and cfg.sample_interval > 0:
+        samples_dir = os.path.join(cfg.output_dir, "samples")
+        os.makedirs(samples_dir, exist_ok=True)
+        sample_states = setup_sample_states(cfg, device, dtype)
+        logger.info("Sampling enabled: every %d steps → %s", cfg.sample_interval, samples_dir)
 
     if cfg.gradient_checkpointing:
         base = transformer.get_base_model()
@@ -168,6 +365,19 @@ def train(cfg: SFTConfig):
     transformer, optimizer, dataloader, lr_scheduler = accelerator.prepare(
         transformer, optimizer, dataloader, lr_scheduler
     )
+
+    if accelerator.is_main_process and sample_states:
+        unwrapped = accelerator.unwrap_model(transformer)
+        save_samples(
+            unwrapped,
+            vae,
+            sample_states,
+            cfg,
+            device,
+            dtype,
+            samples_dir,
+            "step_000000",
+        )
 
     # ── Latent geometry ──
     vae_scale_factor = 8
@@ -285,7 +495,7 @@ def train(cfg: SFTConfig):
                         lr_scheduler.get_last_lr()[0],
                     )
 
-                # Checkpointing
+                # Checkpointing + sampling
                 if global_step % cfg.save_interval == 0:
                     ckpt_dir = os.path.join(cfg.output_dir, "checkpoints", f"step_{global_step:06d}")
                     accelerator.wait_for_everyone()
@@ -294,16 +504,41 @@ def train(cfg: SFTConfig):
                         unwrapped.save_pretrained(ckpt_dir)
                         logger.info("Saved checkpoint: %s", ckpt_dir)
 
+                if global_step % cfg.sample_interval == 0 and cfg.sample_interval > 0:
+                    if accelerator.is_main_process and sample_states:
+                        unwrapped = accelerator.unwrap_model(transformer)
+                        save_samples(
+                            unwrapped,
+                            vae,
+                            sample_states,
+                            cfg,
+                            device,
+                            dtype,
+                            samples_dir,
+                            f"step_{global_step:06d}",
+                        )
+
     accelerator.end_training()
     progress_bar.close()
 
-    # Final save
+    # Final save + sample
     final_dir = os.path.join(cfg.output_dir, "checkpoints", "final")
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         unwrapped = accelerator.unwrap_model(transformer)
         unwrapped.save_pretrained(final_dir)
         logger.info("Training complete. Final checkpoint: %s", final_dir)
+        if sample_states:
+            save_samples(
+                unwrapped,
+                vae,
+                sample_states,
+                cfg,
+                device,
+                dtype,
+                samples_dir,
+                "step_final",
+            )
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
