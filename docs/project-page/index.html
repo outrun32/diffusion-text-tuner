@@ -69,6 +69,34 @@
         </div>
       </section>
 
+      <section class="formulas">
+        <h2>Reward formulas</h2>
+        <p>
+          Candidates are ranked with a VLM judge, an OCR/CER reward, and a conservative product
+          reward. The product score is the selector used for the final demo checkpoint.
+        </p>
+        <div class="formula-list">
+          <div>
+            <h3>VLM yes-probability</h3>
+            <p class="equation">
+              R<sub>VLM</sub> = Σ<sub>y∈Y</sub>P(y) /
+              (Σ<sub>y∈Y</sub>P(y) + Σ<sub>n∈N</sub>P(n) + ε)
+            </p>
+            <p>Yes/no token sets include English and Russian variants.</p>
+          </div>
+          <div>
+            <h3>OCR character reward</h3>
+            <p class="equation">R<sub>OCR</sub> = max(0, 1 − CER) · exp(−λ&nbsp;H̄)</p>
+            <p>CER measures target-string mismatch; CTC entropy penalizes uncertain reads.</p>
+          </div>
+          <div>
+            <h3>Product reward</h3>
+            <p class="equation">R<sub>P</sub> = R<sub>VLM</sub> · R<sub>OCR</sub></p>
+            <p>High only when both the VLM judge and OCR evidence agree.</p>
+          </div>
+        </div>
+      </section>
+
       <section>
         <h2>Held-out benchmark</h2>
         <p>

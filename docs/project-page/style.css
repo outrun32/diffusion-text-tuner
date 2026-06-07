@@ -212,6 +212,28 @@ code {
   font-size: 0.9rem;
 }
 
+
+.formula-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 14px;
+}
+
+.formula-list > div {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 14px;
+  background: var(--soft);
+}
+
+.equation {
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.04rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 780px) {
   main {
     padding: 36px 18px 56px;
@@ -219,7 +241,8 @@ code {
 
   .two,
   .three,
-  .method-flow {
+  .method-flow,
+  .formula-list {
     grid-template-columns: 1fr;
   }
 }
