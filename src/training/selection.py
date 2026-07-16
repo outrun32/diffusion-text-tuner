@@ -67,6 +67,8 @@ def materialize_sft_samples(
             score_column=score_column,
             source_path=source_path,
             source_hash=source_hash,
+            threshold=threshold,
+            hard_negative_threshold=hard_negative_threshold,
             manifest_path=manifest_path,
             sample_weight=sample_weights.get((row.prompt_id, row.version)),
         )
@@ -148,6 +150,9 @@ def materialize_dpo_pairs(
             score_column=score_column,
             source_path=source_path,
             source_hash=source_hash,
+            threshold=threshold,
+            minimum_margin=margin,
+            ambiguity_margin=ambiguity_margin,
             manifest_path=manifest_path,
             pair_weight=pair_weights.get((pair.prompt_id, pair.winner.version, pair.loser.version)),
         )
@@ -304,10 +309,7 @@ def _sft_sample_weights(rows: list[_ScoreRow]) -> dict[tuple[str, int], float]:
     max_score = max(row.score for row in rows)
     if max_score <= 0:
         return {(row.prompt_id, row.version): 0.0 for row in rows}
-    return {
-        (row.prompt_id, row.version): round(row.score / max_score, 12)
-        for row in rows
-    }
+    return {(row.prompt_id, row.version): round(row.score / max_score, 12) for row in rows}
 
 
 def _sft_output_row(
@@ -317,6 +319,8 @@ def _sft_output_row(
     score_column: str,
     source_path: Path,
     source_hash: str,
+    threshold: float,
+    hard_negative_threshold: float,
     manifest_path: str | Path | None,
     sample_weight: float | None = None,
 ) -> dict[str, Any]:
@@ -331,6 +335,8 @@ def _sft_output_row(
         "selection_mode": mode,
         "source_scores_path": str(source_path),
         "source_scores_sha256": source_hash,
+        "threshold": threshold,
+        "hard_negative_threshold": (hard_negative_threshold if mode == "hard_positive" else None),
         "manifest_path": str(manifest_path) if manifest_path else None,
     }
     if sample_weight is not None:
@@ -484,10 +490,7 @@ def _dpo_pair_weights(pairs: list[_DpoPair]) -> dict[tuple[str, int, int], float
         return {}
     max_margin = max(pair.margin for pair in pairs)
     if max_margin <= 0:
-        return {
-            (pair.prompt_id, pair.winner.version, pair.loser.version): 0.0
-            for pair in pairs
-        }
+        return {(pair.prompt_id, pair.winner.version, pair.loser.version): 0.0 for pair in pairs}
     return {
         (pair.prompt_id, pair.winner.version, pair.loser.version): round(
             pair.margin / max_margin,
@@ -504,6 +507,9 @@ def _dpo_output_row(
     score_column: str,
     source_path: Path,
     source_hash: str,
+    threshold: float,
+    minimum_margin: float,
+    ambiguity_margin: float,
     manifest_path: str | Path | None,
     pair_weight: float | None = None,
 ) -> dict[str, Any]:
@@ -523,6 +529,9 @@ def _dpo_output_row(
         "pair_construction_mode": mode,
         "source_scores_path": str(source_path),
         "source_scores_sha256": source_hash,
+        "threshold": threshold,
+        "minimum_margin": minimum_margin,
+        "ambiguity_margin": ambiguity_margin,
         "manifest_path": str(manifest_path) if manifest_path else None,
     }
     if pair_weight is not None:

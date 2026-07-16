@@ -192,6 +192,42 @@ def test_unknown_and_missing_fields_raise_field_level_runtime_errors(tmp_path: P
     assert "latents_dir" in str(missing_error.value)
 
 
+def test_nonlegacy_selection_modes_require_materialized_artifacts(tmp_path: Path) -> None:
+    sft_payload = _sft_payload() | {"selection_mode": "top_k_per_prompt"}
+    dpo_payload = _dpo_payload() | {"pair_construction_mode": "margin_weighted"}
+
+    with pytest.raises(RuntimeConfigError, match="selected_samples_path"):
+        load_stage_config("sft", _write_json(tmp_path, "sft-no-selection.json", sft_payload))
+    with pytest.raises(RuntimeConfigError, match="preference_pairs_path"):
+        load_stage_config("dpo", _write_json(tmp_path, "dpo-no-pairs.json", dpo_payload))
+
+
+def test_weighted_mode_names_require_matching_weight_semantics(tmp_path: Path) -> None:
+    bad_sft = _sft_payload() | {"selection_mode": "score_weighted"}
+    bad_dpo = _dpo_payload() | {
+        "pair_construction_mode": "margin_weighted",
+        "preference_pairs_path": "outputs/generated/pairs.jsonl",
+    }
+
+    with pytest.raises(RuntimeConfigError, match="sample_weighting"):
+        load_stage_config("sft", _write_json(tmp_path, "sft-weight.json", bad_sft))
+    with pytest.raises(RuntimeConfigError, match="pair_weighting"):
+        load_stage_config("dpo", _write_json(tmp_path, "dpo-weight.json", bad_dpo))
+
+
+@pytest.mark.parametrize(
+    ("stage", "payload_factory"),
+    [("sft", _sft_payload), ("masked_sft", _masked_sft_payload)],
+)
+def test_resume_step_requires_resume_checkpoint(
+    tmp_path: Path, stage: str, payload_factory
+) -> None:
+    payload = payload_factory() | {"resume_step": 5, "resume_lora_path": None}
+
+    with pytest.raises(RuntimeConfigError, match="resume_lora_path"):
+        load_stage_config(stage, _write_json(tmp_path, f"{stage}-resume.json", payload))
+
+
 def test_malformed_json_raises_runtime_config_error_with_path(tmp_path: Path) -> None:
     path = tmp_path / "malformed.json"
     path.write_text('{"model_id": ', encoding="utf-8")
@@ -211,15 +247,12 @@ def test_validate_path_policy_allows_relative_runtime_roots(tmp_path: Path, allo
     config_path = tmp_path / "config.json"
 
     assert (
-        validate_path_policy(allowed, field_name="output_dir", config_path=config_path)
-        == allowed
+        validate_path_policy(allowed, field_name="output_dir", config_path=config_path) == allowed
     )
 
 
 @pytest.mark.parametrize("rejected", ["/home/user/private", "~/private", "../outside"])
-def test_validate_path_policy_rejects_unsafe_committed_paths(
-    tmp_path: Path, rejected: str
-) -> None:
+def test_validate_path_policy_rejects_unsafe_committed_paths(tmp_path: Path, rejected: str) -> None:
     config_path = tmp_path / "config.json"
 
     with pytest.raises(RuntimeConfigError) as exc_info:
@@ -233,12 +266,15 @@ def test_validate_path_policy_rejects_unsafe_committed_paths(
 def test_validate_path_policy_allows_explicit_environment_inputs(tmp_path: Path) -> None:
     config_path = tmp_path / "config.json"
 
-    assert validate_path_policy(
-        "~/private",
-        field_name="hf_cache_dir",
-        config_path=config_path,
-        allow_environment_input=True,
-    ) == "~/private"
+    assert (
+        validate_path_policy(
+            "~/private",
+            field_name="hf_cache_dir",
+            config_path=config_path,
+            allow_environment_input=True,
+        )
+        == "~/private"
+    )
 
 
 def test_path_policy_is_applied_during_stage_loading(tmp_path: Path) -> None:
@@ -292,7 +328,7 @@ def test_dpo_explicit_pair_fields_snapshot_for_manifest_provenance(tmp_path: Pat
 
 
 def test_invalid_explicit_mode_strings_are_secret_safe(tmp_path: Path) -> None:
-    secret_like_value = "score_weighted_sk-live-secret-token-123"
+    secret_like_value = "score_weighted_sk-live-secret-token-123"  # gitleaks:allow
     payload = _sft_payload() | {"selection_mode": secret_like_value}
     path = _write_json(tmp_path, "sft_bad_mode.json", payload)
 
@@ -328,9 +364,7 @@ def test_experiment_config_docs_guard_explicit_training_choice_fields() -> None:
     docs = {
         "sft": Path("configs/experiments/sft/README.md").read_text(encoding="utf-8"),
         "dpo": Path("configs/experiments/dpo/README.md").read_text(encoding="utf-8"),
-        "masked_sft": Path("configs/experiments/masked_sft/README.md").read_text(
-            encoding="utf-8"
-        ),
+        "masked_sft": Path("configs/experiments/masked_sft/README.md").read_text(encoding="utf-8"),
     }
 
     for field in [

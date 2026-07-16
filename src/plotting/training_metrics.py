@@ -179,10 +179,7 @@ def _print_summary(metrics: TrainingMetrics) -> None:
         f"Reward: start={summary['reward_start']:.4f}, end={summary['reward_end']:.4f}, "
         f"max={summary['reward_max']:.4f}, mean={summary['reward_mean']:.4f}"
     )
-    print(
-        f"Grad norm: mean={summary['grad_norm_mean']:.4f}, "
-        f"max={summary['grad_norm_max']:.4f}"
-    )
+    print(f"Grad norm: mean={summary['grad_norm_mean']:.4f}, max={summary['grad_norm_max']:.4f}")
     if len(rewards) >= 10:
         first_10 = np.mean(rewards[:10])
         last_10 = np.mean(rewards[-10:])

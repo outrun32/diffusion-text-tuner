@@ -13,7 +13,7 @@
   <body>
     <main>
       <section class="hero">
-        <h1>Reward-filtered self-training is the reliable route for Cyrillic text rendering</h1>
+        <h1>Historical runs favor reward-filtered self-training for Cyrillic text rendering</h1>
         <p class="subtitle">
           Adapting an open diffusion transformer to Russian/Cyrillic text rendering with generated
           candidates, automatic rewards, and LoRA fine-tuning.
@@ -27,7 +27,7 @@
             <span class="icon" aria-hidden="true">🤗</span>
             <span>Prompt dataset</span>
           </a>
-          <a class="button readme" href="../../README.md" aria-label="Toolkit README">
+          <a class="button readme" href="https://github.com/outrun32/diffusion-text-tuner#readme" aria-label="Toolkit README">
             <span class="icon" aria-hidden="true">↗</span>
             <span>README</span>
           </a>
@@ -40,18 +40,19 @@
           alt="Qualitative examples where product-score self-training improves Cyrillic rendering"
         />
         <p class="caption">
-          Product-score self-training improves readability on held-out Cyrillic prompts while preserving
-          image style. The reported evidence is limited to Cyrillic/Russian, not broad multilingual text.
+          Illustrative samples from the defense runs. The old evaluation set was later found to share
+          target strings with the prompt pool, so these images are qualitative history rather than
+          evidence from the new target-disjoint benchmark.
         </p>
       </section>
 
       <section>
         <h2>Main idea</h2>
         <p>
-          <strong>Reward-filtered generated-output self-training</strong> is the most reliable route in
-          this setup. The base model already produces occasional successful Cyrillic renderings; the
-          method turns those successes into supervised LoRA training data. DPO-style refinement is
-          stable, but more fragile under noisy and off-policy preference pairs.
+          Among the recorded defense runs, <strong>reward-filtered generated-output self-training</strong>
+          produced the lowest normalized CER. The base model already produced occasional successful
+          Cyrillic renderings; the method turned those successes into supervised LoRA training data.
+          DPO-style refinement produced mixed results under noisy and off-policy preference pairs.
         </p>
         <p>
           The practical constraint is simple: improve character-level control without full model
@@ -107,11 +108,17 @@
       </section>
 
       <section>
-        <h2>Held-out benchmark</h2>
+        <h2>Historical defense benchmark</h2>
         <p>
-          A 120-prompt diagnostic benchmark was used in the final analysis. Each model generated one
-          image per prompt under matched settings. Strict CER, homoglyph-normalized CER, exact match,
-          OCR score, VLM score, product score, and script-mixing diagnostics were reported separately.
+          The defense analysis used 120 prompts and one generated image per model and prompt. A later
+          audit found repeated and training-overlapping target strings in that set. The aggregate table
+          remains useful for documenting the defense result, but it is not a clean held-out estimate.
+        </p>
+        <p class="caption">
+          Evidence status: the values below are historical defense aggregates. The original per-sample
+          rows, run manifests, and checkpoint hashes are not present in the public repository. See the
+          <a href="https://github.com/outrun32/diffusion-text-tuner/tree/main/reports/final">public evidence bundle</a>
+          and the new target-disjoint benchmark before reusing these values.
         </p>
         <div class="table-wrap">
           <table>
@@ -158,10 +165,10 @@
           </table>
         </div>
         <p class="caption">
-          Product DPO improves exact/VLM/product metrics but has worse CER than Product SFT. The safest
-          qualitative demo checkpoint remains Product SFT.
+          Product DPO has higher normalized exact/VLM/product aggregates but worse CER than Product SFT.
+          Product SFT is the checkpoint used in the recorded defense demo.
         </p>
-        <img src="assets/heldout_cer.webp" alt="Held-out normalized CER bar chart" />
+        <img src="assets/heldout_cer.webp" alt="Historical defense normalized CER bar chart" />
       </section>
 
       <section class="grid two">
@@ -169,17 +176,20 @@
           <h2>DPO is mixed</h2>
           <img src="assets/dpo_tradeoff.webp" alt="DPO tradeoff chart comparing CER and exact match" />
           <p>
-            DPO is stable, but its pair data is off-policy: pairs are base-generated, while the policy is
-            initialized from SFT. This makes the preference signal less informative after self-training.
+            The DPO result is mixed, and its pair data is off-policy: pairs are base-generated, while the
+            policy is initialized from SFT. This can make the preference signal less informative after
+            self-training.
           </p>
         </div>
         <div>
           <h2>Product reward is biased</h2>
           <img src="assets/product_bias.webp" alt="Product reward selection bias chart" />
           <p>
-            Product filtering is high precision, but it selects shorter and easier examples. Median target
-            length drops from 15 to 8 characters, so product SFT is not proof that the product reward is
-            universally best.
+            The aggregate defense analysis suggested that Product filtering selected shorter and easier
+            examples: median target length changed from 15 to 8 characters. The source rows are missing,
+            so this remains an aggregate-only historical observation. The
+            <a href="https://github.com/outrun32/diffusion-text-tuner/blob/main/reports/final/historical_selection_bias.json">machine-readable transcription</a>
+            records that limitation alongside the number.
           </p>
         </div>
       </section>
@@ -196,17 +206,45 @@
 
       <section class="grid three takeaways">
         <div>
-          <h3>Reliable route</h3>
+          <h3>Recorded route</h3>
           <p>Base-generated candidates → automatic reward filtering → LoRA self-training.</p>
         </div>
         <div>
-          <h3>Best demo model</h3>
-          <p>Product-score SFT: strongest CER reduction and best qualitative balance.</p>
+          <h3>Recorded demo model</h3>
+          <p>Product-score SFT had the lowest CER among the surviving defense aggregates.</p>
         </div>
         <div>
           <h3>DPO outcome</h3>
-          <p>Stable but mixed under noisy/off-policy preferences; useful as a diagnostic stage.</p>
+          <p>Mixed under noisy and off-policy preferences; useful as a diagnostic stage.</p>
         </div>
+      </section>
+
+      <section>
+        <h2>Product question and next test</h2>
+        <p>
+          The intended users are ML teams adapting open image generators for names and short localized
+          copy in signs, packaging, and campaign layouts. The repository is a technical MVP for that
+          workflow; it does not yet claim production impact.
+        </p>
+        <div class="grid three takeaways">
+          <div>
+            <h3>Open text-control methods</h3>
+            <p>AnyText, TextDiffuser, and GlyphControl are relevant technical alternatives.</p>
+          </div>
+          <div>
+            <h3>Operational alternatives</h3>
+            <p>Closed generators and manual correction may be faster when openness is not required.</p>
+          </div>
+          <div>
+            <h3>Testable hypothesis</h3>
+            <p>Reward-filtered LoRA should reduce retries and manual fixes for repeated brand terms.</p>
+          </div>
+        </div>
+        <p>
+          A useful pilot would measure success@k, time and compute cost per accepted image, and the share
+          of outputs needing manual text correction on real templates. Those measurements are future
+          work, not reported outcomes.
+        </p>
       </section>
 
       <section class="citation">

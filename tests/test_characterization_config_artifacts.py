@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 import torch
 
-import src.runtime.artifacts as artifacts_module
 from src.runtime.artifacts import ArtifactValidationError, validate_artifacts
 from src.runtime.config_io import RuntimeConfigError, load_stage_config, resolve_config_snapshot
 from src.training.config import DPOConfig, MaskedSFTConfig, SFTConfig
@@ -64,7 +63,7 @@ def test_committed_training_configs_load_as_existing_dataclasses(
 
 def test_invalid_config_error_names_path_and_field_without_secret_value(tmp_path: Path) -> None:
     payload = _load_json(Path("configs/sft.json"))
-    secret_like_value = "../private/sk-live-secret-token-123"
+    secret_like_value = "../private/sk-live-secret-token-123"  # gitleaks:allow
     payload["resume_lora_path"] = secret_like_value
     config_path = _write_json(tmp_path, "invalid-secret-path.json", payload)
 
@@ -192,7 +191,7 @@ def test_tiny_masked_sft_tensor_layout_validates_with_weights_only_cpu_load(
         load_calls.append({"path": path, "kwargs": dict(kwargs)})
         return real_torch_load(path, *args, **kwargs)
 
-    monkeypatch.setattr(artifacts_module.torch, "load", spy_torch_load)
+    monkeypatch.setattr(torch, "load", spy_torch_load)
     data_dir = tmp_path / "data" / "synth_cyrillic" / "masked_sft"
     _torch_save(
         {"latent": torch.zeros(1, 2, 2), "mask_lat": torch.ones(2, 2)},

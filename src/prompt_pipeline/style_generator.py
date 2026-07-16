@@ -2,11 +2,10 @@
 
 import random
 
-from .config import FONTS, COLORS, EFFECTS, SIZES, STYLE_CONSTRAINTS
+from .config import COLORS, EFFECTS, FONTS, SIZES, STYLE_CONSTRAINTS
 
 
 class StyleGenerator:
-
     def __init__(self, seed: int = 42):
         self.rng = random.Random(seed)
 

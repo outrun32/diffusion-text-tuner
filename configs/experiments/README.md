@@ -1,13 +1,14 @@
 # Experiment Config Organization
 
-This directory is the stable home for new experiment variants. Existing root configs remain runnable compatibility entry points and must not be moved by normal experiment work:
+This directory is the stable home for experiment variants. The three root configs remain runnable
+compatibility entry points:
 
 - `configs/sft.json`
 - `configs/dpo.json`
 - `configs/masked_sft.json`
-- current root variants such as `configs/sft_vlm.json`, `configs/dpo_ocr.json`, and `configs/masked_sft_clean.json`
 
-Use root configs for backwards-compatible local and SLURM commands that are already documented. Add new research variants under the family directories here so config discovery, manifests, and preflight checks stay predictable.
+Use those root configs only with commands that already name them. Put new research variants under
+the family directories here so config discovery, manifests, and preflight checks stay predictable.
 
 ## Families
 
@@ -59,13 +60,15 @@ Every new family config should include or be convertible to manifest metadata wi
 - `seed` and any additional data split, sampling, prompt, or generation seeds.
 - Inputs: prompt JSONL, generated image roots, latent/text embedding directories, scores CSV, synthetic data roots, checkpoints, or evaluation suite paths.
 - Outputs: ignored `outputs/` or `runs/` paths for generated images, tensors, scores, checkpoints, logs, metrics, and reports.
-- Manifest expectations: create a run manifest with `python -m scripts.run_manifest init`, inspect it before launch, and pass `runs/<run_id>/manifest.json` to preflight/resume commands when available.
+- Manifest expectations: create a run manifest with `uv run python -m scripts.run_manifest init`,
+  inspect it before launch, and pass `runs/<run_id>/manifest.json` to preflight or resume commands.
 
 Root compatibility configs may not yet contain all metadata fields directly. For comparison-grade runs, capture the resolved root config snapshot in a manifest so missing compatibility fields can be tracked without breaking existing commands.
 
 ## Runtime Contract Expectations
 
 - Use relative repository paths accepted by `src.runtime.config_io` path policy; do not commit `/home/...`, `/Users/...`, `~/...`, or off-repo absolute paths.
-- Run `python -m scripts.preflight_runtime --stage ...` before long-running generation, scoring, training, synthesis, or evaluation work.
+- Run `uv run python -m scripts.preflight_runtime --stage ...` before long-running generation,
+  scoring, training, synthesis, or evaluation work.
 - Keep generated artifacts under ignored roots such as `outputs/`, `runs/`, and generated `data/` subtrees. Do not commit generated images, tensors, checkpoints, logs, or private output manifests.
 - Document any new artifact layout in `docs/runtime_contracts.md` before relying on it for thesis evidence.

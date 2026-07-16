@@ -1,267 +1,387 @@
-# Reward-filtered self-training for Cyrillic text rendering
+# Diffusion Text Tuner
 
-This repository contains the code for a bachelor-thesis study on adapting an open diffusion transformer to **Cyrillic/Russian text rendering** without full retraining.
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-**Main result:** in this setup, **reward-filtered generated-output self-training** is the most reliable adaptation route. DPO-style preference refinement trains stably and can improve some automatic scores, but it does not cleanly supersede product-score self-training.
+Reward-filtered alignment of FLUX.2 Klein for Russian and Cyrillic text rendering.
 
-The project uses **FLUX.2-klein-base-4B** with LoRA adapters. Generated image candidates are scored with a Qwen VLM reward, a PaddleOCR/CER reward, and their product. High-scoring candidates become self-training data; scored winner/loser variants become DPO-style preference pairs.
+[Project page](https://outrun32.github.io/diffusion-text-tuner/project-page/) ·
+[Prompt dataset](https://huggingface.co/datasets/Outrun32/cyrillic-prompts-15k) ·
+[Public evidence](reports/final/README.md)
 
-## Thesis claim in one sentence
+## Why this project exists
 
-> Reward-filtered generated-output self-training can substantially improve Cyrillic text rendering in an open diffusion transformer, while DPO-style refinement is more fragile under noisy and off-policy preference data.
+The work started with a client request: make an open-source image model generate supplied names and
+short phrases inside images. English was the first target, but the available open models could not
+render Russian text consistently. Even when the composition looked right, individual Cyrillic
+letters were substituted, mixed with Latin homoglyphs, or dropped.
 
-## What is in this repo
+Training a LoRA with ordinary image-similarity MSE was a poor fit for this failure mode. Public
+Russian text-image data was scarce, and learning nearly the whole Cyrillic alphabet from image
+reconstruction alone would require far more clean data. The project therefore treats text rendering
+as an alignment problem: generate several candidates, score the exact requested text, and train on
+the candidates that the reward can defend.
 
-The repository is a research codebase, not a packaged application. It includes:
+The resulting bachelor thesis studies three routes around FLUX.2 Klein Base 4B:
 
-- prompt generation for Cyrillic/multilingual text-rendering prompts;
-- FLUX candidate generation with saved images, latents, and text embeddings;
-- VLM/OCR/product reward scoring;
-- LoRA SFT/self-training and DPO-style training;
-- synthetic masked-SFT data tooling;
-- held-out benchmark and diagnostic report utilities;
-- final experiment configs used for the thesis runs.
+- reward-filtered generated-output self-training with LoRA;
+- DPO-style preference refinement over best/worst candidate pairs;
+- synthetic masked-SFT tooling for explicit text-region supervision.
 
-Large generated artifacts are intentionally **not** committed. Local training outputs, checkpoints, generated images, tensors, and benchmark runs live under ignored paths such as `outputs/`, `runs/`, and generated `data/` subtrees.
+## Main finding
 
-## Method overview
+For the reported Russian benchmark, Product SFT had the lowest strict and normalized CER among the
+three surviving aggregate rows. It reduced normalized character error rate from `0.859` to `0.126`.
+DPO improved exact-match and VLM/product scores, but its normalized CER (`0.168`) remained worse than
+Product SFT.
 
-```text
-Prompt set
-   │
-   ▼
-Base FLUX candidate generation
-   │  3 image variants per prompt in the final training pool
-   ▼
-Automatic scoring
-   │  VLM reward, OCR reward, product reward
-   ├───────────────► reward-filtered SFT / self-training
-   │                    imitate high-scoring generated samples
-   ▼
-Preference pairs
-   │  best-vs-worst scored variants per prompt
-   ▼
-DPO-style refinement
-      pairwise objective using flow-matching MSE as a surrogate
-```
+These are historical defense aggregates. The original per-sample score files, run manifests, and
+checkpoint hashes are not in this repository, so the table cannot be recomputed from the checkout.
+The exact status is recorded in [reports/final/README.md](reports/final/README.md).
 
-The self-training objective is standard flow-matching MSE on selected generated samples:
-
-```text
-L_SFT = || v_theta(x_sigma, t, c) - (epsilon - x_0) ||^2
-```
-
-The DPO-style objective uses a pairwise surrogate margin from winner/loser flow-matching MSE:
-
-```text
-L_DPO = - E log sigmoid(beta(t) * (Delta_w - Delta_l))
-Delta_i = - (L_theta(x_i, t) - L_ref(x_i, t))
-```
-
-This is **not canonical language-model DPO**. The preference margin is a diffusion flow-matching surrogate for relative fit.
-
-## Reward signals
-
-| Reward | Role | Notes |
-|---|---|---|
-| VLM | Qwen yes/no judge for exact target text presence | Can preserve scene-level quality, but may miss subtle character errors. |
-| OCR | PaddleOCR CER and CTC entropy | Makes character errors visible, but can fail on stylized text. |
-| Product | `VLM * OCR` in the final runs | High only when both evaluators agree; useful but biased toward easier samples. |
-
-For final analysis, strict CER, homoglyph-normalized CER, exact match, and script-mixing diagnostics are reported separately. This matters because Latin/Cyrillic homoglyph normalization can hide script-mixing if used as the only metric.
-
-## Final experiments
-
-Final SFT/self-training configs:
-
-```text
-configs/experiments/sft/sft_vlm_final.json
-configs/experiments/sft/sft_ocr_final.json
-configs/experiments/sft/sft_product_final.json
-```
-
-Final DPO configs:
-
-```text
-configs/experiments/dpo/dpo_vlm_final.json
-configs/experiments/dpo/dpo_ocr_final.json
-configs/experiments/dpo/dpo_product_final.json
-```
-
-Fixed qualitative sample suite:
-
-```text
-configs/experiments/evaluation/cyrillic_final_sample_suite.json
-```
-
-Prompts in that suite:
-
-```text
-МИР
-ЮЛЯ
-ПОДЪЕЗД
-ЩУКА
-СЪЕМКА
-ДОБРО ПОЖАЛОВАТЬ
-```
-
-## Final held-out benchmark summary
-
-A 120-prompt held-out diagnostic benchmark was used for the final defense analysis. Each model generated one image per prompt with matched settings.
-
-| Run | Strict CER ↓ | Homoglyph-normalized CER ↓ | Strict exact ↑ | Normalized exact ↑ | OCR score ↑ | VLM score ↑ | Product ↑ | Script-mix ↓ |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Run | Strict CER ↓ | Normalized CER ↓ | Strict exact ↑ | Normalized exact ↑ | OCR ↑ | VLM ↑ | Product ↑ | Script mix ↓ |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Base | 0.984 | 0.859 | 33.3% | 41.7% | 0.560 | 0.658 | 0.392 | 23.3% |
-| Product SFT | 0.238 | 0.126 | 40.8% | 50.0% | 0.635 | 0.681 | 0.444 | 16.7% |
-| Product DPO | 0.287 | 0.168 | 44.2% | 52.5% | 0.639 | 0.704 | 0.470 | 17.5% |
+| Product SFT | **0.238** | **0.126** | 40.8% | 50.0% | 0.635 | 0.681 | 0.444 | **16.7%** |
+| Product DPO | 0.287 | 0.168 | **44.2%** | **52.5%** | **0.639** | **0.704** | **0.470** | 17.5% |
 
-Interpretation:
+The interpretation is deliberately narrow. Product SFT is the recorded defense demo checkpoint with
+the lowest CER; this table does not establish that product filtering wins for every prompt
+distribution or language.
 
-- Product SFT gives the strongest CER improvement and is the safest demo checkpoint.
-- Product DPO improves some automatic exact/VLM/product scores, but its CER is worse than Product SFT.
-- DPO pairs are generated from base-model candidates while the DPO policy starts from an SFT checkpoint, so the preference data is off-policy relative to initialization.
+## Method
 
-## Product selection bias
-
-The product reward is useful as a selector, but it changes the training-data distribution.
-
-| Quantity | All candidates | Product-selected | Delta |
-|---|---:|---:|---:|
-| Mean target length | 14.551 | 10.536 | -4.015 |
-| Median target length | 15.000 | 8.000 | -7.000 |
-| Hard-glyph share | 93.9% | 88.2% | -5.7% |
-| Tier 1 share | 35.2% | 62.2% | +27.0% |
-| Tier 2 share | 45.1% | 37.6% | -7.6% |
-| Tier 3 share | 19.7% | 0.2% | -19.5% |
-
-So Product SFT is the best demonstration checkpoint here, but not proof that the product reward is universally best.
-
-## Setup
-
-Python 3.11 is expected.
-
-```bash
-# using uv
-uv sync --extra gpu --extra reward --extra plotting --extra test
-
-# or with conda/pip
-conda create -n diffusiontuner python=3.11 -y
-conda activate diffusiontuner
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install accelerate transformers diffusers peft bitsandbytes tqdm pillow paddleocr matplotlib pandas
+```text
+prompt dataset
+    ↓
+several base-model candidates per prompt
+    ↓
+VLM exact-text score + OCR CER/entropy score
+    ├── high product score ──→ LoRA self-training
+    └── best/worst pair ─────→ DPO-style refinement
 ```
 
-Some workflows need separate environment handling for PaddleOCR depending on CUDA/Paddle wheel availability.
+The SFT objective is standard flow-matching MSE on selected generated samples:
 
-## Core commands
+```text
+L_SFT = ||v_θ(x_σ, t, c) - (ε - x₀)||²
+```
 
-Generate prompt candidates:
+The DPO objective uses the difference between policy and frozen-reference flow-matching errors. It
+is a diffusion surrogate, not language-model DPO. Deterministic tests check its sign, margin, beta
+schedule, and gradient direction.
+
+## Reward definitions
+
+The historical Product reward is now named `thesis_vlm_ocr_product_v1`:
+
+```text
+R_product = R_VLM × R_OCR
+```
+
+`scripts.score_images --product_formula thesis` reproduces that definition. Files created with
+`--scorer vlm` use VLM as their primary `score`; OCR files use OCR; `--scorer both` uses the product.
+
+A later five-component geometric formula also exists for diagnostics. It mixes VLM, OCR, CER
+quality, entropy quality, and exact match. It must be selected explicitly with
+`--product_formula diagnostic` and must not be compared to the thesis Product column as if they were
+the same metric.
+
+## Platform support
+
+MLX is used for local text-prompt generation, not for FLUX diffusion training. The current
+repository has no MLX implementation of the FLUX transformer, VAE training path, SFT, DPO, or ReFL.
+MPS availability on a Mac does not change that boundary.
+
+| Workflow | Apple Silicon Mac | Linux + CUDA |
+| --- | --- | --- |
+| Tests, lint, manifests, dataset checks | Supported | Supported |
+| Algorithmic prompt generation | Supported | Supported |
+| LLM-assisted prompt generation | MLX (`mlx-lm`) | Transformers or vLLM |
+| Recorded-score analysis and plots | Supported | Supported |
+| PaddleOCR scoring | CPU, optional environment | CPU or GPU |
+| FLUX image generation / latent baking | Not supported | Supported |
+| SFT, DPO, masked-SFT, ReFL | Not supported | Supported |
+| PyTorch VLM reward | Not supported | CUDA only |
+
+Runtime preflight now fails early on a Mac instead of starting a CUDA-only stage and crashing during
+model loading.
+
+## Setup on Apple Silicon
+
+Python 3.11 is pinned by `.python-version` and `uv.lock`.
 
 ```bash
-python -m scripts.generate_images \
+brew install uv shellcheck gitleaks actionlint
+uv python install 3.11
+uv sync --frozen --group dev --extra lint --extra mlx --extra plotting --extra analysis
+make mac-check
+```
+
+Safe local commands:
+
+```bash
+# Generate a deterministic prompt sample without a model.
+uv run python -m src.prompt_pipeline.generate \
+  --config configs/prompts/simple.json \
+  --no-llm
+
+# Generate prompts with an MLX language model.
+uv run python -m src.prompt_pipeline.generate \
+  --n 100 \
+  --model mlx-community/Qwen3.5-4B-MLX-4bit \
+  --backend mlx \
+  --seed 42 \
+  --output runs/prompts/mlx-sample.jsonl
+
+# Validate all CPU-safe behavior.
+make check
+```
+
+The optional CPU quality image runs the same repository checks in Linux without claiming GPU
+support:
+
+```bash
+make container-check
+```
+
+This image is for lint, tests, manifests, and evidence verification. FLUX generation and training
+still require a separately provisioned Linux/CUDA host.
+
+The MLX backend uses `mlx_lm.sample_utils.make_sampler`; the seed is passed into MLX so prompt runs
+can be repeated with the same config.
+
+The optional vLLM prompt backend has its own Linux environment because its pinned PyTorch stack is
+incompatible with the trainer/reward extras. The exact command is documented in
+[docs/commands.md](docs/commands.md); it is not part of the Mac setup.
+
+## CUDA execution
+
+The following clean-run path requires a Linux/CUDA machine. Create the manifest and run preflight
+before long-running GPU/model work. The sequence downloads the immutable 15,000-row prompt source,
+generates and scores candidates, freezes the Product selection, and only then starts SFT. The shell
+variables retain the timestamped run-manifest paths printed by the manifest CLI.
+
+```bash
+uv sync --frozen --group dev --extra gpu --extra reward
+
+uv run python -m scripts.download_dataset \
+  --repo Outrun32/cyrillic-prompts-15k \
+  --revision ecd8b2da9820b35afc65e2d56eaf37a662c37976 \
+  --data-file data/train-00000-of-00001.parquet \
+  --output data/prompts_simple.jsonl \
+  --manifest runs/datasets/cyrillic-prompts-15k.manifest.json
+
+GENERATION_RUN_DIR="$(uv run python -m scripts.run_manifest init \
+  --stage generate \
+  --run-root runs/generation \
+  --command 'uv run python -m scripts.generate_images --prompts data/prompts_simple.jsonl --output_dir outputs/generated --model_id black-forest-labs/FLUX.2-klein-base-4B --model_revision a3b4f4849157f664bdbc776fd7453c2783562f4d --versions_per_prompt 3 --num_inference_steps 50 --guidance_scale 4.0 --resolution 512 --seed 42 --device cuda --manifest_path outputs/generated/manifest.json')"
+GENERATION_RUN_MANIFEST="${GENERATION_RUN_DIR}/manifest.json"
+
+uv run python -m scripts.preflight_runtime \
+  --stage generate \
+  --prompts data/prompts_simple.jsonl \
+  --output-dir outputs/generated \
+  --manifest "${GENERATION_RUN_MANIFEST}" \
+  --json
+
+uv run python -m scripts.generate_images \
   --prompts data/prompts_simple.jsonl \
   --output_dir outputs/generated \
   --model_id black-forest-labs/FLUX.2-klein-base-4B \
+  --model_revision a3b4f4849157f664bdbc776fd7453c2783562f4d \
   --versions_per_prompt 3 \
   --num_inference_steps 50 \
   --guidance_scale 4.0 \
-  --resolution 512
-```
+  --resolution 512 \
+  --seed 42 \
+  --device cuda \
+  --manifest_path outputs/generated/manifest.json \
+  --run_manifest_path "${GENERATION_RUN_MANIFEST}"
 
-Score generated candidates:
+SCORING_RUN_DIR="$(uv run python -m scripts.run_manifest init \
+  --stage score \
+  --run-root runs/scoring \
+  --command 'uv run python -m scripts.score_images --images_dir outputs/generated/images --text_embeds_dir outputs/generated/text_embeds --output_csv outputs/generated/scores_product.csv --scorer both --vlm_model_id Qwen/Qwen3.5-9B --vlm_model_revision c202236235762e1c871ad0ccb60c8ee5ba337b9a --ocr_device cpu --product_formula thesis --source_manifest outputs/generated/manifest.json')"
+SCORING_RUN_MANIFEST="${SCORING_RUN_DIR}/manifest.json"
 
-```bash
-python -m scripts.score_images \
+uv run python -m scripts.preflight_runtime \
+  --stage score \
+  --images-dir outputs/generated/images \
+  --text-embeds-dir outputs/generated/text_embeds \
+  --scores-csv outputs/generated/scores_product.csv \
+  --scorer both \
+  --ocr-device cpu \
+  --manifest "${SCORING_RUN_MANIFEST}" \
+  --json
+
+uv run python -m scripts.score_images \
   --images_dir outputs/generated/images \
   --text_embeds_dir outputs/generated/text_embeds \
-  --output_csv outputs/generated/scores.csv \
-  --scorer both
-```
+  --output_csv outputs/generated/scores_product.csv \
+  --scorer both \
+  --vlm_model_id Qwen/Qwen3.5-9B \
+  --vlm_model_revision c202236235762e1c871ad0ccb60c8ee5ba337b9a \
+  --ocr_device cpu \
+  --product_formula thesis \
+  --manifest_path "${SCORING_RUN_MANIFEST}" \
+  --source_manifest outputs/generated/manifest.json \
+  --source_manifest "${GENERATION_RUN_MANIFEST}" \
+  --source_manifest "${SCORING_RUN_MANIFEST}"
 
-Run reward-filtered self-training:
+uv run python -m scripts.materialize_training_data \
+  --kind sft \
+  --scores-csv outputs/generated/scores_product.csv \
+  --output outputs/generated/selected_samples.jsonl \
+  --manifest outputs/generated/selected_samples.manifest.json \
+  --mode threshold \
+  --score-column score \
+  --threshold 0.3
 
-```bash
-accelerate launch --config_file configs/accelerate/single_gpu.yaml \
+SFT_RUN_DIR="$(uv run python -m scripts.run_manifest init \
+  --stage sft \
+  --config configs/experiments/sft/sft_product_rerun_v2.json \
+  --run-root runs/sft \
+  --command 'uv run accelerate launch --config_file configs/accelerate/single_gpu.yaml -m src.training.sft_trainer --config configs/experiments/sft/sft_product_rerun_v2.json')"
+SFT_RUN_MANIFEST="${SFT_RUN_DIR}/manifest.json"
+
+uv run python -m scripts.preflight_runtime \
+  --stage sft \
+  --config configs/experiments/sft/sft_product_rerun_v2.json \
+  --manifest "${SFT_RUN_MANIFEST}" \
+  --json
+
+uv run accelerate launch --config_file configs/accelerate/single_gpu.yaml \
   -m src.training.sft_trainer \
-  --config configs/experiments/sft/sft_product_final.json
+  --config configs/experiments/sft/sft_product_rerun_v2.json
 ```
 
-Run DPO-style refinement:
+On a SLURM cluster, run `scripts/cluster/setup_env.sh` on the networked login node. It downloads the
+FLUX and Qwen snapshots at the revisions in `reports/final/current_model_sources.json`; the compute
+jobs run with Hugging Face offline mode enabled. SFT and DPO launchers accept an explicit
+`CONFIG_PATH`, and reject configs that omit `model_revision`.
+
+The scorer writes `scores_product.schema.json`, while materialization records the exact score-file
+hash in every selected row and in `selected_samples.manifest.json`. The SFT config rejects a
+selection whose hash, threshold, mode, or score column no longer matches. The DPO and masked-SFT
+trainers use the same preflight/manifest pattern; command variants are in
+[docs/commands.md](docs/commands.md) and [docs/runtime_contracts.md](docs/runtime_contracts.md).
+
+## Data and evaluation
+
+The public prompt dataset contains 15,000 rows. Its pinned revision and parquet hash are recorded in
+[prompt_dataset_source.manifest.json](reports/final/prompt_dataset_source.manifest.json).
+Current model commits for future reruns are recorded separately in
+[current_model_sources.json](reports/final/current_model_sources.json); the historical run revisions
+remain unknown.
+
+The old 120-prompt defense set contained duplicate and training-overlapping target strings. The new
+[benchmark_prompts_v2.jsonl](reports/final/benchmark_prompts_v2.jsonl) has:
+
+- 120 unique target strings;
+- six 20-prompt difficulty slices;
+- no exact target overlap with the pinned training prompt pool;
+- a committed SHA-256 and source manifest.
+
+It has no model scores yet. A valid comparison requires the original checkpoints or a new multi-seed
+CUDA run. Per-seed score files can be joined with `scripts.aggregate_heldout_scores`.
+
+The reported selection-length shift (`15 → 8` characters) is preserved separately in
+[historical_selection_bias.json](reports/final/historical_selection_bias.json). It is a transcription
+of an aggregate from the defense materials; the missing selection rows prevent recomputation.
+
+## CPU-safe quality gates
 
 ```bash
-accelerate launch --config_file configs/accelerate/single_gpu.yaml \
-  -m src.training.dpo_trainer \
-  --config configs/experiments/dpo/dpo_product_final.json
+make test
+make lint
+make format
+make characterization-test
+make compare-training-runs \
+  LEFT_MANIFEST=runs/baseline/manifest.json \
+  RIGHT_MANIFEST=runs/candidate/manifest.json
+make evidence-verify
+make security-current
+make dependency-audit
+make history-audit  # expected to fail until the old handoff export is removed from Git history
 ```
 
-Build final diagnostic reports from recorded score files:
+`compare-training-runs` has no meaningful zero-argument default: set both `LEFT_MANIFEST` and
+`RIGHT_MANIFEST` to the runs being compared. It checks whether those runs are controlled enough to
+interpret. The focused
+characterization suite covers config/artifact contracts, dataset selection, objective math, prompt
+determinism, and reward wrappers. GPU, model, OCR, integration, and manual diagnostics stay outside
+default pytest discovery.
 
-```bash
-python -m scripts.final_benchmark make-prompts \
-  --output runs/final_benchmark/prompts.jsonl \
-  --count-per-slice 20
+## Documentation map
 
-python -m scripts.final_benchmark product-bias \
-  --prompts data/prompts_simple.jsonl \
-  --scores outputs/generated/scores_product.csv \
-  --output-json runs/final_reports/product_bias.json
+- Runtime and experiment provenance: [docs/runtime_contracts.md](docs/runtime_contracts.md) and
+  [configs/README.md](configs/README.md).
+- Controlled run comparison: [docs/training_comparability.md](docs/training_comparability.md).
+- Prompt curriculum and data checks: [docs/data_curriculum.md](docs/data_curriculum.md),
+  [docs/dataset_quality.md](docs/dataset_quality.md),
+  [docs/synthetic_quality.md](docs/synthetic_quality.md),
+  [docs/data_selection.md](docs/data_selection.md), and
+  [docs/data_source_comparison.md](docs/data_source_comparison.md).
+- Reward and evaluation validity: [docs/reward_evaluation.md](docs/reward_evaluation.md),
+  [docs/evaluation_harness.md](docs/evaluation_harness.md),
+  [docs/evaluation_diagnostics.md](docs/evaluation_diagnostics.md), and
+  [docs/thesis_outputs.md](docs/thesis_outputs.md).
+- Repository boundaries and extension rules:
+  [docs/structure_and_extension.md](docs/structure_and_extension.md).
+- Supported wrappers and historical diagnostics: [scripts/README.md](scripts/README.md).
+Generated artifacts, including reports, images, tensors, contact sheets, selections, comparisons,
+checkpoints, logs, and
+private run manifests remain out of git under `outputs/`, `runs/`, or ignored generated `data/`
+subtrees. The reviewed files under `reports/final/`, `docs/project-page/assets/`, and `tests/fixtures/`
+are deliberate small exceptions.
 
-python -m scripts.final_benchmark dpo-provenance \
-  --prompts data/prompts_simple.jsonl \
-  --scores outputs/generated/scores_product.csv \
-  --reward-name product \
-  --winner-threshold 0.3 \
-  --output-json runs/final_reports/dpo_product_provenance.json
-```
-
-## Repository structure
+## Repository layout
 
 ```text
-configs/                 Experiment, accelerate, prompt, and final-run configs
-scripts/                 Thin CLI entry points and cluster helpers
-src/generation/          FLUX candidate generation pipeline
-src/scoring/             Batch reward-scoring pipeline
-src/training/            Dataset loaders, losses, SFT, DPO, masked-SFT trainers
-src/evaluation/          Reward contracts, diagnostics, benchmark reports
-src/prompt_pipeline/     Prompt/data generation components
-src/data_quality/        Prompt/synthetic quality and source-comparison helpers
-docs/                    Runtime, reward, evaluation, and command notes
-tests/                   Lightweight characterization tests
-experiments/             Small historical OCR/VLM experiments and fixtures
+configs/                 experiment, prompt, accelerator, and evaluation configs
+data/                    small source resources; generated datasets are ignored
+docs/                    method, runtime, evaluation, and project-page documentation
+experiments/             opt-in historical OCR/VLM probes, excluded from default tests
+reports/final/           public evidence with hashes and explicit evidence status
+scripts/                 supported CLI wrappers plus documented manual diagnostics
+src/                     importable generation, scoring, training, runtime, and evaluation code
+tests/                   CPU-safe default tests and tiny fixtures
 ```
 
-Ignored local artifact roots:
+## Personal contribution and AI tooling
 
-```text
-outputs/   generated images, latents, text embeddings, scores, checkpoints
-runs/      local benchmark/report outputs
-data/      large generated datasets and local backgrounds, except small source resources
-```
+This was an individual bachelor thesis. I was responsible for the problem statement, prompt/data
+pipeline, reward design, FLUX LoRA training paths, experiments, evaluation, failure analysis, and
+defense. AI coding agents were later used to inspect the repository, add tests, and clean up
+documentation and runtime contracts. I reviewed those changes; the reported experimental decisions
+and limitations remain my responsibility.
 
-## Dataset
-
-Prompt datasets used in development were also published on Hugging Face:
-
-```python
-from datasets import load_dataset
-
-ds = load_dataset("Outrun32/cyrillic-prompts-15k")
-```
+Some cleanup commits carry a machine-local `root` Git identity. They should not be read as a second
+human contributor.
 
 ## Limitations
 
-- Final evidence is Cyrillic/Russian only, even though the toolkit is multilingual-oriented.
-- Reward-filtered self-training can only amplify patterns that the base model can generate at least occasionally.
-- OCR and VLM rewards are useful but imperfect; neither is treated as ground truth.
-- DPO-style refinement is sensitive to noisy, weakly separated, and off-policy preference pairs.
-- Synthetic masked-SFT tooling exists, but the final reported result emphasizes generated-output self-training and DPO-style refinement.
+- The recorded evidence covers Russian/Cyrillic, not multilingual rendering in general.
+- Product filtering favors shorter and easier samples.
+- OCR and Qwen were used during selection and evaluation, so they are not independent judges.
+- The historical table has one generated image per prompt and no confidence intervals.
+- The public Product SFT/DPO checkpoints and raw benchmark rows are currently unavailable.
+- DPO pairs were generated by the base model while the policy started from SFT, creating an
+  off-policy preference set.
 
-## Bottom line
+## Citation
 
-The reliable route in this study is not full retraining and not DPO alone. It is:
-
-```text
-base-generated candidates → automatic reward filtering → LoRA self-training
+```bibtex
+@thesis{saparov2026cyrillic,
+  title  = {Developing a Diffusion-based Training Toolkit for Multilingual Text Rendering},
+  author = {Saparov, Iakov},
+  school = {Innopolis University},
+  year   = {2026}
+}
 ```
 
-For Cyrillic text rendering with FLUX.2 Klein, this route produced the clearest and most defensible improvement.
+## License
+
+Code and documentation in this repository are released under the
+[Apache License 2.0](LICENSE). Model weights and third-party datasets remain subject to their own
+upstream licenses and access terms.

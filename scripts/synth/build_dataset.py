@@ -3,9 +3,10 @@
 Usage:
     python -m scripts.synth.build_dataset \
         --num 25000 --workers 8 \
-        --template scripts/synth/synthtiger_template.py \
+        --template <synthtiger-template.py> \
         --template-name CyrillicScene \
-        --config configs/synth/cyrillic.yaml \
+        --config <synthtiger-config.yaml> \
+        --runner <synthtiger-runner.py> \
         --raw-dir data/synth_cyrillic/raw \
         --out-masked data/synth_cyrillic/masked_sft \
         --out-anyword data/synth_cyrillic/anyword_format \
@@ -56,16 +57,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--template",
         type=Path,
-        default=Path("scripts/synth/synthtiger_template.py"),
+        default=None,
+        help="Required SynthTIGER template path unless --skip-render is used.",
     )
     parser.add_argument("--template-name", type=str, default="CyrillicScene")
     parser.add_argument(
-        "--config", type=Path, default=Path("configs/synth/cyrillic.yaml")
+        "--config",
+        type=Path,
+        default=None,
+        help="Required SynthTIGER YAML path unless --skip-render is used.",
     )
     parser.add_argument(
         "--runner",
         type=Path,
-        default=Path("scripts/synth/run_synthtiger.py"),
+        default=None,
         help="wrapper that applies numpy/Pillow shims before invoking synthtiger",
     )
     parser.add_argument("--raw-dir", type=Path, default=Path("data/synth_cyrillic/raw"))
@@ -73,6 +78,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out-masked",
         type=Path,
         default=Path("data/synth_cyrillic/masked_sft"),
+    )
+    parser.add_argument(
+        "--clean-root",
+        type=Path,
+        default=Path("data/synth_cyrillic"),
+        help="Allowed parent for every path removed by --clean.",
     )
     parser.add_argument(
         "--out-anyword",
@@ -97,6 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         default="black-forest-labs/FLUX.2-klein-base-4B",
     )
+    parser.add_argument("--model-revision", type=str, default=None)
     parser.add_argument("--device", type=str, default="cuda")
     return parser
 
@@ -114,12 +126,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         raw_dir=args.raw_dir,
         out_masked=args.out_masked,
         out_anyword=args.out_anyword,
+        clean_root=args.clean_root,
         seed=args.seed,
         skip_render=args.skip_render,
         clean=args.clean,
         bake_latents=args.bake_latents,
         encode_text=args.encode_text,
         model_id=args.model_id,
+        model_revision=args.model_revision,
         device=args.device,
     )
     return build_dataset(config)

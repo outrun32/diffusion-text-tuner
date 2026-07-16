@@ -1,7 +1,7 @@
 # Data Curriculum and Prompt Generation Configs
 
-Phase 3 introduces explicit prompt-generation config files so prompt modes can be
-selected without editing Python constants or monkey-patching module globals.
+Explicit prompt-generation configs select prompt modes without editing Python constants or
+monkey-patching module globals.
 
 ## Config files
 
@@ -21,25 +21,25 @@ repository-relative and must stay under generated-artifact roots such as `data/`
 Generate a quick CPU-safe prompt sample without constructing an LLM client:
 
 ```bash
-python -m src.prompt_pipeline.generate --config configs/prompts/simple.json --no-llm
+uv run python -m src.prompt_pipeline.generate --config configs/prompts/simple.json --no-llm
 ```
 
 Generate the full distribution from the committed full config:
 
 ```bash
-python -m src.prompt_pipeline.generate --config configs/prompts/full.json
+uv run python -m src.prompt_pipeline.generate --config configs/prompts/full.json
 ```
 
 Generate the staged curriculum:
 
 ```bash
-python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json
+uv run python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json
 ```
 
 Legacy flag-only invocation remains supported for compatibility:
 
 ```bash
-python -m src.prompt_pipeline.generate --n 100 --no-llm --output data/prompts_test.jsonl
+uv run python -m src.prompt_pipeline.generate --n 100 --no-llm --output data/prompts_test.jsonl
 ```
 
 ## Stage provenance
@@ -58,6 +58,5 @@ plots to trace prompts back to explicit curriculum choices.
 
 The config files are source contracts and are committed. Generated prompt JSONL
 outputs can contain large prompt datasets and should remain under ignored runtime
-roots (`data/`, `outputs/`, or `runs/`) unless a future plan intentionally creates
-tiny fixtures. Do not commit generated prompt datasets from these commands by
-default.
+roots (`data/`, `outputs/`, or `runs/`). Commit only a tiny fixture that a test or a reviewed
+documentation example needs; do not commit full generated prompt datasets.

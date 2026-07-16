@@ -150,10 +150,7 @@ def test_phase3_runtime_artifact_validators_block_missing_or_wrong_schema(tmp_pa
         validate_artifacts(
             "selected_samples",
             {
-                "selected_samples": tmp_path
-                / "outputs"
-                / "generated"
-                / "missing.jsonl",
+                "selected_samples": tmp_path / "outputs" / "generated" / "missing.jsonl",
                 "require_ready": True,
             },
         )
@@ -178,20 +175,20 @@ def _read_repo_file(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-def test_phase3_command_docs_publish_data_quality_workflows() -> None:
+def test_command_docs_publish_data_quality_workflows() -> None:
     docs = _read_repo_file("docs/commands.md")
 
     required_strings = [
-        "## Phase 3 data curriculum and quality",
+        "## Data curriculum and quality",
         "configs/prompts/simple.json",
         "configs/prompts/full.json",
         "configs/prompts/curriculum.json",
-        "python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json",
-        "uv run python scripts/validate_prompt_dataset.py",
-        "uv run python scripts/inspect_synthetic_dataset.py",
-        "uv run python scripts/materialize_training_data.py --kind sft",
-        "uv run python scripts/materialize_training_data.py --kind dpo",
-        "uv run python scripts/compare_data_sources.py",
+        "uv run python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json",
+        "uv run python -m scripts.validate_prompt_dataset",
+        "uv run python -m scripts.inspect_synthetic_dataset",
+        "uv run python -m scripts.materialize_training_data --kind sft",
+        "uv run python -m scripts.materialize_training_data --kind dpo",
+        "uv run python -m scripts.compare_data_sources",
         "OCR/model-heavy checks are opt-in",
         "SLURM-compatible",
         "generated reports, images, tensors, contact sheets, selections, and comparisons",
@@ -231,8 +228,8 @@ def test_readme_links_phase3_data_quality_docs_and_artifact_safety() -> None:
         "docs/synthetic_quality.md",
         "docs/data_selection.md",
         "docs/data_source_comparison.md",
-        "Phase 3 data curriculum and quality",
-        "generated reports, images, tensors, contact sheets, selections, and comparisons",
+        "Prompt curriculum and data checks",
+        "Generated artifacts, including reports, images, tensors, contact sheets, selections",
         "remain out of git",
     ]
 
@@ -261,10 +258,10 @@ def test_runtime_contracts_document_phase3_artifact_matrix() -> None:
         "scripts/inspect_synthetic_dataset.py",
         "scripts/materialize_training_data.py",
         "scripts/compare_data_sources.py",
-        "validate_artifacts(\"dataset_manifest\"",
-        "validate_artifacts(\"prompt_quality_report\"",
-        "validate_artifacts(\"synthetic_quality_report\"",
-        "validate_artifacts(\"data_source_comparison\"",
+        'validate_artifacts("dataset_manifest"',
+        'validate_artifacts("prompt_quality_report"',
+        'validate_artifacts("synthetic_quality_report"',
+        'validate_artifacts("data_source_comparison"',
         "non-committable runtime output",
     ]
 

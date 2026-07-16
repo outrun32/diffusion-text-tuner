@@ -1,7 +1,9 @@
 """Test PaddleOCR with Cyrillic recognition model on bad_text.webp"""
+from pathlib import Path
+
 from paddleocr import PaddleOCR
 
-IMAGE_PATH = "/Users/udmurtpsycho/Dev/diffusion-text-tuner/bad_text.png"
+IMAGE_PATH = Path(__file__).resolve().parents[1] / "assets" / "bad_text.png"
 
 # Use the PaddleOCR v3 API with cyrillic recognition model
 ocr = PaddleOCR(
@@ -12,7 +14,7 @@ ocr = PaddleOCR(
     device="cpu",
 )
 
-result = ocr.predict(IMAGE_PATH)
+result = ocr.predict(str(IMAGE_PATH))
 
 print("=" * 60)
 print("PaddleOCR Results (cyrillic_PP-OCRv3_mobile_rec)")

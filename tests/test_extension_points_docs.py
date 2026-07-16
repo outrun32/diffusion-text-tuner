@@ -29,7 +29,7 @@ HEAVY_OPTIONAL_MODULES = frozenset(
         "transformers",
     }
 )
-PHASE7_STRUCTURE_COMMAND = "phase7-structure-tests"
+LEGACY_STRUCTURE_TARGET = "phase7-structure-tests"
 EXTENSION_CHECKLIST_STRINGS = (
     "config",
     "artifact/manifest contract",
@@ -61,6 +61,25 @@ def test_extension_registry_lists_all_supported_extension_points() -> None:
         assert entry.docs_path
         assert entry.test_target
         assert entry.generated_artifact_notes
+
+
+def test_extension_registry_config_homes_exist() -> None:
+    from src.toolkit.extension_points import list_extension_points
+
+    entries = {entry.name: entry for entry in list_extension_points()}
+    path_homes = {
+        "prompt generation": "configs/prompts/",
+        "image generation": "configs/experiments/evaluation/",
+        "scoring": "configs/experiments/reward/",
+        "synthesis": "configs/experiments/synthesis/",
+        "training": "configs/experiments/",
+        "evaluation": "configs/experiments/evaluation/",
+        "thesis outputs": "configs/experiments/evaluation/",
+    }
+
+    for name, expected_home in path_homes.items():
+        assert entries[name].config_home == expected_home
+        assert (ROOT / expected_home).is_dir()
 
 
 def test_get_extension_point_returns_scoring_and_rejects_unknown_names() -> None:
@@ -98,21 +117,18 @@ def test_registered_modules_import_without_new_heavy_optional_stacks() -> None:
     assert newly_imported_heavy == set()
 
 
-def test_phase7_structure_command_is_documented_everywhere() -> None:
-    docs_and_surfaces = {
-        "docs/structure_and_extension.md": _read_repo_file("docs/structure_and_extension.md"),
-        "docs/commands.md": _read_repo_file("docs/commands.md"),
-        "README.md": _read_repo_file("README.md"),
-        "Makefile": _read_repo_file("Makefile"),
-    }
+def test_public_structure_checks_do_not_advertise_legacy_alias() -> None:
+    guide = _read_repo_file("docs/structure_and_extension.md")
+    commands = _read_repo_file("docs/commands.md")
+    readme = _read_repo_file("README.md")
 
-    missing = [
-        path
-        for path, content in docs_and_surfaces.items()
-        if PHASE7_STRUCTURE_COMMAND not in content
-    ]
-
-    assert missing == []
+    assert "make check" in guide
+    assert "## Structure and extension checks" in commands
+    assert (
+        "uv run pytest tests/test_structure_extension_docs.py "
+        "tests/test_generation_pipeline_contracts.py"
+    ) in commands
+    assert all(LEGACY_STRUCTURE_TARGET not in content for content in (guide, commands, readme))
 
 
 def test_extension_checklist_names_required_future_pipeline_steps() -> None:
@@ -151,11 +167,11 @@ def test_structure_guide_mirrors_registry_entries() -> None:
     assert missing == []
 
 
-def test_makefile_phase7_alias_selects_cpu_safe_structure_tests() -> None:
+def test_makefile_legacy_structure_alias_selects_cpu_safe_tests() -> None:
     makefile = _read_repo_file("Makefile")
 
     assert ".PHONY:" in makefile
-    assert PHASE7_STRUCTURE_COMMAND in makefile
+    assert LEGACY_STRUCTURE_TARGET in makefile
     assert "uv run pytest" in makefile
     assert "tests/test_structure_extension_docs.py" in makefile
     assert "tests/test_generation_pipeline_contracts.py" in makefile

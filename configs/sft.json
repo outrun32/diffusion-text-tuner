@@ -1,5 +1,6 @@
 {
   "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+  "model_revision": "a3b4f4849157f664bdbc776fd7453c2783562f4d",
 
   "latents_dir": "outputs/generated/latents",
   "text_embeds_dir": "outputs/generated/text_embeds",

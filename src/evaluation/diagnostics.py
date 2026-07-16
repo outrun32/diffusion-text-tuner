@@ -422,9 +422,9 @@ def _maybe_write_contact_sheet(
             "entries": [],
         }
 
-    selected_rows = [
-        ("false_positive", row) for row in false_positives
-    ] + [("false_negative", row) for row in false_negatives]
+    selected_rows = [("false_positive", row) for row in false_positives] + [
+        ("false_negative", row) for row in false_negatives
+    ]
     bounded_rows = selected_rows[: max(0, int(contact_sheet_limit))]
     entries = [
         {
@@ -453,9 +453,9 @@ def _write_contact_sheet_image(entries: Sequence[Mapping[str, str]], output_path
     thumb_height = 72
     caption_height = 24
     if not entries:
-        Image.new(
-            "RGB", (thumb_width, thumb_height + caption_height), color="white"
-        ).save(output_path)
+        Image.new("RGB", (thumb_width, thumb_height + caption_height), color="white").save(
+            output_path
+        )
         return
     sheet = Image.new("RGB", (thumb_width * len(entries), thumb_height + caption_height), "white")
     draw = ImageDraw.Draw(sheet)
@@ -513,9 +513,7 @@ def _format_contact_sheet_lines(contact_sheet: Mapping[str, Any]) -> list[str]:
         f"- entry_count: `{contact_sheet.get('entry_count', 0)}`",
     ]
     for entry in contact_sheet.get("entries", []):
-        lines.append(
-            "- `{sample_id}` {kind}: `{source_path}` — {caption}".format(**entry)
-        )
+        lines.append("- `{sample_id}` {kind}: `{source_path}` — {caption}".format(**entry))
     return lines
 
 

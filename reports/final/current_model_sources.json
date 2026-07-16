@@ -1,0 +1,15 @@
+{
+  "schema_version": "model-source-reference/v1",
+  "checked_on": "2026-07-15",
+  "purpose": "Pinned references for future reruns; historical thesis run revisions remain unknown",
+  "models": {
+    "base_diffusion": {
+      "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
+      "revision": "a3b4f4849157f664bdbc776fd7453c2783562f4d"
+    },
+    "vlm_reward": {
+      "model_id": "Qwen/Qwen3.5-9B",
+      "revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+    }
+  }
+}

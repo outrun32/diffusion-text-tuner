@@ -10,7 +10,7 @@ The CLI is intentionally `materialize-only`: it validates config/report
 contracts and writes JSON/Markdown plans, but it does not run FLUX, Qwen, PaddleOCR, CUDA, or model weights. Generation and scoring remain explicit local
 or SLURM jobs that researchers launch after reviewing the materialized plan.
 
-Related Phase 6 guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
+Related guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
 [`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md),
 [`docs/thesis_outputs.md`](thesis_outputs.md), and the command catalog in
 [`docs/commands.md`](commands.md).
@@ -25,12 +25,16 @@ Use schema `heldout-evaluation-config/v1` for JSON configs:
   "fixed_prompts_path": "data/evaluation/heldout_prompts.jsonl",
   "fixed_seeds": [101, 202, 303],
   "inference_settings": {
-    "model": "black-forest-labs/FLUX.2-klein-4B",
+    "model": "black-forest-labs/FLUX.2-klein-base-4B",
+    "model_revision": "a3b4f4849157f664bdbc776fd7453c2783562f4d",
+    "vlm_model": "Qwen/Qwen3.5-9B",
+    "vlm_model_revision": "c202236235762e1c871ad0ccb60c8ee5ba337b9a",
     "height": 1024,
     "width": 1024,
     "num_inference_steps": 4,
     "guidance_scale": 1.0,
-    "scorer": "both"
+    "scorer": "both",
+    "ocr_device": "cpu"
   },
   "output_root": "runs/evaluation/heldout-001",
   "targets": [
@@ -58,26 +62,26 @@ Required fields:
 
 - `fixed_prompts_path`: JSONL file with stable held-out prompts. Each row must
   contain `prompt` and `target_text`.
-- `fixed_seeds`: non-empty integer seed list shared by every target.
-- `inference_settings`: fixed settings for model ID, resolution, steps,
-  guidance, and optional scoring mode. These settings are copied into the
+- `fixed_seeds`: non-empty, unique list of non-negative integer seeds shared by every target.
+- `inference_settings`: fixed diffusion/VLM model IDs and immutable 40-character commit revisions, resolution, steps,
+  guidance, scorer, and OCR device. These settings are copied into the
   `heldout-evaluation-plan/v1` report so later comparisons can prove they used
   the same controls.
 - `output_root`: writable runtime root for held-out outputs. Traversal (`..`) and
   home expansion (`~`) are rejected for writable paths.
 - `targets`: at least one `baseline` target with `lora_checkpoint_path: null`
   plus at least one trained target with a `lora_checkpoint_path`.
-- `source_run_manifest_path`: manifest link for each target. This ties the
-  comparison target to its Phase 5 training/generation provenance.
+- `source_run_manifest_path`: strict `run-manifest/v1` link for each target. Its snapshot file and
+  declared byte-level SHA-256 must validate before a plan can be materialized.
 - `generation_output_path` and `score_output_path`: planned runtime artifact
   paths under `output_root`.
 - `notes`: optional per-target context for thesis review.
 
-## Materialize a local plan
+## Materialize a local evaluation specification
 
 ```bash
-python -m scripts.run_heldout_evaluation \
-  --config configs/experiments/evaluation/heldout_product_vs_baseline.json \
+uv run python -m scripts.run_heldout_evaluation \
+  --config <heldout-config.json> \
   --output-plan runs/evaluation/heldout-001/plan.json \
   --markdown-summary runs/evaluation/heldout-001/plan.md
 ```
@@ -89,8 +93,11 @@ The JSON report uses schema `heldout-evaluation-plan/v1` and includes:
 - One entry per `EvaluationTarget`, including `lora_checkpoint_path`,
   `source_run_manifest_path`, `generation_output_path`, `score_output_path`, and
   `notes`.
-- `planned_generation_commands` for every target/seed pair.
-- `planned_scoring_commands` for every target.
+- `planned_generation_commands` for every target/seed pair, each writing a seed-specific
+  `generation.manifest.json` linked to the target's source training manifest.
+- `planned_scoring_commands` for every target/seed pair, linked to both the source training
+  manifest and the seed-specific generation manifest.
+- `planned_aggregation_commands` for deterministic per-target multi-seed CSVs.
 - `manifest_links` summarizing all source run manifests.
 
 Every planned command has `status: planned-not-run`. The harness only writes the
@@ -102,8 +109,8 @@ Materialize the same plan on a login node or local CPU environment, then submit
 the reviewed planned commands through your cluster wrapper:
 
 ```bash
-python -m scripts.run_heldout_evaluation \
-  --config configs/experiments/evaluation/heldout_product_vs_baseline.json \
+uv run python -m scripts.run_heldout_evaluation \
+  --config <heldout-config.json> \
   --output-plan runs/evaluation/heldout-001/plan.json \
   --markdown-summary runs/evaluation/heldout-001/plan.md
 
@@ -114,10 +121,10 @@ sbatch --job-name=heldout-score --wrap="<planned scoring command from plan.json>
 The default automated tests cover only JSON fixtures and temporary directories;
 they do not make GPU/model/OCR work part of test discovery.
 
-## Comparison prerequisites from Phase 5
+## Comparison prerequisites
 
-Before trusting a held-out comparison, Phase 5 comparability evidence should be
-available for the baseline and trained targets:
+Before trusting a held-out comparison, record comparability evidence for the baseline and trained
+targets:
 
 1. Source `manifest.json` files exist for every comparison target.
 2. Training and generation manifests record controlled prompts, seeds, inference

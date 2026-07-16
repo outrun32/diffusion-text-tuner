@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _write_raw_metadata_fixture(raw_dir: Path) -> None:
     (raw_dir / "meta").mkdir(parents=True, exist_ok=True)
@@ -26,9 +28,7 @@ def _write_raw_metadata_fixture(raw_dir: Path) -> None:
             {
                 "resolution": 768,
                 "bg_path": "backgrounds/bg-1.png",
-                "annotations": [
-                    {"text": "Ёж", "bbox": [1, 2, 30, 20], "font": "Serif"}
-                ],
+                "annotations": [{"text": "Ёж", "bbox": [1, 2, 30, 20], "font": "Serif"}],
                 "label": "Render Ёж on a poster",
                 "caption_anyword": "A poster with *Ёж*",
             },
@@ -73,9 +73,7 @@ def _records() -> list[dict]:
             "id": "sample-1",
             "resolution": 768,
             "bg": "backgrounds/bg-1.png",
-            "annotations": [
-                {"text": "Ёж", "bbox": [1, 2, 30, 20], "font": "Serif"}
-            ],
+            "annotations": [{"text": "Ёж", "bbox": [1, 2, 30, 20], "font": "Serif"}],
             "caption_human": "Render Ёж on a poster",
             "caption_anyword": "A poster with *Ёж*",
         },
@@ -135,24 +133,18 @@ def test_index_writers_preserve_masked_sft_and_anyword_schemas(tmp_path: Path) -
     with (out_masked / "index.csv").open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     prompt_rows = [
-        json.loads(line)
-        for line in prompts_path.read_text(encoding="utf-8").splitlines()
-        if line
+        json.loads(line) for line in prompts_path.read_text(encoding="utf-8").splitlines() if line
     ]
     anyword = json.loads((out_anyword / "data.json").read_text(encoding="utf-8"))
 
-    assert (
-        out_masked / "raw_imgs" / "sample-1.png"
-    ).read_text(encoding="utf-8") == "image-sample-1"
-    assert (
-        out_masked / "raw_masks" / "sample-2.png"
-    ).read_text(encoding="utf-8") == "mask-sample-2"
-    assert (
-        out_anyword / "imgs" / "sample-1.png"
-    ).read_text(encoding="utf-8") == "image-sample-1"
-    assert (
-        out_anyword / "masks" / "sample-2.png"
-    ).read_text(encoding="utf-8") == "mask-sample-2"
+    assert (out_masked / "raw_imgs" / "sample-1.png").read_text(
+        encoding="utf-8"
+    ) == "image-sample-1"
+    assert (out_masked / "raw_masks" / "sample-2.png").read_text(
+        encoding="utf-8"
+    ) == "mask-sample-2"
+    assert (out_anyword / "imgs" / "sample-1.png").read_text(encoding="utf-8") == "image-sample-1"
+    assert (out_anyword / "masks" / "sample-2.png").read_text(encoding="utf-8") == "mask-sample-2"
     assert prompts_path == out_masked / "prompts.jsonl"
     assert rows == [
         {
@@ -204,19 +196,21 @@ def test_synthesis_build_config_preserves_cli_defaults() -> None:
 
     assert config.num == 25_000
     assert config.workers == 8
-    assert config.template == Path("scripts/synth/synthtiger_template.py")
+    assert config.template is None
     assert config.template_name == "CyrillicScene"
-    assert config.config == Path("configs/synth/cyrillic.yaml")
-    assert config.runner == Path("scripts/synth/run_synthtiger.py")
+    assert config.config is None
+    assert config.runner is None
     assert config.raw_dir == Path("data/synth_cyrillic/raw")
     assert config.out_masked == Path("data/synth_cyrillic/masked_sft")
     assert config.out_anyword == Path("data/synth_cyrillic/anyword_format")
+    assert config.clean_root == Path("data/synth_cyrillic")
     assert config.seed == 0
     assert config.skip_render is False
     assert config.clean is False
     assert config.bake_latents is False
     assert config.encode_text is False
     assert config.model_id == "black-forest-labs/FLUX.2-klein-base-4B"
+    assert config.model_revision is None
     assert config.device == "cuda"
 
 
@@ -250,9 +244,7 @@ def test_build_dataset_runs_phases_in_order_and_honors_gates(
     prompts_path = tmp_path / "masked" / "prompts.jsonl"
 
     def fake_render_phase(**kwargs) -> None:
-        phase_calls.append(
-            f"render:{kwargs['num']}:{kwargs['workers']}:{kwargs['template_name']}"
-        )
+        phase_calls.append(f"render:{kwargs['num']}:{kwargs['workers']}:{kwargs['template_name']}")
 
     def fake_collate_records(raw_dir: Path) -> list[dict]:
         phase_calls.append(f"collate:{raw_dir.name}")
@@ -262,9 +254,7 @@ def test_build_dataset_runs_phases_in_order_and_honors_gates(
         records: list[dict], raw_dir: Path, out_masked: Path, out_anyword: Path
     ) -> None:
         assert records == expected_records
-        phase_calls.append(
-            f"fan_out:{raw_dir.name}:{out_masked.name}:{out_anyword.name}"
-        )
+        phase_calls.append(f"fan_out:{raw_dir.name}:{out_masked.name}:{out_anyword.name}")
 
     def fake_write_anyword_json(records: list[dict], out_anyword: Path) -> None:
         assert records == expected_records
@@ -276,16 +266,24 @@ def test_build_dataset_runs_phases_in_order_and_honors_gates(
         return prompts_path
 
     def fake_bake_latents_phase(
-        records: list[dict], out_masked: Path, model_id: str, device: str
+        records: list[dict],
+        out_masked: Path,
+        model_id: str,
+        model_revision: str | None,
+        device: str,
     ) -> None:
         assert records == expected_records
-        phase_calls.append(f"bake:{out_masked.name}:{model_id}:{device}")
+        phase_calls.append(f"bake:{out_masked.name}:{model_id}:{model_revision}:{device}")
 
     def fake_encode_text_phase(
-        received_prompts_path: Path, out_masked: Path, model_id: str, device: str
+        received_prompts_path: Path,
+        out_masked: Path,
+        model_id: str,
+        model_revision: str | None,
+        device: str,
     ) -> None:
         assert received_prompts_path == prompts_path
-        phase_calls.append(f"encode:{out_masked.name}:{model_id}:{device}")
+        phase_calls.append(f"encode:{out_masked.name}:{model_id}:{model_revision}:{device}")
 
     monkeypatch.setattr(builder, "render_phase", fake_render_phase)
     monkeypatch.setattr(builder, "collate_records", fake_collate_records)
@@ -294,11 +292,18 @@ def test_build_dataset_runs_phases_in_order_and_honors_gates(
     monkeypatch.setattr(builder, "write_masked_index", fake_write_masked_index)
     monkeypatch.setattr(builder, "bake_latents_phase", fake_bake_latents_phase)
     monkeypatch.setattr(builder, "encode_text_phase", fake_encode_text_phase)
+    monkeypatch.setattr(builder, "_require_cuda_model_stage", lambda _config: None)
+
+    for path in (tmp_path / "template.py", tmp_path / "config.yaml", tmp_path / "runner.py"):
+        path.write_text("fixture", encoding="utf-8")
 
     exit_code = builder.build_dataset(
         builder.SynthesisBuildConfig(
             num=3,
             workers=2,
+            template=tmp_path / "template.py",
+            config=tmp_path / "config.yaml",
+            runner=tmp_path / "runner.py",
             template_name="CyrillicScene",
             raw_dir=tmp_path / "raw",
             out_masked=tmp_path / "masked",
@@ -323,14 +328,14 @@ def test_build_dataset_runs_phases_in_order_and_honors_gates(
         builder.SynthesisBuildConfig(
             num=3,
             skip_render=True,
-            clean=True,
             bake_latents=True,
             encode_text=True,
             raw_dir=preserved.parent,
             out_masked=tmp_path / "masked-gpu",
             out_anyword=tmp_path / "anyword-gpu",
             model_id="test-model",
-            device="cpu",
+            model_revision="test-revision",
+            device="cuda",
         )
     )
 
@@ -341,8 +346,8 @@ def test_build_dataset_runs_phases_in_order_and_honors_gates(
         "fan_out:reuse_raw:masked-gpu:anyword-gpu",
         "anyword:anyword-gpu",
         "masked:masked-gpu",
-        "bake:masked-gpu:test-model:cpu",
-        "encode:masked-gpu:test-model:cpu",
+        "bake:masked-gpu:test-model:test-revision:cuda",
+        "encode:masked-gpu:test-model:test-revision:cuda",
     ]
 
 
@@ -351,6 +356,82 @@ def test_gpu_model_phases_are_exposed_but_lazy_loaded() -> None:
 
     assert callable(bake_latents_phase)
     assert callable(encode_text_phase)
+
+
+def test_render_requires_explicit_existing_synthtiger_files(tmp_path: Path) -> None:
+    from src.synthesis.dataset_builder import SynthesisBuildConfig, build_dataset
+
+    with pytest.raises(FileNotFoundError, match="template, config, runner"):
+        build_dataset(
+            SynthesisBuildConfig(
+                num=1,
+                raw_dir=tmp_path / "raw",
+                out_masked=tmp_path / "masked",
+                out_anyword=tmp_path / "anyword",
+            )
+        )
+
+
+def test_clean_rejects_skip_render_and_paths_outside_allowed_root(tmp_path: Path) -> None:
+    from src.synthesis.dataset_builder import SynthesisBuildConfig, build_dataset
+
+    with pytest.raises(ValueError, match="cannot be combined"):
+        build_dataset(
+            SynthesisBuildConfig(
+                num=1,
+                skip_render=True,
+                clean=True,
+                raw_dir=tmp_path / "raw",
+                out_masked=tmp_path / "masked",
+                out_anyword=tmp_path / "anyword",
+                clean_root=tmp_path,
+            )
+        )
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    allowed = tmp_path / "allowed"
+    render_inputs = []
+    for name in ("template.py", "config.yaml", "runner.py"):
+        path = tmp_path / name
+        path.write_text("fixture", encoding="utf-8")
+        render_inputs.append(path)
+    with pytest.raises(ValueError, match="must stay under"):
+        build_dataset(
+            SynthesisBuildConfig(
+                num=1,
+                clean=True,
+                template=render_inputs[0],
+                config=render_inputs[1],
+                runner=render_inputs[2],
+                raw_dir=outside,
+                out_masked=allowed / "masked",
+                out_anyword=allowed / "anyword",
+                clean_root=allowed,
+            )
+        )
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
+def test_synthetic_sample_ids_cannot_escape_output_roots(tmp_path: Path) -> None:
+    from src.synthesis.dataset_builder import collate_records
+
+    raw = tmp_path / "raw"
+    (raw / "meta").mkdir(parents=True)
+    (raw / "index.jsonl").write_text('{"id":"../escape"}\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unsafe synthetic sample id"):
+        collate_records(raw)
+
+
+def test_synthetic_ids_reject_casefold_collisions(tmp_path: Path) -> None:
+    from src.synthesis.dataset_builder import fan_out
+
+    records = [{"id": "Sample"}, {"id": "sample"}]
+    with pytest.raises(ValueError, match="case-insensitive"):
+        fan_out(records, tmp_path / "raw", tmp_path / "masked", tmp_path / "anyword")
 
 
 def test_cli_main_builds_config_and_delegates(monkeypatch, tmp_path: Path) -> None:
@@ -393,6 +474,8 @@ def test_cli_main_builds_config_and_delegates(monkeypatch, tmp_path: Path) -> No
             "--encode-text",
             "--model-id",
             "test-model",
+            "--model-revision",
+            "test-revision",
             "--device",
             "cpu",
         ]
@@ -416,6 +499,7 @@ def test_cli_main_builds_config_and_delegates(monkeypatch, tmp_path: Path) -> No
             bake_latents=True,
             encode_text=True,
             model_id="test-model",
+            model_revision="test-revision",
             device="cpu",
         )
     ]

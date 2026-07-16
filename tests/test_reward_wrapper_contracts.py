@@ -61,7 +61,11 @@ def test_char_error_rate_and_ctc_entropy_stats_are_deterministic_for_tiny_inputs
 def test_qwen_score_batch_preserves_order_with_fake_score_single():
     import torch
 
+    import src.training.rewards as rewards_module
     from src.training.rewards import QwenYesProbReward
+
+    rewards_module.torch = torch
+    QwenYesProbReward.score_single.__globals__["torch"] = torch
 
     reward = object.__new__(QwenYesProbReward)
     calls: list[tuple[float, str]] = []
@@ -77,6 +81,41 @@ def test_qwen_score_batch_preserves_order_with_fake_score_single():
 
     assert calls == [(1.0, "А"), (2.0, "ББ"), (3.0, "ВВВ")]
     assert torch.equal(scores, torch.tensor([1.1, 2.2, 3.3]))
+
+
+def test_pytorch_qwen_reward_keeps_input_gradient_path():
+    from types import SimpleNamespace
+
+    import torch
+
+    import src.training.rewards as rewards_module
+    from src.training.rewards import QwenYesProbReward
+
+    rewards_module.torch = torch
+    QwenYesProbReward.score_single.__globals__["torch"] = torch
+
+    reward = object.__new__(QwenYesProbReward)
+    reward.device = "cpu"
+    reward.yes_ids = [0]
+    reward.no_ids = [1]
+    reward._build_inputs = lambda _target, image: {"pixel_values": image.unsqueeze(0)}
+    reward._preprocess_differentiable = lambda image, _shape, _dtype: image.unsqueeze(0)
+
+    class FakeModel:
+        def __call__(self, *, pixel_values):
+            signal = pixel_values.mean()
+            logits = torch.stack([signal, torch.zeros_like(signal)]).reshape(1, 1, 2)
+            return SimpleNamespace(logits=logits)
+
+    reward.model = FakeModel()
+    image = torch.full((3, 2, 2), 0.5, requires_grad=True)
+
+    score = reward.score_single(image, "ТЕСТ")
+    score.backward()
+
+    assert image.grad is not None
+    assert torch.isfinite(image.grad).all()
+    assert image.grad.abs().sum() > 0
 
 
 def test_ocr_score_uses_fake_ocr_and_raw_ctc_predictions_deterministically():
@@ -156,8 +195,8 @@ def test_score_images_reward_imports_remain_inside_scorer_selection_paths():
     assert "from src.training.rewards import" not in script_source
     assert "from src.training.rewards import QwenYesProbReward" in pipeline_source
     assert "from src.training.rewards import OcrCerEntropyReward" in pipeline_source
-    assert "config.scorer in (\"vlm\", \"both\")" in pipeline_source
-    assert "config.scorer in (\"ocr\", \"both\")" in pipeline_source
+    assert 'config.scorer in ("vlm", "both")' in pipeline_source
+    assert 'config.scorer in ("ocr", "both")' in pipeline_source
 
 
 def test_training_rewards_can_emit_canonical_reward_result():

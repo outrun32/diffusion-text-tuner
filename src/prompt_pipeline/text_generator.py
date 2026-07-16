@@ -6,25 +6,20 @@ for LLM-generated tiers 3-5.
 
 import json
 import random
-import math
 from collections import Counter
-from pathlib import Path
 
 from .config import (
-    CHAR_RENDER_BOOST,
-    CYRILLIC_WORD_RE,
-    CYRILLIC_LOWER,
-    RARE_CHARS,
-    TIER_WEIGHTS,
-    TIER_OVERRIDES,
     CASE_WEIGHTS,
+    CHAR_RENDER_BOOST,
+    CYRILLIC_LOWER,
+    CYRILLIC_WORD_RE,
+    TIER_OVERRIDES,
+    TIER_WEIGHTS,
 )
 
 
 class TextGenerator:
-
-    def __init__(self, freq_dict_path: str, thematic_path: str | None = None,
-                 seed: int = 42):
+    def __init__(self, freq_dict_path: str, thematic_path: str | None = None, seed: int = 42):
         self.rng = random.Random(seed)
         self.char_counts: Counter = Counter()
 
@@ -74,10 +69,7 @@ class TextGenerator:
                     char_word_count[ch] += 1
 
         max_count = max(char_word_count.values()) if char_word_count else 1
-        self.char_rarity = {
-            ch: max_count / char_word_count.get(ch, 1)
-            for ch in CYRILLIC_LOWER
-        }
+        self.char_rarity = {ch: max_count / char_word_count.get(ch, 1) for ch in CYRILLIC_LOWER}
 
     def _preindex_candidates(self):
         """Pre-filter word lists by common length ranges used in sampling."""
@@ -143,13 +135,11 @@ class TextGenerator:
     # Sampling
     # ------------------------------------------------------------------
 
-    def _sample_words(self, n: int = 1, min_len: int = 2,
-                      max_len: int | None = None) -> list[str]:
+    def _sample_words(self, n: int = 1, min_len: int = 2, max_len: int | None = None) -> list[str]:
         """Sample *n* words from freq dict with coverage-aware weighting."""
         key = (min_len, max_len or 20)
         needs_refresh = (
-            key not in self._weight_cache
-            or self._updates_since_refresh >= self._REFRESH_INTERVAL
+            key not in self._weight_cache or self._updates_since_refresh >= self._REFRESH_INTERVAL
         )
         if needs_refresh:
             candidates = self._get_candidates(min_len, max_len)

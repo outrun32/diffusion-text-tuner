@@ -33,7 +33,7 @@ _EXTENSION_POINTS: tuple[ExtensionPoint, ...] = (
             "from config-driven curricula."
         ),
         implementation_module="src.prompt_pipeline.generate",
-        thin_script="python -m src.prompt_pipeline.generate",
+        thin_script="uv run python -m src.prompt_pipeline.generate",
         config_home="configs/prompts/",
         docs_path="docs/data_curriculum.md",
         test_target="tests/test_prompt_curriculum.py",
@@ -50,7 +50,7 @@ _EXTENSION_POINTS: tuple[ExtensionPoint, ...] = (
         ),
         implementation_module="src.generation.pipeline",
         thin_script="scripts/generate_images.py",
-        config_home="configs/experiments/evaluation/ or runtime generation arguments",
+        config_home="configs/experiments/evaluation/",
         docs_path="docs/commands.md",
         test_target="tests/test_generation_pipeline_contracts.py",
         generated_artifact_notes=(
@@ -82,7 +82,7 @@ _EXTENSION_POINTS: tuple[ExtensionPoint, ...] = (
         ),
         implementation_module="src.synthesis.dataset_builder",
         thin_script="scripts/synth/build_dataset.py",
-        config_home="configs/experiments/synthesis/ and configs/synth/",
+        config_home="configs/experiments/synthesis/",
         docs_path="docs/synthetic_quality.md",
         test_target="tests/test_synthesis_pipeline_contracts.py",
         generated_artifact_notes=(
@@ -98,13 +98,9 @@ _EXTENSION_POINTS: tuple[ExtensionPoint, ...] = (
         ),
         implementation_module="src.training.runtime",
         thin_script=(
-            "accelerate launch -m src.training.sft_trainer / "
-            "src.training.dpo_trainer; python -m src.training.masked_sft_trainer"
+            "src.training.sft_trainer; src.training.dpo_trainer; src.training.masked_sft_trainer"
         ),
-        config_home=(
-            "configs/experiments/sft/, configs/experiments/dpo/, and "
-            "configs/experiments/masked_sft/"
-        ),
+        config_home="configs/experiments/",
         docs_path="docs/training_comparability.md",
         test_target="tests/test_training_shared_utilities.py",
         generated_artifact_notes=(
@@ -184,12 +180,12 @@ _EXTENSION_POINTS: tuple[ExtensionPoint, ...] = (
         ),
         implementation_module="src.evaluation.thesis_outputs",
         thin_script="scripts/build_thesis_outputs.py",
-        config_home="configs/thesis/ and configs/experiments/evaluation/",
+        config_home="configs/experiments/evaluation/",
         docs_path="docs/thesis_outputs.md",
         test_target="tests/test_thesis_outputs.py",
         generated_artifact_notes=(
             "Thesis tables, plots, bundles, and contact sheets stay in ignored "
-            "outputs/thesis/ or runs/ roots unless a future plan approves fixtures."
+            "outputs/thesis/ or runs/ roots unless a tiny fixture is reviewed."
         ),
     ),
 )

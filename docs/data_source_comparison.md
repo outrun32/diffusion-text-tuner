@@ -1,12 +1,14 @@
 # Data Source Comparison
 
-Phase 3 Plan 03-05 compares reward-filtered generated images against synthetic masked-SFT evidence before training comparisons. The goal is to make DATA-07 reproducible: users can see where generated-image SFT/DPO data and synthetic masked-SFT data are expected to help, where they may fail, and which artifacts support those conclusions.
+This metadata comparison puts reward-filtered generated-image evidence next to synthetic
+masked-SFT evidence before training runs are interpreted. It shows where each data source may help,
+where it may fail, and which artifacts support the comparison.
 
 The comparison is metadata-only and CPU-safe. It reads JSON/JSONL reports, selected-sample artifacts, preference-pair artifacts, and manifests. It does not inspect generated images, load tensors, import FLUX, Qwen, PaddleOCR, CUDA, or run OCR/model inference.
 
 ## Inputs
 
-Use existing Phase 3 artifacts when they are available:
+Provide any recorded artifacts that are available:
 
 | Input | CLI flag | Evidence captured |
 |-------|----------|-------------------|
@@ -24,7 +26,7 @@ All inputs are optional. Missing evidence is listed in `evidence_missing`; the t
 Full comparison:
 
 ```bash
-uv run python scripts/compare_data_sources.py \
+uv run python -m scripts.compare_data_sources \
   --generated-prompt-quality-report runs/prompt-quality/curriculum-report.json \
   --selected-samples outputs/generated/selected_samples.jsonl \
   --preference-pairs outputs/generated/preference_pairs.jsonl \
@@ -38,7 +40,7 @@ uv run python scripts/compare_data_sources.py \
 Evidence-gap smoke check with only synthetic quality evidence:
 
 ```bash
-uv run python scripts/compare_data_sources.py \
+uv run python -m scripts.compare_data_sources \
   --synthetic-quality-report runs/synthetic-quality/synthetic-quality.json \
   --output-report runs/comparisons/synthetic-only.json
 ```
@@ -70,6 +72,8 @@ Synthetic data can fail when renderer outputs miss natural scene realism, domain
 
 ## Thesis comparison caveats
 
-Use this report as pre-training evidence for a thesis comparison, not as final proof that a method improves Russian or multilingual text rendering. In particular, training loss or DPO accuracy are internal signals until Phase 6 evaluation validates rendered-text quality on held-out prompts with OCR/VLM/product reward diagnostics and qualitative inspection.
+Use this report as pre-training evidence, not as proof that a method improves Russian text
+rendering. Training loss and DPO accuracy remain internal signals until a held-out evaluation links
+OCR/VLM/Product diagnostics and qualitative inspection to the exact runs being compared.
 
 When writing thesis notes, cite exact comparison reports, source manifests, score files, selection thresholds, margin filters, seeds, configs, and artifact hashes. If evidence is missing, state that limitation explicitly rather than inferring strengths or failures from absent data.

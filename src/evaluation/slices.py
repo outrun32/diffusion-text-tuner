@@ -95,8 +95,7 @@ def _has_mixed_case(text: str) -> bool:
         for word in words
     )
     has_internal_uppercase = any(
-        any(character.isupper() for character in _strip_punctuation(word)[1:])
-        for word in words
+        any(character.isupper() for character in _strip_punctuation(word)[1:]) for word in words
     )
     return has_lowercase and (has_uppercase_word or has_internal_uppercase)
 

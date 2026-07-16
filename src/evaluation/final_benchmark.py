@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import statistics
@@ -20,6 +21,9 @@ from typing import Any
 HARD_CYRILLIC = set("ЖЩЪЫЁЮЯЭЦЧШ")
 CYRILLIC_RANGES = (("А", "я"), ("Ё", "Ё"), ("ё", "ё"))
 LATIN_LETTERS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+TARGET_HASH_INDEX_SCHEMA_VERSION = "normalized-target-hash-index/v1"
+TARGET_HASH_ALGORITHM = "sha256"
+TARGET_NORMALIZATION = "strip-collapse-whitespace-unicode-uppercase/v1"
 
 _LATIN_TO_CYRILLIC: dict[str, str] = {
     "A": "А",
@@ -86,6 +90,9 @@ PROMPT_SLICES: dict[str, list[str]] = {
         "ЧЕМОДАН",
         "ЦИФРА",
         "ШЕПОТ",
+        "ШЛЮЗ",
+        "ЖЁЛУДЬ",
+        "ГИЛЬЗА",
     ],
     "signs_yo_yeru": [
         "ОБЪЕМ",
@@ -108,6 +115,11 @@ PROMPT_SLICES: dict[str, list[str]] = {
         "ВЬЮГА",
         "ОГОНЁК",
         "РЫНОК",
+        "РАЗЪЁМ",
+        "АДЪЮТАНТ",
+        "КОНЪЮНКТУРА",
+        "ПЬЕСА",
+        "РУЖЬЁ",
     ],
     "medium_long": [
         "БИБЛИОТЕКА",
@@ -184,13 +196,17 @@ SCENE_TEMPLATES: tuple[tuple[str, str], ...] = (
     ),
     (
         "street_sign",
-        ("A realistic street sign on a city wall with the exact Russian text '{text}', "
-         "readable letters."),
+        (
+            "A realistic street sign on a city wall with the exact Russian text '{text}', "
+            "readable letters."
+        ),
     ),
     (
         "neon",
-        ("A dark cafe wall with a neon sign showing the exact Russian text '{text}', "
-         "glowing letters."),
+        (
+            "A dark cafe wall with a neon sign showing the exact Russian text '{text}', "
+            "glowing letters."
+        ),
     ),
     (
         "packaging",
@@ -291,14 +307,36 @@ def make_benchmark_prompts(
     *,
     count_per_slice: int = 20,
     manifest_path: str | Path | None = None,
+    excluded_targets: Iterable[str] = (),
+    exclusion_manifest: str | Path | None = None,
+    exclusion_target_hash_index: str | Path | None = None,
 ) -> dict[str, Any]:
     """Write a deterministic held-out prompt JSONL benchmark."""
     if count_per_slice < 1:
         raise ValueError("count_per_slice must be >= 1")
     output = Path(output_path)
+    excluded = {_normalize_target(target) for target in excluded_targets if str(target).strip()}
+    used_targets: set[str] = set()
+    excluded_matches: set[str] = set()
     records: list[dict[str, Any]] = []
     for slice_name, targets in PROMPT_SLICES.items():
-        selected = targets[:count_per_slice]
+        selected: list[str] = []
+        for text in targets:
+            normalized = _normalize_target(text)
+            if normalized in excluded:
+                excluded_matches.add(text)
+                continue
+            if normalized in used_targets:
+                continue
+            selected.append(text)
+            used_targets.add(normalized)
+            if len(selected) == count_per_slice:
+                break
+        if len(selected) != count_per_slice:
+            raise ValueError(
+                f"slice {slice_name!r} has only {len(selected)} unique, non-excluded targets; "
+                f"need {count_per_slice}"
+            )
         for text in selected:
             global_index = len(records)
             scene_tag, template = SCENE_TEMPLATES[global_index % len(SCENE_TEMPLATES)]
@@ -321,6 +359,7 @@ def make_benchmark_prompts(
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
+    training_overlap = used_targets & excluded
     summary = {
         "schema_version": "final-benchmark-prompts/v1",
         "output_path": str(output),
@@ -329,10 +368,181 @@ def make_benchmark_prompts(
         "slice_counts": dict(Counter(record["slice"] for record in records)),
         "hard_glyph_prompt_count": sum(1 for record in records if record["contains_hard_glyph"]),
         "mean_target_length": _mean(record["target_length"] for record in records),
+        "unique_target_count": len(used_targets),
+        "excluded_target_count": len(excluded),
+        "excluded_benchmark_matches": sorted(excluded_matches),
+        "training_target_overlap_count": len(training_overlap),
+        "training_target_overlap_hashes": sorted(
+            normalized_target_sha256(target) for target in training_overlap
+        ),
+        "target_disjoint": not training_overlap,
+        "benchmark_sha256": _sha256_file(output),
     }
+    if exclusion_manifest is not None:
+        source_path = Path(exclusion_manifest)
+        source_manifest = json.loads(source_path.read_text(encoding="utf-8"))
+        summary["exclusion_source_manifest"] = {
+            "path": str(source_path),
+            "schema_version": source_manifest.get("schema_version"),
+            "repository": source_manifest.get("repository"),
+            "resolved_revision": source_manifest.get("resolved_revision"),
+            "source_sha256": source_manifest.get("source_sha256"),
+            "output_sha256": source_manifest.get("output_sha256"),
+        }
+    if exclusion_target_hash_index is not None:
+        index_path = Path(exclusion_target_hash_index)
+        target_hash_index = load_target_hash_index(index_path)
+        indexed_hashes = set(target_hash_index["target_hashes"])
+        excluded_hashes = {normalized_target_sha256(target) for target in excluded}
+        if indexed_hashes != excluded_hashes:
+            raise ValueError(
+                "exclusion target hash index does not match the supplied excluded target set"
+            )
+        benchmark_hashes = {normalized_target_sha256(target) for target in used_targets}
+        hash_overlap = benchmark_hashes & indexed_hashes
+        if bool(hash_overlap) != bool(training_overlap):
+            raise AssertionError("plain-text and hashed target overlap checks disagree")
+        summary["training_target_hash_index"] = {
+            "path": str(index_path),
+            "sha256": _sha256_file(index_path),
+            "schema_version": target_hash_index["schema_version"],
+            "hash_algorithm": target_hash_index["hash_algorithm"],
+            "normalization": target_hash_index["normalization"],
+            "unique_normalized_target_count": target_hash_index["unique_normalized_target_count"],
+            "source_manifest_path": target_hash_index["source"]["manifest_path"],
+            "source_manifest_sha256": target_hash_index["source"]["manifest_sha256"],
+            "source_output_sha256": target_hash_index["source"]["output_sha256"],
+        }
     if manifest_path:
         _write_json(Path(manifest_path), summary)
     return summary
+
+
+def load_excluded_targets(path: str | Path) -> set[str]:
+    """Load target strings from a JSONL dataset used to enforce split disjointness."""
+
+    targets: set[str] = set()
+    with Path(path).open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{path}:{line_number}: malformed JSON") from exc
+            target = row.get("target_text") if isinstance(row, dict) else None
+            if isinstance(target, str) and target.strip():
+                targets.add(_normalize_target(target))
+    return targets
+
+
+def build_target_hash_index(
+    source_jsonl: str | Path,
+    output_path: str | Path,
+    *,
+    source_manifest: str | Path,
+) -> dict[str, Any]:
+    """Write an exact, compact hash index for offline target-overlap checks."""
+
+    source_path = Path(source_jsonl)
+    source_manifest_path = Path(source_manifest)
+    manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("source manifest must be a JSON object")
+    source_sha256 = _sha256_file(source_path)
+    if manifest.get("output_sha256") != source_sha256:
+        raise ValueError("source dataset SHA-256 does not match the pinned source manifest")
+
+    normalized_targets: set[str] = set()
+    row_count = 0
+    with source_path.open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            row_count += 1
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{source_path}:{line_number}: malformed JSON") from exc
+            target = row.get("target_text") if isinstance(row, dict) else None
+            if not isinstance(target, str) or not target.strip():
+                raise ValueError(f"{source_path}:{line_number}: missing target_text")
+            normalized_targets.add(_normalize_target(target))
+
+    if manifest.get("row_count") != row_count:
+        raise ValueError("source dataset row count does not match the pinned source manifest")
+
+    payload = {
+        "schema_version": TARGET_HASH_INDEX_SCHEMA_VERSION,
+        "hash_algorithm": TARGET_HASH_ALGORITHM,
+        "normalization": TARGET_NORMALIZATION,
+        "source": {
+            "dataset_path": str(source_path),
+            "manifest_path": str(source_manifest_path),
+            "manifest_sha256": _sha256_file(source_manifest_path),
+            "repository": manifest.get("repository"),
+            "resolved_revision": manifest.get("resolved_revision"),
+            "output_sha256": source_sha256,
+            "row_count": row_count,
+        },
+        "unique_normalized_target_count": len(normalized_targets),
+        "target_hashes": sorted(normalized_target_sha256(target) for target in normalized_targets),
+    }
+    _write_json(Path(output_path), payload)
+    return payload
+
+
+def load_target_hash_index(path: str | Path) -> dict[str, Any]:
+    """Load and validate a normalized-target hash index."""
+
+    index_path = Path(path)
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"malformed target hash index: {index_path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("target hash index must be a JSON object")
+    if payload.get("schema_version") != TARGET_HASH_INDEX_SCHEMA_VERSION:
+        raise ValueError("unsupported target hash index schema")
+    if payload.get("hash_algorithm") != TARGET_HASH_ALGORITHM:
+        raise ValueError("unsupported target hash algorithm")
+    if payload.get("normalization") != TARGET_NORMALIZATION:
+        raise ValueError("unsupported target normalization contract")
+    hashes = payload.get("target_hashes")
+    if not isinstance(hashes, list) or not all(_is_sha256(value) for value in hashes):
+        raise ValueError("target_hashes must contain SHA-256 hex digests")
+    if hashes != sorted(set(hashes)):
+        raise ValueError("target_hashes must be sorted and unique")
+    if payload.get("unique_normalized_target_count") != len(hashes):
+        raise ValueError("target hash count does not match target_hashes")
+    source = payload.get("source")
+    if not isinstance(source, dict) or not _is_sha256(source.get("output_sha256")):
+        raise ValueError("target hash index source provenance is incomplete")
+    return payload
+
+
+def normalized_target_sha256(value: object) -> str:
+    """Hash one target using the split-disjointness normalization contract."""
+
+    return hashlib.sha256(_normalize_target(value).encode("utf-8")).hexdigest()
+
+
+def _normalize_target(value: object) -> str:
+    return " ".join(str(value).strip().upper().split())
+
+
+def _is_sha256(value: object) -> bool:
+    if not isinstance(value, str) or len(value) != 64:
+        return False
+    return all(character in "0123456789abcdef" for character in value)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def product_bias_report(
@@ -453,16 +663,45 @@ def benchmark_score_report(
 ) -> dict[str, Any]:
     """Summarize held-out benchmark score CSVs with strict/normalized OCR metrics."""
     prompts = load_prompt_metadata(prompts_jsonl)
+    aliases, expected_prompt_ids, expected_targets = _benchmark_prompt_aliases(prompts_jsonl)
     report_runs = []
     augmented_rows: list[dict[str, Any]] = []
+    expected_seed_set: set[str] | None = None
+    expected_score_contract: dict[str, Any] | None = None
     for spec in score_specs:
         rows = load_score_rows(spec.path)
+        score_contract = _load_benchmark_score_contract(spec.path, expected_rows=len(rows))
+        coverage = validate_benchmark_score_coverage(
+            rows,
+            aliases=aliases,
+            expected_prompt_ids=expected_prompt_ids,
+            expected_targets=expected_targets,
+            run_name=spec.name,
+        )
+        seed_set = set(coverage["groups"])
+        if expected_seed_set is None:
+            expected_seed_set = seed_set
+        elif seed_set != expected_seed_set:
+            raise ValueError(
+                f"{spec.name}: seed set {sorted(seed_set)} does not match "
+                f"{sorted(expected_seed_set)}"
+            )
+        comparable_contract = {
+            "formula": score_contract["formula"],
+            "primary_score": score_contract["primary_score"],
+        }
+        if expected_score_contract is None:
+            expected_score_contract = comparable_contract
+        elif comparable_contract != expected_score_contract:
+            raise ValueError(f"{spec.name}: score formula/primary score differs across runs")
         per_row = [augment_benchmark_row(row, prompts, run_name=spec.name) for row in rows]
         augmented_rows.extend(per_row)
         report_runs.append(
             {
                 "run_name": spec.name,
                 "scores_csv": str(spec.path),
+                "coverage": coverage,
+                "score_contract": score_contract,
                 "overall": benchmark_summary(per_row),
                 "by_slice": {
                     slice_name: benchmark_summary(slice_rows)
@@ -476,6 +715,141 @@ def benchmark_score_report(
         "schema_version": "heldout-benchmark-summary/v1",
         "prompts_jsonl": str(prompts_jsonl),
         "runs": report_runs,
+    }
+
+
+def validate_benchmark_score_coverage(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    aliases: Mapping[str, str],
+    expected_prompt_ids: set[str],
+    expected_targets: Mapping[str, str],
+    run_name: str,
+) -> dict[str, Any]:
+    """Require complete, duplicate-free prompt coverage for every recorded seed."""
+
+    groups: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for row in rows:
+        groups[str(row.get("seed") or "single")].append(row)
+    if not groups:
+        raise ValueError(f"{run_name}: score file is empty")
+
+    group_summaries: dict[str, Any] = {}
+    for seed, seed_rows in sorted(groups.items()):
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        unknown: set[str] = set()
+        for row in seed_rows:
+            raw_id = str(row.get("id") or row.get("sample_id") or "")
+            canonical_id = aliases.get(raw_id)
+            if canonical_id is None:
+                unknown.add(raw_id or "<missing>")
+                continue
+            row_target = normalize_text(str(row.get("target_text") or ""), homoglyphs=False)
+            expected_target = normalize_text(expected_targets[canonical_id], homoglyphs=False)
+            if row_target != expected_target:
+                raise ValueError(
+                    f"{run_name} seed={seed}: target_text mismatch for {canonical_id}: "
+                    f"{row.get('target_text')!r} != {expected_targets[canonical_id]!r}"
+                )
+            if canonical_id in seen:
+                duplicates.add(canonical_id)
+            seen.add(canonical_id)
+        missing = expected_prompt_ids - seen
+        if duplicates or unknown or missing:
+            parts = []
+            if missing:
+                parts.append(f"missing={sorted(missing)}")
+            if duplicates:
+                parts.append(f"duplicates={sorted(duplicates)}")
+            if unknown:
+                parts.append(f"unknown={sorted(unknown)}")
+            raise ValueError(
+                f"{run_name} seed={seed}: invalid benchmark coverage: " + "; ".join(parts)
+            )
+        group_summaries[seed] = {
+            "row_count": len(seed_rows),
+            "unique_prompt_count": len(seen),
+        }
+    return {
+        "expected_prompt_count": len(expected_prompt_ids),
+        "seed_count": len(groups),
+        "groups": group_summaries,
+    }
+
+
+def _benchmark_prompt_aliases(
+    path: str | Path,
+) -> tuple[dict[str, str], set[str], dict[str, str]]:
+    aliases: dict[str, str] = {}
+    expected: set[str] = set()
+    targets: dict[str, str] = {}
+    with Path(path).open(encoding="utf-8") as handle:
+        index = 0
+        for line in handle:
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            canonical = str(row.get("id") or f"{index:06d}")
+            if canonical in expected:
+                raise ValueError(f"benchmark prompt file has duplicate id: {canonical}")
+            expected.add(canonical)
+            target_text = str(row.get("target_text") or "")
+            if not target_text:
+                raise ValueError(f"benchmark prompt {canonical} has no target_text")
+            targets[canonical] = target_text
+            aliases[canonical] = canonical
+            aliases[f"{index:06d}"] = canonical
+            index += 1
+    return aliases, expected, targets
+
+
+def _load_benchmark_score_contract(path: Path, *, expected_rows: int) -> dict[str, Any]:
+    sidecar_path = path.with_suffix(".schema.json")
+    if not sidecar_path.is_file():
+        raise ValueError(f"benchmark score sidecar is missing: {sidecar_path}")
+    try:
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"malformed benchmark score sidecar: {sidecar_path}") from exc
+    if not isinstance(sidecar, dict):
+        raise ValueError(f"benchmark score sidecar must be an object: {sidecar_path}")
+    if sidecar.get("schema_version") != "reward-score-metadata/v1":
+        raise ValueError(f"invalid benchmark score sidecar schema: {sidecar_path}")
+    execution = sidecar.get("execution")
+    if not isinstance(execution, dict) or execution.get("status") != "complete":
+        raise ValueError(f"benchmark score sidecar is not complete: {sidecar_path}")
+    row_count = execution.get("scored_row_count", execution.get("row_count"))
+    if row_count != expected_rows:
+        raise ValueError(f"benchmark score sidecar row count mismatch: {sidecar_path}")
+    if execution.get("scores_sha256") != _sha256_file(path):
+        raise ValueError(f"benchmark score CSV hash mismatch: {path}")
+    formula = sidecar.get("formula")
+    primary_score = sidecar.get("primary_score")
+    if not isinstance(formula, dict) or primary_score not in {"vlm", "ocr", "product"}:
+        raise ValueError(f"benchmark score formula/primary score is invalid: {sidecar_path}")
+    source_paths = sidecar.get("source_manifest_paths")
+    source_hashes = sidecar.get("source_manifest_sha256")
+    if (
+        not isinstance(source_paths, list)
+        or not source_paths
+        or not isinstance(source_hashes, dict)
+    ):
+        raise ValueError(f"benchmark score provenance is incomplete: {sidecar_path}")
+    for raw_source_path in source_paths:
+        source_path = Path(str(raw_source_path))
+        if not source_path.is_file():
+            raise ValueError(f"benchmark source manifest is missing: {source_path}")
+        if source_hashes.get(str(raw_source_path)) != _sha256_file(source_path):
+            raise ValueError(f"benchmark source manifest hash mismatch: {source_path}")
+    return {
+        "score_file_schema_version": sidecar.get("score_file_schema_version"),
+        "formula": formula,
+        "primary_score": primary_score,
+        "source_manifest_paths": source_paths,
+        "source_manifest_sha256": source_hashes,
+        "sidecar_path": str(sidecar_path),
+        "sidecar_sha256": _sha256_file(sidecar_path),
     }
 
 
@@ -814,6 +1188,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_prompts.add_argument("--output", required=True)
     p_prompts.add_argument("--count-per-slice", type=int, default=20)
     p_prompts.add_argument("--manifest", default=None)
+    p_prompts.add_argument(
+        "--exclude-targets",
+        default=None,
+        help=(
+            "Optional training/source JSONL; exact target strings are excluded from the benchmark."
+        ),
+    )
+    p_prompts.add_argument(
+        "--exclusion-manifest",
+        default=None,
+        help="Optional download/source manifest recorded in the benchmark manifest.",
+    )
+    p_prompts.add_argument(
+        "--exclusion-target-hash-index",
+        default=None,
+        help="Optional exact target-hash index recorded in the benchmark manifest.",
+    )
+
+    p_hashes = sub.add_parser(
+        "make-target-hash-index",
+        help="Create a compact normalized-target hash index from a pinned JSONL dataset",
+    )
+    p_hashes.add_argument("--source", required=True)
+    p_hashes.add_argument("--source-manifest", required=True)
+    p_hashes.add_argument("--output", required=True)
 
     p_bias = sub.add_parser("product-bias", help="Analyze product-selected subset bias")
     p_bias.add_argument("--prompts", required=True)
@@ -850,8 +1249,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output,
             count_per_slice=args.count_per_slice,
             manifest_path=args.manifest,
+            excluded_targets=(
+                load_excluded_targets(args.exclude_targets) if args.exclude_targets else ()
+            ),
+            exclusion_manifest=args.exclusion_manifest,
+            exclusion_target_hash_index=args.exclusion_target_hash_index,
         )
         print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+    if args.command == "make-target-hash-index":
+        payload = build_target_hash_index(
+            args.source,
+            args.output,
+            source_manifest=args.source_manifest,
+        )
+        print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
     if args.command == "product-bias":
         report = product_bias_report(

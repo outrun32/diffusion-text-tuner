@@ -1,13 +1,13 @@
 # Evaluation Diagnostics: Difficulty Slices, Gold Benchmark, and Reward Disagreement
 
-Phase 6 adds CPU-safe diagnostics for Russian text-rendering evaluation. The
-contracts here are intentionally metadata-only: they inspect text fields,
+These CPU-safe diagnostics inspect Russian text-rendering evaluation evidence. The contracts are
+metadata-only: they inspect text fields,
 prediction rows, recorded score outputs, and JSONL labels, but they do not load
 FLUX, Qwen, PaddleOCR, CUDA, model weights, generated images, tensors,
 checkpoints, or logs. In lower-case operational terms, these diagnostics do not run reward models; they consume outputs that scoring/evaluation jobs already
 recorded.
 
-Related Phase 6 guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
+Related guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
 [`docs/evaluation_harness.md`](evaluation_harness.md),
 [`docs/thesis_outputs.md`](thesis_outputs.md), and the command catalog in
 [`docs/commands.md`](commands.md).
@@ -114,7 +114,7 @@ Generate deterministic JSON and Markdown from a recorded score CSV plus a gold
 diagnostic JSONL file:
 
 ```bash
-python scripts/analyze_reward_diagnostics.py \
+uv run python -m scripts.analyze_reward_diagnostics \
   --scores runs/eval/baseline/scores.csv \
   --gold tests/fixtures/evaluation/gold_diagnostic.jsonl \
   --output-report runs/eval/baseline/reward_diagnostics.json \
@@ -126,7 +126,7 @@ python scripts/analyze_reward_diagnostics.py \
 Add a bounded contact sheet for reviewable false-positive/false-negative rows:
 
 ```bash
-python scripts/analyze_reward_diagnostics.py \
+uv run python -m scripts.analyze_reward_diagnostics \
   --scores runs/eval/trained/scores.jsonl \
   --gold runs/eval/gold_diagnostic.jsonl \
   --output-report runs/eval/trained/reward_diagnostics.json \
@@ -151,10 +151,10 @@ private evaluation outputs under ignored runtime roots such as `runs/` or
 Do not commit generated diagnostic reports or contact sheets from real runs.
 Keep `reward_diagnostics.json`, `reward_diagnostics.md`, contact-sheet PNGs,
 score CSV/JSONL files, held-out outputs, plots, thesis bundles, and private
-benchmark labels under ignored runtime paths unless a future plan intentionally
-creates a tiny reviewed fixture.
+benchmark labels under ignored runtime paths. Commit only tiny fixtures that a CPU-safe test or a
+reviewed documentation example requires.
 
 These diagnostics are safeguards for reward validity. They are not a broad
 human-evaluation taxonomy and should not be treated as final thesis scoring on
-their own; later Phase 6 plans can combine them with recorded score outputs,
-diagnostic reports, and thesis-ready tables.
+their own; use them with recorded score outputs, diagnostic reports, and manifest-linked result
+tables.

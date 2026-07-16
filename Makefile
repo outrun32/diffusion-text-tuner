@@ -1,4 +1,7 @@
 .PHONY: setup test lint format smoke-imports smoke-cuda smoke-model-access smoke-ocr smoke-cache preflight-generate preflight-score preflight-sft preflight-dpo preflight-masked-sft manifest-init-sft manifest-inspect phase3-generate-prompts phase3-validate-prompts phase3-inspect-synthetic phase3-materialize-sft phase3-materialize-dpo phase3-compare-sources characterization-test characterization-runtime characterization-datasets characterization-objectives characterization-prompts characterization-rewards compare-training-runs phase6-heldout-plan phase6-score-validation phase6-reward-diagnostics phase6-gold-diagnostics phase6-thesis-outputs phase6-evaluation-tests phase7-structure-tests
+.PHONY: check mac-check container-check format-write shellcheck security-current dependency-audit history-audit smoke-platform smoke-mlx smoke-mps evidence-verify prompt-dataset-evidence benchmark-prompts-v2
+
+export UV_FROZEN := 1
 
 RUN_MANIFEST ?= runs/example/manifest.json
 PROMPT_CONFIG ?= configs/prompts/curriculum.json
@@ -19,7 +22,7 @@ DATA_SOURCE_COMPARISON_MD ?= runs/comparisons/generated-vs-synthetic.md
 LEFT_MANIFEST ?= runs/a/manifest.json
 RIGHT_MANIFEST ?= runs/b/manifest.json
 TRAINING_RUN_COMPARISON ?= runs/comparisons/training-run-comparison.md
-HELDOUT_EVAL_CONFIG ?= configs/experiments/evaluation/heldout_product_vs_baseline.json
+HELDOUT_EVAL_CONFIG ?=
 HELDOUT_EVAL_PLAN ?= runs/evaluation/heldout-001/plan.json
 HELDOUT_EVAL_PLAN_MD ?= runs/evaluation/heldout-001/plan.md
 EVAL_SCORES_CSV ?= outputs/generated/scores.csv
@@ -27,24 +30,57 @@ REWARD_DIAGNOSTIC_SCORES ?= runs/eval/baseline/scores.csv
 GOLD_DIAGNOSTIC_JSONL ?= tests/fixtures/evaluation/gold_diagnostic.jsonl
 REWARD_DIAGNOSTIC_REPORT ?= runs/eval/baseline/reward_diagnostics.json
 REWARD_DIAGNOSTIC_MD ?= runs/eval/baseline/reward_diagnostics.md
-THESIS_OUTPUT_CONFIG ?= configs/thesis/eval_bundle.json
+THESIS_OUTPUT_CONFIG ?=
 THESIS_OUTPUT_BUNDLE ?= outputs/thesis/eval_bundle/bundle.json
 THESIS_OUTPUT_MD ?= outputs/thesis/eval_bundle/bundle.md
 
 setup:
-	uv sync --group dev
+	uv sync --frozen --group dev --extra lint --extra mlx --extra plotting --extra analysis
 
 test:
-	uv run pytest
+	uv run pytest -q
 
 lint:
-	uv run --extra lint ruff check scripts/smoke_environment.py tests
+	uv run --extra lint ruff check .
 
 format:
-	uv run --extra lint ruff format --check scripts/smoke_environment.py tests
+	uv run --extra lint ruff format --check .
+
+format-write:
+	uv run --extra lint ruff format src scripts tests
+
+shellcheck:
+	@command -v shellcheck >/dev/null || (echo "Install ShellCheck first" >&2; exit 2)
+	shellcheck scripts/*.sh scripts/cluster/*.sh scripts/cluster/*.sbatch
+
+security-current:
+	@command -v gitleaks >/dev/null || (echo "Install Gitleaks first" >&2; exit 2)
+	gitleaks dir . --no-banner --redact --config .gitleaks.toml
+
+dependency-audit:
+	uvx --from pip-audit==2.10.1 pip-audit --path .venv/lib/python3.11/site-packages --progress-spinner off
+
+history-audit:
+	uv run python scripts/audit_git_history.py
+
+check: lint format shellcheck test evidence-verify
+
+container-check:
+	docker build --target quality --tag diffusion-text-tuner-quality .
+
+mac-check: smoke-imports smoke-platform smoke-mlx smoke-mps check
 
 smoke-imports:
 	uv run python -m scripts.smoke_environment --check imports
+
+smoke-platform:
+	uv run python -m scripts.smoke_environment --check platform
+
+smoke-mlx:
+	uv run --extra mlx python -m scripts.smoke_environment --check mlx
+
+smoke-mps:
+	uv run python -m scripts.smoke_environment --check mps
 
 smoke-cuda:
 	uv run python -m scripts.smoke_environment --check cuda --allow-missing
@@ -62,7 +98,7 @@ preflight-generate:
 	uv run python -m scripts.preflight_runtime --stage generate --prompts data/prompts_simple.jsonl --output-dir outputs/generated --json
 
 preflight-score:
-	uv run python -m scripts.preflight_runtime --stage score --images-dir outputs/generated/images --text-embeds-dir outputs/generated/text_embeds --scores-csv outputs/generated/scores.csv --json
+	uv run python -m scripts.preflight_runtime --stage score --scorer both --ocr-device cpu --images-dir outputs/generated/images --text-embeds-dir outputs/generated/text_embeds --scores-csv outputs/generated/scores.csv --json
 
 preflight-sft:
 	uv run python -m scripts.preflight_runtime --stage sft --config configs/sft.json --json
@@ -120,6 +156,7 @@ compare-training-runs:
 	uv run python -m scripts.compare_training_runs --left-manifest $(LEFT_MANIFEST) --right-manifest $(RIGHT_MANIFEST) --markdown --output $(TRAINING_RUN_COMPARISON)
 
 phase6-heldout-plan:
+	@test -n "$(HELDOUT_EVAL_CONFIG)" || (echo "Set HELDOUT_EVAL_CONFIG to a real config with existing run manifests" >&2; exit 2)
 	uv run python -m scripts.run_heldout_evaluation --config $(HELDOUT_EVAL_CONFIG) --output-plan $(HELDOUT_EVAL_PLAN) --markdown-summary $(HELDOUT_EVAL_PLAN_MD)
 
 phase6-score-validation:
@@ -132,6 +169,7 @@ phase6-gold-diagnostics:
 	uv run python -c "from src.evaluation.gold_benchmark import evaluate_gold_predictions; report = evaluate_gold_predictions('$(GOLD_DIAGNOSTIC_JSONL)', []); raise SystemExit(0 if report['missing_prediction_count'] >= 0 else 1)"
 
 phase6-thesis-outputs:
+	@test -n "$(THESIS_OUTPUT_CONFIG)" || (echo "Set THESIS_OUTPUT_CONFIG to a reviewed evidence-bundle config" >&2; exit 2)
 	uv run python scripts/build_thesis_outputs.py --config $(THESIS_OUTPUT_CONFIG) --output-bundle $(THESIS_OUTPUT_BUNDLE) --markdown-summary $(THESIS_OUTPUT_MD)
 
 phase6-evaluation-tests:
@@ -139,3 +177,27 @@ phase6-evaluation-tests:
 
 phase7-structure-tests:
 	uv run pytest tests/test_structure_extension_docs.py tests/test_generation_pipeline_contracts.py tests/test_scoring_pipeline_contracts.py tests/test_synthesis_pipeline_contracts.py tests/test_plotting_pipeline_contracts.py tests/test_extension_points_docs.py -q
+
+evidence-verify:
+	uv run python -m scripts.build_evidence_manifest --verify
+
+prompt-dataset-evidence:
+	@test -f data/prompts_simple.jsonl || (echo "Download the pinned prompt dataset first" >&2; exit 2)
+	uv run python -m scripts.validate_prompt_dataset \
+		--input data/prompts_simple.jsonl \
+		--config configs/prompts/full.json \
+		--report reports/final/prompt_dataset_quality_v1.json
+
+benchmark-prompts-v2:
+	@test -f data/prompts_simple.jsonl || (echo "Download the pinned prompt dataset first" >&2; exit 2)
+	uv run python -m scripts.final_benchmark make-target-hash-index \
+		--source data/prompts_simple.jsonl \
+		--source-manifest reports/final/prompt_dataset_source.manifest.json \
+		--output reports/final/prompt_training_target_hashes_v1.json
+	uv run python -m scripts.final_benchmark make-prompts \
+		--output reports/final/benchmark_prompts_v2.jsonl \
+		--count-per-slice 20 \
+		--exclude-targets data/prompts_simple.jsonl \
+		--exclusion-manifest reports/final/prompt_dataset_source.manifest.json \
+		--exclusion-target-hash-index reports/final/prompt_training_target_hashes_v1.json \
+		--manifest reports/final/benchmark_prompts_v2.manifest.json

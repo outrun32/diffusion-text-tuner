@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import csv
+import hashlib
 import json
 import sys
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import torch
 
 from src.runtime import config_io
 from src.training.config import DPOConfig, MaskedSFTConfig, SFTConfig
@@ -186,7 +189,7 @@ def test_invalid_trainer_config_fails_before_heavy_runtime_imports(
 
 @pytest.mark.parametrize(
     "stage",
-    ["generate", "score", "sft", "dpo", "masked-sft", "synthetic", "evaluation"],
+    ["generate", "score", "sft", "dpo", "masked-sft", "refl", "synthetic", "evaluation"],
 )
 def test_preflight_supports_phase_two_stages_with_json_reports(
     tmp_path: Path,
@@ -202,47 +205,65 @@ def test_preflight_supports_phase_two_stages_with_json_reports(
             "dpo": _dpo_payload,
             "masked-sft": _masked_sft_payload,
         }[stage]()
-        args.extend(["--config", str(_write_json(tmp_path / "configs" / f"{stage}.json", config_payload))])
+        args.extend(
+            ["--config", str(_write_json(tmp_path / "configs" / f"{stage}.json", config_payload))]
+        )
 
     exit_code = preflight_runtime.main(args)
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["stage"] == stage
-    assert set(payload) >= {"stage", "config", "artifacts", "manifest", "blocking_errors", "warnings"}
+    assert set(payload) >= {
+        "stage",
+        "config",
+        "artifacts",
+        "manifest",
+        "blocking_errors",
+        "warnings",
+    }
     assert exit_code in {0, 1}
 
 
 def test_preflight_validates_config_artifacts_and_manifest(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from scripts import preflight_runtime
+
+    monkeypatch.setattr(
+        preflight_runtime,
+        "check_stage_support",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            to_dict=lambda: {
+                "ok": True,
+                "stage": "sft",
+                "runtime": "cuda",
+                "capabilities": {},
+                "errors": [],
+                "warnings": [],
+            }
+        ),
+    )
 
     config_path = _write_json(tmp_path / "configs" / "sft.json", _sft_payload())
     _write_scores_csv(tmp_path / "outputs" / "generated" / "scores.csv")
     (tmp_path / "outputs" / "generated" / "latents").mkdir(parents=True)
     (tmp_path / "outputs" / "generated" / "text_embeds").mkdir(parents=True)
-    manifest_path = _write_json(
-        tmp_path / "runs" / "sft-test" / "manifest.json",
-        {
-            "schema_version": "run-manifest/v1",
-            "run_id": "sft-test",
-            "stage": "sft",
-            "created_at": "2026-05-04T00:00:00Z",
-            "command": ["python", "-m", "src.training.sft_trainer"],
-            "git": {},
-            "environment": {},
-            "config_snapshot_path": "config_snapshot.json",
-            "config_snapshot": {},
-            "seeds": {},
-            "models": {},
-            "inputs": {},
-            "outputs": {"checkpoints_dir": "outputs/sft/checkpoints"},
-            "metrics": {},
-            "notes": [],
-            "artifact_schema_versions": {"runtime_artifacts": "runtime-artifacts/v1"},
-        },
+    (tmp_path / "outputs" / "sft" / "checkpoints").mkdir(parents=True)
+    (tmp_path / "outputs" / "sft" / "checkpoints" / "adapter_model.safetensors").write_bytes(
+        b"fixture"
     )
+    from src.runtime.manifests import create_run_manifest
+
+    manifest_path = create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=["python", "-m", "src.training.sft_trainer"],
+        run_root=tmp_path / "runs",
+        outputs={"checkpoints_dir": "outputs/sft/checkpoints"},
+        root=tmp_path,
+    ).manifest_path
 
     exit_code = preflight_runtime.main(
         [
@@ -283,3 +304,292 @@ def test_preflight_returns_nonzero_for_blocking_errors(
     assert exit_code == 1
     assert payload["config"]["ok"] is False
     assert payload["blocking_errors"]
+
+
+def test_generate_and_score_preflight_validate_inputs_not_future_outputs(
+    tmp_path: Path,
+) -> None:
+    from scripts import preflight_runtime
+
+    prompts = tmp_path / "data" / "prompts.jsonl"
+    prompts.parent.mkdir(parents=True)
+    prompts.write_text(
+        json.dumps({"prompt": "Render ТЕСТ", "target_text": "ТЕСТ"}) + "\n",
+        encoding="utf-8",
+    )
+    generate_args = preflight_runtime._build_parser().parse_args(
+        [
+            "--stage",
+            "generate",
+            "--root",
+            str(tmp_path),
+            "--prompts",
+            str(prompts),
+            "--output-dir",
+            str(tmp_path / "not-created-yet"),
+        ]
+    )
+    generate_report = preflight_runtime.build_preflight_report(generate_args)
+    assert generate_report["artifacts"]["ok"] is True
+
+    image_dir = tmp_path / "images" / "000000"
+    embeds = tmp_path / "embeds"
+    image_dir.mkdir(parents=True)
+    embeds.mkdir()
+    (image_dir / "v0.png").write_bytes(b"fixture")
+    torch.save({"target_text": "ТЕСТ"}, embeds / "000000.pt")
+    score_args = preflight_runtime._build_parser().parse_args(
+        [
+            "--stage",
+            "score",
+            "--root",
+            str(tmp_path),
+            "--images-dir",
+            str(image_dir.parent),
+            "--text-embeds-dir",
+            str(embeds),
+            "--scores-csv",
+            str(tmp_path / "future-scores.csv"),
+        ]
+    )
+    score_report = preflight_runtime.build_preflight_report(score_args)
+    assert score_report["artifacts"]["ok"] is True
+    assert score_report["artifacts"]["metadata"]["scoring_prompt_count"] == 1
+
+    blocked_parent = tmp_path / "not-a-directory"
+    blocked_parent.write_text("file", encoding="utf-8")
+    blocked_args = preflight_runtime._build_parser().parse_args(
+        [
+            "--stage",
+            "score",
+            "--root",
+            str(tmp_path),
+            "--images-dir",
+            str(image_dir.parent),
+            "--text-embeds-dir",
+            str(embeds),
+            "--scores-csv",
+            str(blocked_parent / "scores.csv"),
+        ]
+    )
+    blocked_report = preflight_runtime.build_preflight_report(blocked_args)
+    assert blocked_report["artifacts"]["ok"] is False
+    assert any("not a directory" in error for error in blocked_report["blocking_errors"])
+
+
+def test_product_training_preflight_requires_canonical_thesis_formula(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import preflight_runtime
+    from src.evaluation.reward_interface import ProductScoreFormula, thesis_product_formula
+    from src.runtime.manifests import create_run_manifest
+    from src.scoring.pipeline import CANONICAL_SCORE_COLUMNS, write_score_schema_sidecar
+
+    monkeypatch.setattr(
+        preflight_runtime,
+        "check_stage_support",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            to_dict=lambda: {
+                "ok": True,
+                "stage": "sft",
+                "runtime": "cuda",
+                "capabilities": {},
+                "errors": [],
+                "warnings": [],
+            }
+        ),
+    )
+    scores = tmp_path / "outputs" / "generated" / "scores_product.csv"
+    scores.parent.mkdir(parents=True)
+    row = {field: "" for field in CANONICAL_SCORE_COLUMNS}
+    row.update(
+        {
+            "id": "p1",
+            "sample_id": "p1",
+            "version": 0,
+            "score": 0.6,
+            "product_score": 0.6,
+            "target_text": "ТЕСТ",
+            "score_vlm": 0.8,
+            "score_ocr": 0.75,
+            "detection_status": "detected_exact",
+            "exact_text_match": "true",
+            "char_accuracy": 1.0,
+            "char_matches": 4,
+            "char_total": 4,
+            "formula_complete": "true",
+            "manifest_path": "runs/eval/manifest.json",
+            "text_metrics": "{}",
+            "scorer_metadata": "{}",
+            "thresholds": "{}",
+        }
+    )
+    with scores.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=CANONICAL_SCORE_COLUMNS)
+        writer.writeheader()
+        writer.writerow(row)
+    source_manifest = create_run_manifest(
+        stage="evaluation",
+        command=["pytest", "product-score-source"],
+        run_root=tmp_path / "runs",
+        outputs={"scores_csv": str(scores)},
+        root=tmp_path,
+    )
+    execution = {
+        "status": "complete",
+        "scored_row_count": 1,
+        "scores_sha256": hashlib.sha256(scores.read_bytes()).hexdigest(),
+    }
+    write_score_schema_sidecar(
+        scores,
+        formula=thesis_product_formula(),
+        source_manifest_paths=(str(source_manifest.manifest_path),),
+        primary_score="product",
+        execution_metadata=execution,
+    )
+    (tmp_path / "outputs" / "generated" / "latents").mkdir()
+    (tmp_path / "outputs" / "generated" / "text_embeds").mkdir()
+    config = _sft_payload() | {
+        "scores_csv": "outputs/generated/scores_product.csv",
+        "experiment_name": "sft_product_test",
+    }
+    config_path = _write_json(tmp_path / "configs" / "product.json", config)
+    args = preflight_runtime._build_parser().parse_args(
+        ["--stage", "sft", "--root", str(tmp_path), "--config", str(config_path)]
+    )
+
+    assert preflight_runtime.build_preflight_report(args)["artifacts"]["ok"] is True
+
+    write_score_schema_sidecar(
+        scores,
+        formula=ProductScoreFormula(),
+        source_manifest_paths=(str(source_manifest.manifest_path),),
+        primary_score="product",
+        execution_metadata=execution,
+    )
+    blocked = preflight_runtime.build_preflight_report(args)
+
+    assert blocked["artifacts"]["ok"] is False
+    assert any("thesis_vlm_ocr_product_v1" in error for error in blocked["blocking_errors"])
+
+    neutral_scores = scores.with_name("scores.csv")
+    scores.replace(neutral_scores)
+    scores.with_suffix(".schema.json").replace(neutral_scores.with_suffix(".schema.json"))
+    neutral_config = _sft_payload() | {
+        "scores_csv": "outputs/generated/scores.csv",
+        "experiment_name": "sft_neutral_test",
+        "score_column": "product_score",
+    }
+    neutral_config_path = _write_json(tmp_path / "configs" / "neutral.json", neutral_config)
+    neutral_args = preflight_runtime._build_parser().parse_args(
+        ["--stage", "sft", "--root", str(tmp_path), "--config", str(neutral_config_path)]
+    )
+
+    neutral_blocked = preflight_runtime.build_preflight_report(neutral_args)
+
+    assert neutral_blocked["artifacts"]["ok"] is False
+    assert any("thesis_vlm_ocr_product_v1" in error for error in neutral_blocked["blocking_errors"])
+
+
+def test_product_detection_reads_materialized_artifact_metadata(tmp_path: Path) -> None:
+    from scripts.preflight_runtime import _requires_thesis_product
+
+    scores = tmp_path / "outputs" / "generated" / "scores.csv"
+    selected = tmp_path / "outputs" / "generated" / "selected_samples.jsonl"
+    selected.parent.mkdir(parents=True)
+    selected.write_text(
+        json.dumps(
+            {
+                "schema_version": "selected-samples/v1",
+                "sample_id": "sft:p1:v0:product_score",
+                "prompt_id": "p1",
+                "version": 0,
+                "selected_score": 0.8,
+                "score_column": "product_score",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    config = SimpleNamespace(
+        experiment_name="sft_neutral",
+        scores_csv="outputs/generated/scores.csv",
+        score_column="score",
+    )
+
+    assert _requires_thesis_product(
+        config,
+        {"scores_csv": scores, "selected_samples": selected},
+    )
+
+    selected.unlink()
+    scores.with_suffix(".schema.json").write_text(
+        json.dumps(
+            {
+                "primary_score": "vlm",
+                "formula": {"name": "thesis_vlm_ocr_product_v1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert not _requires_thesis_product(config, {"scores_csv": scores})
+
+
+@pytest.mark.parametrize("stage", ["sft", "dpo"])
+def test_preflight_blocks_missing_configured_selection_and_initialization_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
+    from scripts import preflight_runtime
+
+    monkeypatch.setattr(
+        preflight_runtime,
+        "check_stage_support",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            to_dict=lambda: {
+                "ok": True,
+                "stage": stage,
+                "runtime": "cuda",
+                "capabilities": {},
+                "errors": [],
+                "warnings": [],
+            }
+        ),
+    )
+    _write_scores_csv(tmp_path / "outputs" / "generated" / "scores.csv")
+    (tmp_path / "outputs" / "generated" / "latents").mkdir(parents=True)
+    (tmp_path / "outputs" / "generated" / "text_embeds").mkdir()
+    if stage == "sft":
+        config = _sft_payload() | {
+            "selection_mode": "top_k_per_prompt",
+            "selected_samples_path": "outputs/generated/missing-selected.jsonl",
+            "resume_lora_path": "outputs/missing-resume",
+        }
+    else:
+        config = _dpo_payload() | {
+            "pair_construction_mode": "margin_weighted",
+            "pair_weighting": "margin_normalized",
+            "preference_pairs_path": "outputs/generated/missing-pairs.jsonl",
+            "sft_lora_path": "outputs/missing-sft-init",
+        }
+    config_path = _write_json(tmp_path / "configs" / f"{stage}.json", config)
+    args = preflight_runtime._build_parser().parse_args(
+        ["--stage", stage, "--root", str(tmp_path), "--config", str(config_path)]
+    )
+
+    report = preflight_runtime.build_preflight_report(args)
+
+    assert report["artifacts"]["ok"] is False
+    if stage == "sft":
+        assert any(
+            "selected_samples file is missing" in error for error in report["blocking_errors"]
+        )
+        assert any("resume_lora_path" in error for error in report["blocking_errors"])
+    else:
+        assert any(
+            "preference_pairs file is missing" in error for error in report["blocking_errors"]
+        )
+        assert any("sft_lora_path" in error for error in report["blocking_errors"])

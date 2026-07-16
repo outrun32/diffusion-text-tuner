@@ -1,0 +1,58 @@
+name: quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-safe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e
+        with:
+          enable-cache: true
+
+      - name: Install Python 3.11
+        run: uv python install 3.11
+
+      - name: Sync locked environment
+        shell: bash
+        run: |
+          extra_args=()
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            extra_args+=(--extra mlx)
+          fi
+          uv sync --frozen --group dev --extra lint --extra plotting --extra analysis "${extra_args[@]}"
+
+      - name: Install ShellCheck on macOS
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
+
+      - name: Install ShellCheck on Linux
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck
+
+      - name: Run repository checks
+        run: make check
+
+      - name: Audit Python dependencies
+        if: runner.os == 'Linux'
+        run: uvx --from pip-audit==2.10.1 pip-audit --path .venv/lib/python3.11/site-packages --progress-spinner off
+
+      - name: Verify Apple Silicon surfaces
+        if: runner.os == 'macOS'
+        run: |
+          uv run python -m scripts.smoke_environment --check platform
+          uv run python -m scripts.smoke_environment --check mlx
+          uv run pytest -q tests/test_prompt_mlx_backend.py tests/test_runtime_capabilities.py

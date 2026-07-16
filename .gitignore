@@ -173,15 +173,22 @@ cython_debug/
 
 # Outputs (model checkpoints, generated images, embeddings, logs)
 outputs/
+output/
 runs/
 
 # Large/generated data files
 data/prompts_llm.jsonl
 data/prompts_simple.jsonl
 data/prompts.jsonl
+data/prompts/*.jsonl
 data/backgrounds/
 data/synth_cyrillic/
 data/fonts/
+
+# Editor/agent handoff state and local conversation exports
+*.vscdb
+*handoff_bundle*
+.copilot/
 
 # Local thesis/presentation build artifacts
 docs/thesis/

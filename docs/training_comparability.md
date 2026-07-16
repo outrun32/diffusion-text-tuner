@@ -12,12 +12,15 @@ interpreted side by side:
 
 | Group | Fields | Severity |
 |-------|--------|----------|
-| Training | `num_training_steps` | warning |
+| Training | `num_training_steps` | blocking |
+| Optimization | batch size, gradient accumulation, effective batch, LR/schedule/minimum, warmup, weight decay, gradient clipping, precision, resolution | blocking |
+| Objective | beta, flow shift/timesteps, masked lambda, score margins/thresholds, selection/pair modes and weights | warning (stage-specific) |
+| LoRA | full rank/alpha/target-module mapping | blocking |
 | Inference | `num_inference_steps`, `guidance_scale`, `prompt_embedding_padding` | blocking |
 | Prompt | `seed`, `sample_prompt`, `sample_target_text` | blocking |
-| Model | `model_id` | blocking |
-| Data source | `latents_dir`, `text_embeds_dir`, `scores_csv`, `data_dir` | blocking |
-| Reward | `score_column`, `reward_model`, `scorer` | blocking |
+| Model | model ID/revision, SFT initialization, resume path/step | blocking |
+| Data source | latent/embed/score/data paths | blocking |
+| Reward | score column, threshold, reward model, scorer | blocking |
 | Metrics | `metric_columns` | warning |
 | Artifacts | `samples_dir` | warning |
 
@@ -42,7 +45,7 @@ availability differences that should be documented when interpreting results.
 Compare validated SFT, DPO, or masked-SFT configs without launching training:
 
 ```bash
-uv run python scripts/check_training_comparability.py \
+uv run python -m scripts.check_training_comparability \
     --left-config configs/sft.json \
     --left-stage sft \
     --right-config configs/dpo.json \
@@ -56,7 +59,7 @@ and compares immutable snapshots produced by `resolve_config_snapshot`. The comm
 record the mismatch report without failing the current exploratory step:
 
 ```bash
-uv run python scripts/check_training_comparability.py \
+uv run python -m scripts.check_training_comparability \
     --left-config configs/sft.json \
     --left-stage sft \
     --right-config configs/dpo.json \
@@ -71,7 +74,7 @@ Compare two local run manifests after they have captured config snapshots, metri
 artifact metadata:
 
 ```bash
-uv run python scripts/check_training_comparability.py \
+uv run python -m scripts.check_training_comparability \
     --left-manifest runs/<baseline-run>/manifest.json \
     --right-manifest runs/<trained-run>/manifest.json \
     --markdown \
@@ -93,7 +96,7 @@ PaddleOCR, OCR, model inference, tensor loading, generated image reads, or
 checkpoint inspection.
 
 ```bash
-python -m scripts.compare_training_runs --left-manifest runs/<a>/manifest.json --right-manifest runs/<b>/manifest.json --markdown --output runs/comparisons/training-run-comparison.md
+uv run python -m scripts.compare_training_runs --left-manifest runs/<a>/manifest.json --right-manifest runs/<b>/manifest.json --markdown --output runs/comparisons/training-run-comparison.md
 make compare-training-runs LEFT_MANIFEST=runs/<a>/manifest.json RIGHT_MANIFEST=runs/<b>/manifest.json
 ```
 

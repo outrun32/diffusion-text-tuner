@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -13,7 +12,7 @@ def test_docs_publish_cpu_safe_characterization_command_surface() -> None:
     readme = _read_repo_file("README.md")
 
     required_strings = [
-        "## Phase 4 CPU-safe characterization tests",
+        "## CPU-safe characterization tests",
         "CPU-safe characterization",
         "uv run pytest tests/test_characterization_config_artifacts.py",
         "uv run pytest tests/test_training_dataset_contracts.py",
@@ -37,7 +36,7 @@ def test_docs_publish_cpu_safe_characterization_command_surface() -> None:
     assert missing_from_docs == []
 
     readme_required = [
-        "Phase 4 CPU-safe characterization tests",
+        "## CPU-safe quality gates",
         "make characterization-test",
         "docs/commands.md",
         "docs/runtime_contracts.md",
@@ -72,7 +71,7 @@ def test_default_pytest_boundary_excludes_heavy_diagnostics() -> None:
     docs = _read_repo_file("docs/commands.md")
     runtime_docs = _read_repo_file("docs/runtime_contracts.md")
     readme = _read_repo_file("README.md")
-    combined_docs = "\n".join([docs, runtime_docs, readme])
+    combined_docs = " ".join("\n".join([docs, runtime_docs, readme]).split())
 
     required_strings = [
         "default pytest does not load CUDA, FLUX, Qwen, PaddleOCR, vLLM, MLX, or SynthTIGER",
@@ -84,7 +83,7 @@ def test_default_pytest_boundary_excludes_heavy_diagnostics() -> None:
         "pytest -m integration",
         "pytest -m manual",
         "tmp_path",
-        "torch.load(..., map_location=\"cpu\", weights_only=True)",
+        'torch.load(..., map_location="cpu", weights_only=True)',
         "generated artifacts and private prompts remain out of git",
     ]
 

@@ -8,33 +8,29 @@ Trains LoRA adapters on the FLUX2Klein DiT transformer by:
 4. Backprop reward → LoRA weights
 """
 
-import gc
 import csv
+import gc
 import json
 import logging
-import math
 import os
 import random
 import time
 from pathlib import Path
 
 import torch
-from peft import LoraConfig as PeftLoraConfig, get_peft_model
+from peft import LoraConfig as PeftLoraConfig
+from peft import get_peft_model
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
 
 from .config import ReflConfig
 from .flux2_utils import (
     decode_latents,
     pack_latents,
-    patchify_latents,
     prepare_latent_ids,
     prepare_text_ids,
-    unpack_latents_with_ids,
 )
 from .rewards import QwenYesProbReward
-
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +79,18 @@ class FlowMatchScheduler:
 
         # Compute sigma_max / sigma_min from the shifted training schedule
         import numpy as np
-        train_ts = np.linspace(1, num_train_timesteps, num_train_timesteps, dtype=np.float32)[::-1].copy()
+
+        train_ts = np.linspace(1, num_train_timesteps, num_train_timesteps, dtype=np.float32)[
+            ::-1
+        ].copy()
         train_sigmas = train_ts / num_train_timesteps
         train_sigmas = shift * train_sigmas / (1 + (shift - 1) * train_sigmas)
-        self.sigma_max = float(train_sigmas[0])   # 1.0
-        self.sigma_min = float(train_sigmas[-1])   # ~0.003
+        self.sigma_max = float(train_sigmas[0])  # 1.0
+        self.sigma_min = float(train_sigmas[-1])  # ~0.003
 
     def set_timesteps(self, num_inference_steps: int, device=None):
         import numpy as np
+
         self.num_inference_steps = num_inference_steps
         # Linearly space in timestep domain, then shift to get sigmas
         timesteps = np.linspace(
@@ -170,7 +170,7 @@ def refl_denoise(
                     img_ids=latent_ids,
                     return_dict=False,
                 )[0]
-                noise_pred = noise_pred[:, :latents.size(1)]
+                noise_pred = noise_pred[:, : latents.size(1)]
 
                 if do_cfg:
                     neg_pred = transformer(
@@ -182,7 +182,7 @@ def refl_denoise(
                         img_ids=latent_ids,
                         return_dict=False,
                     )[0]
-                    neg_pred = neg_pred[:, :latents.size(1)]
+                    neg_pred = neg_pred[:, : latents.size(1)]
                     noise_pred = neg_pred + guidance_scale * (noise_pred - neg_pred)
 
                 latents = scheduler.step(noise_pred, latents)
@@ -197,7 +197,7 @@ def refl_denoise(
                 img_ids=latent_ids,
                 return_dict=False,
             )[0]
-            noise_pred = noise_pred[:, :latents.size(1)]
+            noise_pred = noise_pred[:, : latents.size(1)]
 
             if do_cfg:
                 with torch.no_grad():
@@ -210,7 +210,7 @@ def refl_denoise(
                         img_ids=latent_ids,
                         return_dict=False,
                     )[0]
-                    neg_pred = neg_pred[:, :latents.size(1)]
+                    neg_pred = neg_pred[:, : latents.size(1)]
                 noise_pred = neg_pred + guidance_scale * (noise_pred - neg_pred)
 
             latents = scheduler.step_to_zero(noise_pred, latents)
@@ -242,6 +242,12 @@ def setup_logging(output_dir: str, experiment_name: str):
 
 
 def train(cfg: ReflConfig):
+    from src.runtime.capabilities import check_stage_support
+
+    support = check_stage_support("refl", mixed_precision=cfg.mixed_precision)
+    if not support.ok:
+        raise RuntimeError("; ".join(support.errors))
+
     setup_logging(cfg.output_dir, cfg.experiment_name)
 
     logger.info("=" * 60)
@@ -272,7 +278,11 @@ def train(cfg: ReflConfig):
     logger.info(f"Loading FLUX2Klein model: {cfg.model_id}")
     from diffusers import Flux2KleinPipeline
 
-    pipe = Flux2KleinPipeline.from_pretrained(cfg.model_id, torch_dtype=dtype)
+    pipe = Flux2KleinPipeline.from_pretrained(
+        cfg.model_id,
+        revision=cfg.model_revision,
+        torch_dtype=dtype,
+    )
     transformer = pipe.transformer
     vae = pipe.vae.to(device, dtype=dtype)
     vae.eval()
@@ -343,7 +353,11 @@ def train(cfg: ReflConfig):
 
     # ── 5. Load VLM reward model ──
     logger.info("Loading VLM reward model...")
-    vlm_reward = QwenYesProbReward(model_id=cfg.vlm_model_id, device=device)
+    vlm_reward = QwenYesProbReward(
+        model_id=cfg.vlm_model_id,
+        device=device,
+        revision=cfg.vlm_model_revision,
+    )
 
     # ── 6. Optimizer & scheduler ──
     optimizer = torch.optim.AdamW(
@@ -353,6 +367,7 @@ def train(cfg: ReflConfig):
         betas=(0.9, 0.99),
     )
     from transformers.optimization import get_constant_schedule_with_warmup
+
     lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps)
 
     # ── 7. Scheduler for denoising ──
@@ -364,8 +379,12 @@ def train(cfg: ReflConfig):
     latent_height = cfg.resolution // vae_scale_factor // patch_factor
     latent_width = cfg.resolution // vae_scale_factor // patch_factor
     num_latent_channels = 128  # 32 * 4 after patchify
-    logger.info(f"Latent shape: ({cfg.batch_size}, {num_latent_channels}, {latent_height}, {latent_width})")
-    logger.info(f"Packed shape: ({cfg.batch_size}, {latent_height * latent_width}, {num_latent_channels})")
+    logger.info(
+        f"Latent shape: ({cfg.batch_size}, {num_latent_channels}, {latent_height}, {latent_width})"
+    )
+    logger.info(
+        f"Packed shape: ({cfg.batch_size}, {latent_height * latent_width}, {num_latent_channels})"
+    )
 
     # ── 9. Training loop ──
     save_dir = os.path.join(cfg.output_dir, cfg.experiment_name)
@@ -373,6 +392,7 @@ def train(cfg: ReflConfig):
 
     # Save config
     import dataclasses
+
     config_path = os.path.join(save_dir, "config.json")
     with open(config_path, "w") as f:
         json.dump(dataclasses.asdict(cfg), f, indent=2)
@@ -396,8 +416,13 @@ def train(cfg: ReflConfig):
     for i in range(len(EVAL_PROMPTS)):
         gen = torch.Generator(device=device).manual_seed(42 + i)
         noise = torch.randn(
-            1, num_latent_channels, latent_height, latent_width,
-            generator=gen, device=device, dtype=dtype,
+            1,
+            num_latent_channels,
+            latent_height,
+            latent_width,
+            generator=gen,
+            device=device,
+            dtype=dtype,
         )
         eval_fixed_noises.append(noise)
         eval_fixed_latent_ids_list.append(prepare_latent_ids(noise).to(device))
@@ -411,7 +436,6 @@ def train(cfg: ReflConfig):
 
     global_step = 0
     total_reward = 0.0
-    best_reward = -float("inf")
     start_time = time.time()
 
     logger.info(f"Starting training for {cfg.num_training_steps} steps")
@@ -441,8 +465,12 @@ def train(cfg: ReflConfig):
 
             # Initialize random noise in patchified space
             latents_spatial = torch.randn(
-                cfg.batch_size, num_latent_channels, latent_height, latent_width,
-                device=device, dtype=dtype,
+                cfg.batch_size,
+                num_latent_channels,
+                latent_height,
+                latent_width,
+                device=device,
+                dtype=dtype,
             )
             latent_ids = prepare_latent_ids(latents_spatial).to(device)
             latents = pack_latents(latents_spatial)  # (B, H*W, C)
@@ -519,15 +547,21 @@ def train(cfg: ReflConfig):
                     f"grad_norm={grad_norm:.4f} | "
                     f"lr={current_lr:.2e} | "
                     f"speed={steps_per_sec:.2f} it/s | "
-                    f"eta={eta/60:.1f}min"
+                    f"eta={eta / 60:.1f}min"
                 )
 
                 # Write to CSV
-                metrics_writer.writerow([
-                    global_step, f"{accum_loss:.6f}", f"{avg_reward:.6f}",
-                    f"{grad_norm:.6f}", f"{current_lr:.2e}", step_with_grad,
-                    f"{elapsed:.1f}",
-                ])
+                metrics_writer.writerow(
+                    [
+                        global_step,
+                        f"{accum_loss:.6f}",
+                        f"{avg_reward:.6f}",
+                        f"{grad_norm:.6f}",
+                        f"{current_lr:.2e}",
+                        step_with_grad,
+                        f"{elapsed:.1f}",
+                    ]
+                )
                 metrics_file.flush()
 
                 total_reward = 0.0
@@ -555,7 +589,7 @@ def train(cfg: ReflConfig):
                                 img_ids=s_latent_ids,
                                 return_dict=False,
                             )[0]
-                            pred = pred[:, :sample_latents.size(1)]
+                            pred = pred[:, : sample_latents.size(1)]
                             if cfg.guidance_scale > 1.0 and neg_prompt_embeds is not None:
                                 neg_pred = transformer(
                                     hidden_states=sample_latents.to(transformer.dtype),
@@ -566,15 +600,20 @@ def train(cfg: ReflConfig):
                                     img_ids=s_latent_ids,
                                     return_dict=False,
                                 )[0]
-                                neg_pred = neg_pred[:, :sample_latents.size(1)]
+                                neg_pred = neg_pred[:, : sample_latents.size(1)]
                                 pred = neg_pred + cfg.guidance_scale * (pred - neg_pred)
                             sample_latents = sample_scheduler.step(pred, sample_latents)
                         sample_images = decode_latents(sample_latents, s_latent_ids, vae)
                         sample_pil = Image.fromarray(
-                            (sample_images[0].cpu().clamp(0, 1) * 255).byte().permute(1, 2, 0).numpy()
+                            (sample_images[0].cpu().clamp(0, 1) * 255)
+                            .byte()
+                            .permute(1, 2, 0)
+                            .numpy()
                         )
                         tag = ep["target_text"].replace(" ", "_").lower()
-                        sample_pil.save(os.path.join(samples_dir, f"step_{global_step:05d}_{tag}.png"))
+                        sample_pil.save(
+                            os.path.join(samples_dir, f"step_{global_step:05d}_{tag}.png")
+                        )
 
             # Save checkpoint
             if global_step % cfg.save_interval == 0:
@@ -610,7 +649,9 @@ def main():
     parser = argparse.ArgumentParser(description="ReFL trainer for FLUX.2 Klein")
     parser.add_argument("--config", type=str, default=None, help="JSON config file")
     parser.add_argument("--model-id", type=str, default=None)
+    parser.add_argument("--model-revision", type=str, default=None)
     parser.add_argument("--vlm-model-id", type=str, default=None)
+    parser.add_argument("--vlm-model-revision", type=str, default=None)
     parser.add_argument("--prompts-path", type=str, default=None)
     parser.add_argument("--text-embeds-dir", type=str, default=None)
     parser.add_argument("--num-training-steps", type=int, default=None)
@@ -637,6 +678,7 @@ def main():
                 continue
             if k == "lora" and isinstance(v, dict):
                 from .config import LoraConfig
+
                 cfg.lora = LoraConfig(**v)
             elif k == "eval_prompts" and isinstance(v, list):
                 cfg.eval_prompts = v
@@ -645,10 +687,23 @@ def main():
 
     # CLI overrides
     for key in [
-        "model_id", "vlm_model_id", "prompts_path", "text_embeds_dir",
-        "num_training_steps", "batch_size", "lr", "resolution",
-        "num_inference_steps", "guidance_scale", "output_dir",
-        "experiment_name", "num_samples", "save_interval", "log_interval",
+        "model_id",
+        "model_revision",
+        "vlm_model_id",
+        "vlm_model_revision",
+        "prompts_path",
+        "text_embeds_dir",
+        "num_training_steps",
+        "batch_size",
+        "lr",
+        "resolution",
+        "num_inference_steps",
+        "guidance_scale",
+        "output_dir",
+        "experiment_name",
+        "num_samples",
+        "save_interval",
+        "log_interval",
     ]:
         val = getattr(args, key.replace("-", "_"), None)
         if val is not None:

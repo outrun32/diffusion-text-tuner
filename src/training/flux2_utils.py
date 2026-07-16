@@ -7,11 +7,9 @@ and VAE decoding — all adapted for use in the ReFL training loop.
 
 import json
 import os
-from pathlib import Path
 
 import torch
 from tqdm import tqdm
-
 
 # ── Latent packing / unpacking ──────────────────────────────────────────────
 
@@ -41,7 +39,7 @@ def pack_latents(latents: torch.Tensor) -> torch.Tensor:
 def unpack_latents_with_ids(x: torch.Tensor, x_ids: torch.Tensor) -> torch.Tensor:
     """(B, seq, C) + (B, seq, 4) -> (B, C, H, W)"""
     x_list = []
-    for data, pos in zip(x, x_ids):
+    for data, pos in zip(x, x_ids, strict=True):
         _, ch = data.shape
         h_ids = pos[:, 1].to(torch.int64)
         w_ids = pos[:, 2].to(torch.int64)
@@ -61,8 +59,8 @@ def prepare_latent_ids(latents: torch.Tensor) -> torch.Tensor:
     t = torch.arange(1)
     h = torch.arange(H)
     w = torch.arange(W)
-    l = torch.arange(1)
-    latent_ids = torch.cartesian_prod(t, h, w, l)
+    layer = torch.arange(1)
+    latent_ids = torch.cartesian_prod(t, h, w, layer)
     return latent_ids.unsqueeze(0).expand(B, -1, -1)
 
 
@@ -74,8 +72,8 @@ def prepare_text_ids(x: torch.Tensor) -> torch.Tensor:
         t = torch.arange(1)
         h = torch.arange(1)
         w = torch.arange(1)
-        l = torch.arange(L)
-        coords = torch.cartesian_prod(t, h, w, l)
+        layer = torch.arange(L)
+        coords = torch.cartesian_prod(t, h, w, layer)
         out_ids.append(coords)
     return torch.stack(out_ids)
 
@@ -118,7 +116,7 @@ def encode_image(image: torch.Tensor, vae) -> torch.Tensor:
     x = 2.0 * image - 1.0
     with torch.no_grad():
         latents = vae.encode(x).latent_dist.sample()  # (B, C, H//8, W//8)
-    latents = patchify_latents(latents)   # (B, C*4, H//16, W//16)
+    latents = patchify_latents(latents)  # (B, C*4, H//16, W//16)
     latents = bn_normalize(latents, vae)  # BN normalize
     return latents
 
@@ -152,7 +150,8 @@ def decode_latents(packed_latents: torch.Tensor, latent_ids: torch.Tensor, vae) 
 def precompute_text_embeddings(
     prompts_path: str,
     output_dir: str,
-    model_id: str = "black-forest-labs/FLUX.2-klein-4B-Base",
+    model_id: str = "black-forest-labs/FLUX.2-klein-base-4B",
+    model_revision: str | None = None,
     max_sequence_length: int = 512,
     hidden_states_layers: tuple[int, ...] = (9, 18, 27),
     batch_size: int = 4,
@@ -168,13 +167,17 @@ def precompute_text_embeddings(
 
     # Load just the text encoder parts
     print(f"Loading pipeline for text encoding: {model_id}")
-    pipe = Flux2KleinPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
+    pipe = Flux2KleinPipeline.from_pretrained(
+        model_id,
+        revision=model_revision,
+        torch_dtype=torch.bfloat16,
+    )
     text_encoder = pipe.text_encoder.to(device)
     tokenizer = pipe.tokenizer
 
     # Load prompts
     records = []
-    with open(prompts_path, "r", encoding="utf-8") as f:
+    with open(prompts_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:

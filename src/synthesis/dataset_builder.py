@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import re
 import shutil
 import subprocess
 import sys
@@ -22,32 +23,35 @@ from typing import TypeVar
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+_SAFE_SAMPLE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 @dataclass(frozen=True)
 class SynthesisBuildConfig:
     """Configuration for synthetic dataset building.
 
-    Defaults intentionally match the historical CLI in
-    ``scripts/synth/build_dataset.py`` so existing commands keep the same
-    behavior after delegation through ``build_dataset``.
+    Rendering requires an explicit SynthTIGER template, config, and runner.
+    The repository does not pretend that the removed historical files are
+    still available.
     """
 
     num: int
     workers: int = 8
-    template: Path = Path("scripts/synth/synthtiger_template.py")
+    template: Path | None = None
     template_name: str = "CyrillicScene"
-    config: Path = Path("configs/synth/cyrillic.yaml")
-    runner: Path = Path("scripts/synth/run_synthtiger.py")
+    config: Path | None = None
+    runner: Path | None = None
     raw_dir: Path = Path("data/synth_cyrillic/raw")
     out_masked: Path = Path("data/synth_cyrillic/masked_sft")
     out_anyword: Path = Path("data/synth_cyrillic/anyword_format")
+    clean_root: Path = Path("data/synth_cyrillic")
     seed: int = 0
     skip_render: bool = False
     clean: bool = False
     bake_latents: bool = False
     encode_text: bool = False
     model_id: str = "black-forest-labs/FLUX.2-klein-base-4B"
+    model_revision: str | None = None
     device: str = "cuda"
 
 
@@ -101,13 +105,19 @@ def collate_records(raw_dir: Path) -> list[dict]:
         raise FileNotFoundError(f"missing {index_path} — synthtiger render failed?")
 
     records: list[dict] = []
+    seen_ids: set[str] = set()
     with index_path.open("r", encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line:
                 continue
             row = json.loads(line)
-            sample_id = row["id"]
+            sample_id = str(row["id"])
+            _validate_sample_id(sample_id)
+            folded_id = sample_id.casefold()
+            if folded_id in seen_ids:
+                raise ValueError(f"duplicate synthetic sample id (case-insensitive): {sample_id}")
+            seen_ids.add(folded_id)
             meta_path = meta_dir / f"{sample_id}.json"
             if not meta_path.is_file():
                 logger.warning("missing meta for %s; skipping", sample_id)
@@ -144,6 +154,7 @@ def fan_out(
     out_anyword: Path,
 ) -> None:
     """Fan raw images and masks into masked-SFT and AnyWord layouts."""
+    _validate_unique_record_ids(records)
     raw_imgs = raw_dir / "imgs"
     raw_masks = raw_dir / "masks"
     masked_imgs = out_masked / "raw_imgs"
@@ -154,7 +165,8 @@ def fan_out(
         directory.mkdir(parents=True, exist_ok=True)
 
     for record in _progress(records, desc="link"):
-        sample_id = record["id"]
+        sample_id = str(record["id"])
+        _validate_sample_id(sample_id)
         src_img = raw_imgs / f"{sample_id}.png"
         src_mask = raw_masks / f"{sample_id}.png"
         _hardlink_or_copy(src_img, masked_imgs / f"{sample_id}.png")
@@ -192,9 +204,7 @@ def write_masked_index(records: list[dict], out_masked: Path) -> Path:
         writer.writerow(["id", "resolution", "n_words", "text", "caption"])
         for record in records:
             joined = " | ".join(annotation["text"] for annotation in record["annotations"])
-            n_words = sum(
-                len(annotation["text"].split()) for annotation in record["annotations"]
-            )
+            n_words = sum(len(annotation["text"].split()) for annotation in record["annotations"])
             writer.writerow(
                 [
                     record["id"],
@@ -218,6 +228,7 @@ def bake_latents_phase(
     records: list[dict],
     out_masked: Path,
     model_id: str,
+    model_revision: str | None,
     device: str,
 ) -> None:
     """Encode images and masks into latent tensors behind an explicit gate."""
@@ -235,7 +246,11 @@ def bake_latents_phase(
     latents_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("Loading FLUX pipeline VAE: %s", model_id)
-    pipe = Flux2KleinPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16)
+    pipe = Flux2KleinPipeline.from_pretrained(
+        model_id,
+        revision=model_revision,
+        torch_dtype=torch.bfloat16,
+    )
     vae = pipe.vae.to(device).eval()
 
     shapes_rows: list[tuple[str, int, int]] = []
@@ -248,26 +263,18 @@ def bake_latents_phase(
         mask = Image.open(masked_masks / f"{sample_id}.png").convert("L")
 
         image_tensor = (
-            torch.from_numpy(np.asarray(image, dtype="uint8"))
-            .permute(2, 0, 1)
-            .float()
-            .unsqueeze(0)
+            torch.from_numpy(np.asarray(image, dtype="uint8")).permute(2, 0, 1).float().unsqueeze(0)
             / 255.0
         )
         mask_tensor = (
-            torch.from_numpy(np.asarray(mask, dtype="uint8"))
-            .float()
-            .unsqueeze(0)
-            .unsqueeze(0)
+            torch.from_numpy(np.asarray(mask, dtype="uint8")).float().unsqueeze(0).unsqueeze(0)
             / 255.0
         )
 
         with torch.no_grad():
             input_tensor = image_tensor.to(device, dtype=torch.bfloat16)
             latent = encode_image(input_tensor, vae)
-        mask_lat = mask_to_latent_grid(
-            mask_tensor.to(device), (latent_height, latent_width)
-        )
+        mask_lat = mask_to_latent_grid(mask_tensor.to(device), (latent_height, latent_width))
 
         if latent.shape[-2:] != (latent_height, latent_width):
             raise RuntimeError(
@@ -301,6 +308,7 @@ def encode_text_phase(
     prompts_path: Path,
     out_masked: Path,
     model_id: str,
+    model_revision: str | None,
     device: str,
 ) -> None:
     """Precompute text embeddings behind an explicit gate."""
@@ -323,6 +331,7 @@ def encode_text_phase(
             prompts_path=str(prompts_path),
             output_dir=str(tmp_embeds),
             model_id=model_id,
+            model_revision=model_revision,
             device=device,
         )
 
@@ -353,7 +362,14 @@ def encode_text_phase(
 
 def build_dataset(config: SynthesisBuildConfig) -> int:
     """Run synthetic dataset phases in the historical order."""
-    if config.clean and not config.skip_render:
+    render_inputs = None if config.skip_render else _require_render_inputs(config)
+    if config.clean and config.skip_render:
+        raise ValueError("--clean cannot be combined with --skip-render")
+    if config.clean:
+        _validate_clean_targets(
+            (config.raw_dir, config.out_masked, config.out_anyword),
+            allowed_root=config.clean_root,
+        )
         for path in (config.raw_dir, config.out_masked, config.out_anyword):
             if path.exists():
                 logger.info("Removing %s", path)
@@ -363,15 +379,18 @@ def build_dataset(config: SynthesisBuildConfig) -> int:
     config.out_anyword.mkdir(parents=True, exist_ok=True)
 
     if not config.skip_render:
+        if render_inputs is None:
+            raise AssertionError("render inputs must be resolved before cleanup")
+        template, synth_config, runner = render_inputs
         render_phase(
             num=config.num,
             workers=config.workers,
-            template_path=config.template,
+            template_path=template,
             template_name=config.template_name,
-            config_path=config.config,
+            config_path=synth_config,
             raw_dir=config.raw_dir,
             seed=config.seed,
-            runner=config.runner,
+            runner=runner,
         )
 
     records = collate_records(config.raw_dir)
@@ -380,10 +399,90 @@ def build_dataset(config: SynthesisBuildConfig) -> int:
     prompts_path = write_masked_index(records, config.out_masked)
 
     if config.bake_latents:
-        bake_latents_phase(records, config.out_masked, config.model_id, config.device)
+        _require_cuda_model_stage(config)
+        bake_latents_phase(
+            records,
+            config.out_masked,
+            config.model_id,
+            config.model_revision,
+            config.device,
+        )
 
     if config.encode_text:
-        encode_text_phase(prompts_path, config.out_masked, config.model_id, config.device)
+        _require_cuda_model_stage(config)
+        encode_text_phase(
+            prompts_path,
+            config.out_masked,
+            config.model_id,
+            config.model_revision,
+            config.device,
+        )
 
     logger.info("Done. %d samples ready.", len(records))
     return 0
+
+
+def _require_render_inputs(config: SynthesisBuildConfig) -> tuple[Path, Path, Path]:
+    inputs = {
+        "template": config.template,
+        "config": config.config,
+        "runner": config.runner,
+    }
+    missing = [name for name, path in inputs.items() if path is None or not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "synthetic rendering requires existing explicit files for: " + ", ".join(missing)
+        )
+    return config.template, config.config, config.runner  # type: ignore[return-value]
+
+
+def _validate_sample_id(sample_id: str) -> None:
+    if not _SAFE_SAMPLE_ID.fullmatch(sample_id):
+        raise ValueError(
+            f"unsafe synthetic sample id {sample_id!r}; use letters, digits, dot, "
+            "underscore, or dash"
+        )
+
+
+def _validate_unique_record_ids(records: Iterable[dict]) -> None:
+    seen: set[str] = set()
+    for record in records:
+        sample_id = str(record.get("id") or "")
+        _validate_sample_id(sample_id)
+        folded = sample_id.casefold()
+        if folded in seen:
+            raise ValueError(f"duplicate synthetic sample id (case-insensitive): {sample_id}")
+        seen.add(folded)
+
+
+def _validate_clean_targets(paths: Iterable[Path], *, allowed_root: Path) -> None:
+    root = allowed_root.resolve()
+    resolved = [path.resolve() for path in paths]
+    if root in resolved:
+        raise ValueError("--clean refuses to remove the clean root itself")
+    for path in resolved:
+        try:
+            path.relative_to(root)
+        except ValueError as exc:
+            raise ValueError(f"--clean path must stay under {root}: {path}") from exc
+    if len(set(resolved)) != len(resolved):
+        raise ValueError("--clean paths must be distinct")
+    for left in resolved:
+        for right in resolved:
+            if left == right:
+                continue
+            try:
+                right.relative_to(left)
+            except ValueError:
+                continue
+            raise ValueError(f"--clean paths must not contain one another: {left}, {right}")
+
+
+def _require_cuda_model_stage(config: SynthesisBuildConfig) -> None:
+    from src.runtime.capabilities import check_stage_support
+
+    if config.device != "cuda":
+        raise ValueError("latent and text-embedding baking is CUDA-only in this repository")
+    support = check_stage_support("generate")
+    if not support.ok:
+        raise RuntimeError("; ".join(support.errors))

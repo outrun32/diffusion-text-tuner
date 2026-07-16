@@ -4,7 +4,7 @@ Thesis output bundles turn recorded run evidence into thesis-ready tables, SVG p
 
 Use this workflow when thesis text needs a result table, visual score plot, or contact sheet that can be traced back to exact run manifests and recorded reports instead of manual/static numbers.
 
-Related Phase 6 guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
+Related guides: [`docs/reward_evaluation.md`](reward_evaluation.md),
 [`docs/evaluation_harness.md`](evaluation_harness.md),
 [`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md), and the command
 catalog in [`docs/commands.md`](commands.md).
@@ -17,13 +17,13 @@ The input config uses `thesis-output-config/v1` and is intentionally local-file 
 {
   "schema_version": "thesis-output-config/v1",
   "source_manifests": ["runs/eval-sft/manifest.json", "runs/eval-dpo/manifest.json"],
-  "score_reports": ["runs/eval-sft/scores.json"],
+  "score_reports": ["runs/eval-sft/scores.jsonl"],
   "diagnostic_reports": ["runs/eval-sft/reward_diagnostics.json"],
   "output_dir": "outputs/thesis/eval_bundle",
   "table_specs": [
     {
       "name": "score_summary",
-      "source": "runs/eval-sft/scores.json",
+      "source": "runs/eval-sft/scores.jsonl",
       "columns": ["sample_id", "run_id", "product_score", "exact_match"],
       "output_csv": "tables/score_summary.csv"
     }
@@ -31,7 +31,7 @@ The input config uses `thesis-output-config/v1` and is intentionally local-file 
   "svg_plot_specs": [
     {
       "name": "product_scores",
-      "source": "runs/eval-sft/scores.json",
+      "source": "runs/eval-sft/scores.jsonl",
       "x": "sample_id",
       "y": "product_score",
       "output_svg": "plots/product_scores.svg",
@@ -53,8 +53,11 @@ The input config uses `thesis-output-config/v1` and is intentionally local-file 
 
 Required fields:
 
-- `source_manifests`: run manifest JSON files created by the runtime manifest helpers. Each manifest contributes run ID, stage, git state, config snapshot, input paths, output paths, and metrics.
-- `score_reports`: score CSV/JSON/JSONL files or score report JSON files with a `records` list. These are the source rows for tables and SVG plots.
+- `source_manifests`: strict `run-manifest/v1` files with an existing immutable config snapshot and
+  matching byte-level SHA-256. Each configured manifest must be linked by at least one score sidecar.
+- `score_reports`: canonical score CSV or JSONL files with a complete `.schema.json` sidecar. The
+  builder verifies score bytes/row count, every source-manifest hash, and the link to a configured
+  run manifest before the report is considered ready.
 - `diagnostic_reports`: reward diagnostic JSON files, such as `reward-diagnostics/v1` outputs from disagreement analysis.
 - `output_dir`: runtime output root for generated bundle artifacts.
 - `table_specs`: deterministic CSV table definitions with `source`, `columns`, and `output_csv`.
@@ -66,8 +69,8 @@ Required fields:
 Build bundle JSON and Markdown summaries with the thin CLI:
 
 ```bash
-PATH="/root/.local/bin:$PATH" uv run python scripts/build_thesis_outputs.py \
-  --config configs/thesis/eval_bundle.json \
+uv run python -m scripts.build_thesis_outputs \
+  --config <reviewed-evidence-config.json> \
   --output-bundle outputs/thesis/eval_bundle/bundle.json \
   --markdown-summary outputs/thesis/eval_bundle/bundle.md
 ```
@@ -81,8 +84,8 @@ The bundle records readiness blocking errors whenever required provenance is abs
 - missing source manifest paths;
 - malformed run manifests or missing config snapshots;
 - missing score reports or diagnostic reports;
-- score report JSON whose `records` field is not a list;
-- table or SVG specs whose source report is missing;
+- score files with missing/incomplete sidecars, changed bytes, or stale manifest hashes;
+- table or SVG specs whose source is not one of the validated score/diagnostic reports;
 - table specs with no columns.
 
 Warnings are separate from readiness blocking errors. For example, a contact sheet can record a missing image path as a warning while preserving the source path in the bundle so the missing visual evidence is explicit.
@@ -91,8 +94,10 @@ Warnings are separate from readiness blocking errors. For example, a contact she
 
 The builder writes a `thesis-output-bundle/v1` JSON object and optional Markdown summary. The JSON includes:
 
-- `source_manifests`: each manifest path, run ID, stage, git state, config snapshot reference, config snapshot content, inputs, outputs, and metrics;
-- `evidence.score_reports`: each score report path, schema version, record count, and top-level keys;
+- `source_manifests`: each manifest and config-snapshot path/hash plus run ID, stage, git state,
+  inputs, outputs, and metrics;
+- `evidence.score_reports`: each score/sidecar path and SHA-256, schema, formula, primary score,
+  record count, and verified source-manifest links;
 - `evidence.diagnostic_reports`: each diagnostic report path, schema version, record count, and top-level keys;
 - `tables`: output CSV paths, row counts, columns, and source report paths;
 - `svg_plots`: output SVG paths, plotted fields, point counts, and source report paths;
@@ -111,7 +116,9 @@ When using a bundle in the thesis:
 4. Use the score and diagnostic report paths to verify product scores, missing evidence, reward disagreement summaries, false rows, and contact-sheet source images.
 5. Treat any readiness blocking errors as a hard stop before claiming a table or figure is thesis-ready.
 
-Generated CSV tables, SVG plots, contact sheets, bundle JSON, and Markdown are runtime artifacts. Keep them under ignored output roots such as `outputs/` or `runs/` unless a future plan intentionally adds a tiny fixture or documentation asset.
+Generated CSV tables, SVG plots, contact sheets, bundle JSON, and Markdown are runtime artifacts.
+Keep them under ignored output roots such as `outputs/` or `runs/`; commit only tiny fixtures or
+reviewed documentation assets.
 
 ## Safety notes
 

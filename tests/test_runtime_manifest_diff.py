@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -68,9 +69,7 @@ def test_compare_run_manifests_categorizes_changes_and_redacts_sensitive_metadat
             "right": "outputs/generated/scores-ocr.csv",
         }
     }
-    assert diff["reward_changes"] == {
-        "reward_model": {"left": "vlm-v1", "right": "ocr-v2"}
-    }
+    assert diff["reward_changes"] == {"reward_model": {"left": "vlm-v1", "right": "ocr-v2"}}
     assert diff["seed_changes"] == {"seed": {"left": 11, "right": 22}}
     assert diff["inference_changes"] == {
         "guidance_scale": {"left": 3.5, "right": 4.0},
@@ -179,6 +178,11 @@ def _write_manifest(
     environment: dict[str, object] | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path = path.parent / "config_snapshot.json"
+    snapshot_path.write_text(
+        json.dumps(config_snapshot, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     payload = {
         "schema_version": "run-manifest/v1",
         "run_id": run_id,
@@ -188,6 +192,7 @@ def _write_manifest(
         "git": {"commit": "abc1234"},
         "environment": environment or {},
         "config_snapshot_path": "config_snapshot.json",
+        "config_snapshot_sha256": _json_sha256(config_snapshot),
         "config_snapshot": config_snapshot,
         "seeds": {},
         "models": {},
@@ -199,3 +204,10 @@ def _write_manifest(
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     return path
+
+
+def _json_sha256(payload: dict[str, object]) -> str:
+    serialized = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    return hashlib.sha256(serialized).hexdigest()

@@ -199,9 +199,7 @@ def _parse_generation(raw: Any) -> GenerationSettings:
         minimum=1,
         maximum=MAX_BATCH_SIZE,
     )
-    temperature = _float_value(
-        raw.get("temperature", 0.7), "generation.temperature", minimum=0.0
-    )
+    temperature = _float_value(raw.get("temperature", 0.7), "generation.temperature", minimum=0.0)
     expand_scenes = _int_value(raw.get("expand_scenes", 0), "generation.expand_scenes", minimum=0)
     return GenerationSettings(
         n=n,
@@ -252,6 +250,15 @@ def _parse_stage(raw: Any, index: int) -> CurriculumStage:
     if unsupported_scripts:
         raise CurriculumConfigError(
             f"curriculum_stages[{index}].script unsupported: {sorted(unsupported_scripts)[0]}"
+        )
+    target_scripts = set(scripts) & {"cyrillic", "latin", "mixed"}
+    if not target_scripts:
+        raise CurriculumConfigError(
+            f"curriculum_stages[{index}].scripts must include cyrillic, latin, or mixed"
+        )
+    if family == "single_letters" and "mixed" in target_scripts:
+        raise CurriculumConfigError(
+            f"curriculum_stages[{index}].scripts cannot use mixed for a single letter"
         )
 
     content_types = _tuple_of_strings(

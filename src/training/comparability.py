@@ -12,16 +12,64 @@ COMPARABILITY_SCHEMA_VERSION = "training-comparability/v1"
 
 CONTROLLED_FIELD_GROUPS: dict[str, tuple[str, ...]] = {
     "training": ("num_training_steps",),
+    "optimization": (
+        "batch_size",
+        "gradient_accumulation_steps",
+        "effective_batch_size",
+        "lr",
+        "warmup_steps",
+        "weight_decay",
+        "max_grad_norm",
+        "mixed_precision",
+        "lr_schedule",
+        "lr_min",
+        "resolution",
+    ),
+    "objective": (
+        "beta",
+        "shift",
+        "num_train_timesteps",
+        "masked_lambda",
+        "score_diff_min",
+        "ambiguity_margin",
+        "hard_negative_threshold",
+        "sft_lora_path",
+        "resume_lora_path",
+        "resume_step",
+        "selection_mode",
+        "selected_samples_path",
+        "sample_weighting",
+        "pair_construction_mode",
+        "preference_pairs_path",
+        "pair_weighting",
+    ),
+    "lora": ("lora",),
     "inference": ("num_inference_steps", "guidance_scale", "prompt_embedding_padding"),
     "prompt": ("seed", "sample_prompt", "sample_target_text"),
-    "model": ("model_id",),
-    "data_source": ("latents_dir", "text_embeds_dir", "scores_csv", "data_dir"),
-    "reward": ("score_column", "reward_model", "scorer"),
+    "model": ("model_id", "model_revision"),
+    "data_source": (
+        "latents_dir",
+        "text_embeds_dir",
+        "scores_csv",
+        "data_dir",
+    ),
+    "reward": ("score_column", "score_threshold", "reward_model", "scorer"),
     "metrics": ("metric_columns",),
     "artifacts": ("samples_dir",),
 }
 
-BLOCKING_GROUPS = frozenset({"inference", "prompt", "model", "data_source", "reward"})
+BLOCKING_GROUPS = frozenset(
+    {
+        "training",
+        "optimization",
+        "lora",
+        "inference",
+        "prompt",
+        "model",
+        "data_source",
+        "reward",
+    }
+)
 
 
 def compare_training_configs(
@@ -125,7 +173,12 @@ def _normalize_config(value: Any) -> dict[str, Any]:
     if is_dataclass(value):
         return _normalize_config(asdict(value))
     if isinstance(value, Mapping):
-        return {str(key): _normalize_value(item) for key, item in value.items()}
+        payload = {str(key): _normalize_value(item) for key, item in value.items()}
+        batch_size = payload.get("batch_size")
+        accumulation = payload.get("gradient_accumulation_steps")
+        if isinstance(batch_size, int) and isinstance(accumulation, int):
+            payload["effective_batch_size"] = batch_size * accumulation
+        return payload
     raise TypeError("training comparison inputs must be mappings or dataclass instances")
 
 

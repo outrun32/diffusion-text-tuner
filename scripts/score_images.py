@@ -71,6 +71,33 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--vlm_model_id", type=str, default="Qwen/Qwen3.5-9B")
     parser.add_argument(
+        "--vlm_model_revision",
+        type=str,
+        default=None,
+        help="Optional immutable Hugging Face commit hash for the VLM scorer.",
+    )
+    parser.add_argument(
+        "--vlm_device",
+        choices=("cuda",),
+        default="cuda",
+        help="VLM device. The PyTorch reward implementation is CUDA-only.",
+    )
+    parser.add_argument(
+        "--ocr_device",
+        choices=("cpu", "gpu"),
+        default="cpu",
+        help="PaddleOCR execution device; use cpu on macOS.",
+    )
+    parser.add_argument(
+        "--product_formula",
+        choices=("thesis", "diagnostic"),
+        default="thesis",
+        help=(
+            "Product formula: thesis is the reported VLM×OCR score; diagnostic uses the "
+            "later five-component geometric formula."
+        ),
+    )
+    parser.add_argument(
         "--entropy_lambda",
         type=float,
         default=1.0,
@@ -80,7 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--batch_size",
         type=int,
         default=1,
-        help="VLM scoring batch size (1 is safest for memory)",
+        help="Reserved compatibility option; only 1 is supported.",
     )
     parser.add_argument(
         "--resume",
@@ -129,6 +156,10 @@ def main(argv: list[str] | None = None) -> int:
         output_csv=Path(args.output_csv),
         scorer=args.scorer,
         vlm_model_id=args.vlm_model_id,
+        vlm_model_revision=args.vlm_model_revision,
+        vlm_device=args.vlm_device,
+        ocr_device=args.ocr_device,
+        product_formula=args.product_formula,
         entropy_lambda=args.entropy_lambda,
         batch_size=args.batch_size,
         resume=args.resume,

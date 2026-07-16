@@ -282,7 +282,7 @@ def test_evaluation_diagnostics_docs_cover_reward_disagreement_cli() -> None:
     required_terms = [
         "analyze_reward_disagreement",
         "format_diagnostics_markdown",
-        "scripts/analyze_reward_diagnostics.py",
+        "uv run python -m scripts.analyze_reward_diagnostics",
         "--scores",
         "--gold",
         "--output-report",

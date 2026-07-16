@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
 DOC_PATH = Path("docs/evaluation_harness.md")
+BASE_REVISION = "a3b4f4849157f664bdbc776fd7453c2783562f4d"
+VLM_REVISION = "c202236235762e1c871ad0ccb60c8ee5ba337b9a"
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -28,6 +31,8 @@ def _write_prompts(path: Path) -> Path:
 
 
 def _write_manifest(path: Path, run_id: str) -> Path:
+    snapshot = {"schema_version": "runtime-config/v1"}
+    _write_json(path.parent / "config_snapshot.json", snapshot)
     return _write_json(
         path,
         {
@@ -39,9 +44,10 @@ def _write_manifest(path: Path, run_id: str) -> Path:
             "git": {},
             "environment": {},
             "config_snapshot_path": "config_snapshot.json",
-            "config_snapshot": {"schema_version": "runtime-config/v1"},
+            "config_snapshot_sha256": _json_sha256(snapshot),
+            "config_snapshot": snapshot,
             "seeds": {"seed": 123},
-            "models": {"model": "black-forest-labs/FLUX.2-klein-4B"},
+            "models": {"model": "black-forest-labs/FLUX.2-klein-base-4B"},
             "inputs": {},
             "outputs": {},
             "metrics": {},
@@ -64,11 +70,15 @@ def _valid_config(tmp_path: Path) -> dict[str, object]:
         "fixed_prompts_path": str(prompts_path),
         "fixed_seeds": [101, 202],
         "inference_settings": {
-            "model": "black-forest-labs/FLUX.2-klein-4B",
+            "model": "black-forest-labs/FLUX.2-klein-base-4B",
+            "model_revision": BASE_REVISION,
+            "vlm_model": "Qwen/Qwen3.5-9B",
+            "vlm_model_revision": VLM_REVISION,
             "height": 1024,
             "width": 1024,
             "num_inference_steps": 4,
             "guidance_scale": 1.0,
+            "scorer": "both",
         },
         "output_root": str(output_root),
         "targets": [
@@ -106,8 +116,12 @@ def test_valid_config_builds_deterministic_heldout_evaluation_plan(tmp_path: Pat
     assert plan["inference_settings"] == {
         "guidance_scale": 1.0,
         "height": 1024,
-        "model": "black-forest-labs/FLUX.2-klein-4B",
+        "model": "black-forest-labs/FLUX.2-klein-base-4B",
+        "model_revision": BASE_REVISION,
         "num_inference_steps": 4,
+        "scorer": "both",
+        "vlm_model": "Qwen/Qwen3.5-9B",
+        "vlm_model_revision": VLM_REVISION,
         "width": 1024,
     }
     assert [target["name"] for target in plan["targets"]] == [
@@ -117,13 +131,19 @@ def test_valid_config_builds_deterministic_heldout_evaluation_plan(tmp_path: Pat
     assert plan["targets"][0]["lora_checkpoint_path"] is None
     assert plan["targets"][1]["lora_checkpoint_path"] == "runs/dpo-product/checkpoints/final"
     assert all(
-        target["source_run_manifest_path"].endswith("manifest.json")
-        for target in plan["targets"]
+        target["source_run_manifest_path"].endswith("manifest.json") for target in plan["targets"]
     )
     assert len(plan["planned_generation_commands"]) == 4
-    assert len(plan["planned_scoring_commands"]) == 2
-    assert "src.evaluation.generate_baseline" in plan["planned_generation_commands"][0]["command"]
+    assert len(plan["planned_scoring_commands"]) == 4
+    assert len(plan["planned_aggregation_commands"]) == 2
+    assert "scripts.generate_images" in plan["planned_generation_commands"][0]["command"]
     assert "scripts.score_images" in plan["planned_scoring_commands"][0]["command"]
+    assert "scripts.aggregate_heldout_scores" in plan["planned_aggregation_commands"][0]["command"]
+    assert "--lora_path" in plan["planned_generation_commands"][2]["command"]
+    assert f"--model_revision {BASE_REVISION}" in plan["planned_generation_commands"][0]["command"]
+    assert "generation.manifest.json" in plan["planned_scoring_commands"][0]["command"]
+    assert f"--vlm_model_revision {VLM_REVISION}" in plan["planned_scoring_commands"][0]["command"]
+    assert "seed-101/text_embeds" in plan["planned_scoring_commands"][0]["command"]
 
 
 def test_write_evaluation_plan_materializes_json_and_markdown_reports(tmp_path: Path) -> None:
@@ -172,8 +192,7 @@ def test_cli_materializes_plan_and_markdown_without_running_generation(tmp_path:
     assert payload["schema_version"] == "heldout-evaluation-plan/v1"
     assert payload["execution_mode"] == "materialize-only"
     assert all(
-        command["status"] == "planned-not-run"
-        for command in payload["planned_generation_commands"]
+        command["status"] == "planned-not-run" for command in payload["planned_generation_commands"]
     )
     assert markdown_summary.is_file()
 
@@ -254,7 +273,7 @@ def test_evaluation_harness_docs_match_config_and_command_contracts() -> None:
         "materialize-only",
         "does not run FLUX, Qwen, PaddleOCR, CUDA, or model weights",
         "generated images, tensors, checkpoints, logs",
-        "Phase 5",
+        "## Comparison prerequisites",
     ]
     missing = [term for term in required_terms if term not in docs]
 
@@ -305,3 +324,58 @@ def test_missing_fixed_prompts_seeds_or_settings_are_blocking_validation_errors(
 
     with pytest.raises(HeldoutEvaluationError, match=message):
         HeldoutEvaluationConfig.from_file(config_path)
+
+
+@pytest.mark.parametrize("seeds", [[101, 101], [-1, 101]])
+def test_fixed_seeds_must_be_unique_and_nonnegative(tmp_path: Path, seeds: list[int]) -> None:
+    from src.evaluation.heldout import HeldoutEvaluationConfig, HeldoutEvaluationError
+
+    payload = _valid_config(tmp_path)
+    payload["fixed_seeds"] = seeds
+
+    with pytest.raises(HeldoutEvaluationError, match="fixed_seeds"):
+        HeldoutEvaluationConfig.from_mapping(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("model_revision", None),
+        ("model_revision", "main"),
+        ("vlm_model_revision", None),
+        ("vlm_model_revision", "latest"),
+    ],
+)
+def test_model_revisions_must_be_immutable_commit_shas(
+    tmp_path: Path, field: str, invalid_value: object
+) -> None:
+    from src.evaluation.heldout import HeldoutEvaluationConfig, HeldoutEvaluationError
+
+    payload = _valid_config(tmp_path)
+    settings = dict(payload["inference_settings"])
+    settings[field] = invalid_value
+    payload["inference_settings"] = settings
+
+    with pytest.raises(HeldoutEvaluationError, match=field):
+        HeldoutEvaluationConfig.from_mapping(payload)
+
+
+def test_manifest_link_uses_strict_snapshot_hash_validation(tmp_path: Path) -> None:
+    from src.evaluation.heldout import HeldoutEvaluationConfig, HeldoutEvaluationError
+
+    payload = _valid_config(tmp_path)
+    target = dict(payload["targets"][0])
+    manifest_path = Path(str(target["source_run_manifest_path"]))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["config_snapshot_sha256"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(HeldoutEvaluationError, match="config_snapshot_sha256"):
+        HeldoutEvaluationConfig.from_mapping(payload)
+
+
+def _json_sha256(payload: dict[str, object]) -> str:
+    serialized = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    return hashlib.sha256(serialized).hexdigest()

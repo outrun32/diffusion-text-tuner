@@ -24,14 +24,17 @@ import argparse
 import json
 import logging
 import random
+import string
 import sys
 from pathlib import Path
 
 try:
     from tqdm import tqdm
-except ImportError:          # graceful fallback
-    def tqdm(it, **_kw):     # type: ignore[misc]
+except ImportError:  # graceful fallback
+
+    def tqdm(it, **_kw):  # type: ignore[misc]
         return it
+
 
 from src.data_quality.curriculum import (
     CurriculumConfigError,
@@ -52,10 +55,47 @@ DATA_DIR = PROJECT_ROOT / "data"
 
 logger = logging.getLogger(__name__)
 
+_CYRILLIC_TO_LATIN = {
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "ё": "yo",
+    "ж": "zh",
+    "з": "z",
+    "и": "i",
+    "й": "y",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "kh",
+    "ц": "ts",
+    "ч": "ch",
+    "ш": "sh",
+    "щ": "shch",
+    "ъ": "",
+    "ы": "y",
+    "ь": "",
+    "э": "e",
+    "ю": "yu",
+    "я": "ya",
+}
+
 
 # ---------------------------------------------------------------------------
 # Scene pool expansion
 # ---------------------------------------------------------------------------
+
 
 def expand_scene_pool(llm, scene_pool: ScenePool, per_type: int = 50):
     """Use the LLM to generate additional scenes for each content type."""
@@ -66,12 +106,14 @@ def expand_scene_pool(llm, scene_pool: ScenePool, per_type: int = 50):
         new_scenes = []
         for i, desc in enumerate(descriptions):
             sid = f"{ct}_gen_{existing_count + i:04d}"
-            new_scenes.append({
-                "id": sid,
-                "content_type": ct,
-                "ru": desc,
-                "en": "",  # can be translated later
-            })
+            new_scenes.append(
+                {
+                    "id": sid,
+                    "content_type": ct,
+                    "ru": desc,
+                    "en": "",  # can be translated later
+                }
+            )
         scene_pool.add_scenes(new_scenes)
         logger.info("  → added %d scenes (total pool: %d)", len(new_scenes), len(scene_pool))
 
@@ -83,6 +125,7 @@ def expand_scene_pool(llm, scene_pool: ScenePool, per_type: int = 50):
 # ---------------------------------------------------------------------------
 # Main generation loop
 # ---------------------------------------------------------------------------
+
 
 def generate_dataset(
     n: int,
@@ -134,8 +177,8 @@ def generate_dataset(
         chunk_end = min(pos + batch_size, n)
         chunk = meta[pos:chunk_end]
 
-        # --- Phase 1: generate target texts (batch LLM calls) ---
-        texts: dict[int, str] = {}      # local index -> text
+        # --- Step 1: generate target texts (batch LLM calls) ---
+        texts: dict[int, str] = {}  # local index -> text
         llm_jobs: list[tuple[int, int, list[str], str]] = []  # (j, tier, words, ct)
 
         for j, item in enumerate(chunk):
@@ -159,7 +202,7 @@ def generate_dataset(
                 texts[j] = txt
             llm_calls += len(llm_jobs)
 
-        # --- Phase 2: assemble records ---
+        # --- Step 2: assemble records ---
         for j, item in enumerate(chunk):
             content_type = item["content_type"]
             tier = item["tier"]
@@ -168,13 +211,21 @@ def generate_dataset(
             i = pos + j
             target_text = _apply_stage_text_policy(texts[j], item, text_gen, rng)
 
-            # Occasionally append a number (15% chance for posters/social)
-            if content_type in ("poster", "social_media", "product") and rng.random() < 0.15:
+            # Numeric augmentation is legal only for legacy generation or stages that declare it.
+            stage_scripts = set(item.get("scripts", ()))
+            may_add_number = prompt_config is None or "digits" in stage_scripts
+            if (
+                may_add_number
+                and content_type in ("poster", "social_media", "product")
+                and rng.random() < 0.15
+            ):
                 target_text = f"{target_text} {text_gen.generate_number_text()}"
 
-            # --- Deduplicate ---
+            # Legacy generation keeps its historical numeric disambiguation. Curriculum rows must
+            # retain their declared family/script semantics even when a finite stage (notably
+            # single_letters) necessarily contains repeated targets.
             h = f"{target_text}|{content_type}"
-            if h in seen_hashes:
+            if h in seen_hashes and prompt_config is None:
                 target_text += f" {text_gen.generate_number_text()}"
                 h = f"{target_text}|{content_type}"
             seen_hashes.add(h)
@@ -210,6 +261,7 @@ def generate_dataset(
                         "prompt_mode": prompt_config.mode,
                         "curriculum_stage": item["stage_name"],
                         "curriculum_family": item["stage_family"],
+                        "target_script": item["target_script"],
                     }
                 )
             records.append(record)
@@ -284,6 +336,11 @@ def _sample_stage_metadata(
     tiers = list(stage.tiers) or _default_tiers_for_family(stage.family)
     cases = list(stage.cases) or _default_cases_for_family(stage.family)
     languages = list(stage.languages) or ["ru"]
+    target_scripts = [
+        script for script in stage.scripts if script in {"cyrillic", "latin", "mixed"}
+    ]
+    if not target_scripts:
+        raise ValueError(f"curriculum stage {stage.name!r} has no executable target script")
     return {
         "content_type": content_type,
         "tier": rng.choice(tiers) if tiers else text_gen.sample_tier(content_type),
@@ -291,6 +348,8 @@ def _sample_stage_metadata(
         "lang": rng.choice(languages),
         "stage_name": stage.name,
         "stage_family": stage.family,
+        "scripts": stage.scripts,
+        "target_script": rng.choice(target_scripts),
     }
 
 
@@ -317,10 +376,13 @@ def _apply_stage_text_policy(
     rng: random.Random,
 ) -> str:
     family = item.get("stage_family")
+    target_script = str(item.get("target_script") or "cyrillic")
     if family == "single_letters":
-        char = rng.choice(CYRILLIC_LOWER)
+        alphabet = string.ascii_lowercase if target_script == "latin" else CYRILLIC_LOWER
+        char = rng.choice(alphabet)
         case = item.get("case")
         return char.upper() if case == "upper" else char
+    text = _apply_target_script(text, target_script)
     if family == "digits":
         return f"{text} {text_gen.generate_number_text()}"
     if family == "punctuation":
@@ -335,6 +397,46 @@ def _apply_stage_text_policy(
     return text
 
 
+def _apply_target_script(text: str, target_script: str) -> str:
+    if target_script == "latin":
+        return _transliterate_cyrillic(text)
+    if target_script == "mixed":
+        return _mix_cyrillic_and_latin(text)
+    return text
+
+
+def _transliterate_cyrillic(text: str) -> str:
+    output: list[str] = []
+    for char in text:
+        replacement = _CYRILLIC_TO_LATIN.get(char.lower())
+        if replacement is None:
+            output.append(char)
+        elif char.isupper():
+            output.append(replacement.upper())
+        else:
+            output.append(replacement)
+    return "".join(output)
+
+
+def _mix_cyrillic_and_latin(text: str) -> str:
+    convertible = [
+        index
+        for index, char in enumerate(text)
+        if char.lower() in _CYRILLIC_TO_LATIN and _CYRILLIC_TO_LATIN[char.lower()]
+    ]
+    if len(convertible) < 2:
+        return text
+    convert_indices = set(convertible[::2])
+    output: list[str] = []
+    for index, char in enumerate(text):
+        if index not in convert_indices:
+            output.append(char)
+            continue
+        replacement = _CYRILLIC_TO_LATIN[char.lower()]
+        output.append(replacement.upper() if char.isupper() else replacement)
+    return "".join(output)
+
+
 def _to_mixed_case(text: str) -> str:
     chars = [ch.upper() if index % 2 == 0 else ch.lower() for index, ch in enumerate(text)]
     return "".join(chars)
@@ -344,25 +446,45 @@ def _to_mixed_case(text: str) -> str:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate text-rendering prompt dataset")
-    parser.add_argument("--config", type=str, default=None,
-                        help="Prompt generation config JSON (simple/full/curriculum)")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Prompt generation config JSON (simple/full/curriculum)",
+    )
     parser.add_argument("--n", type=int, default=30_000, help="Number of prompts to generate")
-    parser.add_argument("--output", type=str, default=str(DATA_DIR / "prompts.jsonl"),
-                        help="Output JSONL path")
+    parser.add_argument(
+        "--output", type=str, default=str(DATA_DIR / "prompts.jsonl"), help="Output JSONL path"
+    )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--no-llm", action="store_true",
-                        help="Disable LLM, use algorithmic fallback for all tiers")
-    parser.add_argument("--model", type=str, default="Qwen/Qwen3.5-4B",
-                        help="HuggingFace model ID for phrase generation")
-    parser.add_argument("--backend", type=str, default="transformers",
-                        choices=["transformers", "mlx", "vllm"],
-                        help="LLM backend (vllm enables FP8 + batch inference)")
-    parser.add_argument("--batch-size", type=int, default=1,
-                        help="LLM batch size (>1 useful with vllm backend)")
-    parser.add_argument("--expand-scenes", type=int, default=0,
-                        help="Generate N additional scenes per content type before main run")
+    parser.add_argument(
+        "--no-llm", action="store_true", help="Disable LLM, use algorithmic fallback for all tiers"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="Qwen/Qwen3.5-4B",
+        help="HuggingFace model ID for phrase generation",
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        default="transformers",
+        choices=["transformers", "mlx", "vllm"],
+        help="LLM backend (vllm enables FP8 + batch inference)",
+    )
+    parser.add_argument(
+        "--batch-size", type=int, default=1, help="LLM batch size (>1 useful with vllm backend)"
+    )
+    parser.add_argument(
+        "--expand-scenes",
+        type=int,
+        default=0,
+        help="Generate N additional scenes per content type before main run",
+    )
     parser.add_argument("--temperature", type=float, default=0.7)
     args = parser.parse_args(argv)
 
@@ -402,10 +524,12 @@ def main(argv: list[str] | None = None) -> int:
     llm = None
     if not no_llm:
         from .llm_client import LLMClient
+
         llm = LLMClient(
             model_id=model,
             backend=backend,
             temperature=temperature,
+            seed=seed,
         )
 
     # Optional: expand scene pool

@@ -2,6 +2,10 @@
 
 Place new preference-optimization variants in this directory. Keep `configs/dpo.json` and existing root DPO variants runnable for compatibility.
 
+Files ending in `_final.json` are historical defense config records. Files ending in
+`_fixed_safe.json` encode the corrected DPO objective/pair choices for a future rerun after the sign
+audit; they are not evidence that a replacement run completed.
+
 ## Naming
 
 Use `{stage}_{reward_or_data}_{purpose}.json` with `stage=dpo`.

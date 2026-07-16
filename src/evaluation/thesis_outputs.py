@@ -10,6 +10,7 @@ sheets use PIL only when explicitly requested by the bundle config.
 from __future__ import annotations
 
 import csv
+import hashlib
 import html
 import json
 import math
@@ -17,6 +18,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from src.runtime.artifacts import validate_artifacts
 from src.runtime.manifests import ManifestError, RunManifest, load_run_manifest
 
 SCHEMA_VERSION = "thesis-output-bundle/v1"
@@ -47,35 +49,60 @@ def build_thesis_output_bundle(
     """
 
     config_payload = _load_config(config)
-    output_dir = Path(str(config_payload.get("output_dir") or "thesis_outputs"))
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path(str(config_payload["output_dir"]))
     blocking_errors: list[str] = []
     warnings: list[str] = []
 
     source_manifests = _load_source_manifests(
         config_payload.get("source_manifests", []), blocking_errors
     )
-    score_reports = _load_evidence_reports(
-        config_payload.get("score_reports", []), "score report", blocking_errors
+    configured_manifest_hashes = {
+        _resolved_path(str(manifest["path"])): str(manifest["sha256"])
+        for manifest in source_manifests
+    }
+    linked_manifest_paths: set[str] = set()
+    score_reports = _load_score_reports(
+        config_payload.get("score_reports", []),
+        configured_manifest_hashes,
+        linked_manifest_paths,
+        blocking_errors,
     )
+    for manifest_path in sorted(configured_manifest_hashes.keys() - linked_manifest_paths):
+        blocking_errors.append(
+            f"configured source manifest is not linked by any score sidecar: {manifest_path}"
+        )
     diagnostic_reports = _load_evidence_reports(
         config_payload.get("diagnostic_reports", []),
         "diagnostic report",
         blocking_errors,
     )
 
-    tables = _build_tables(
-        config_payload.get("table_specs", []), output_dir, blocking_errors
-    )
-    svg_plots = _build_svg_plots(
-        config_payload.get("svg_plot_specs", []), output_dir, blocking_errors
-    )
-    contact_sheets = _build_contact_sheets(
-        config_payload.get("contact_sheet_specs", []),
+    validated_evidence_paths = {
+        _resolved_path(str(report["path"])) for report in [*score_reports, *diagnostic_reports]
+    }
+    _validate_artifact_specs(
+        config_payload,
         output_dir,
+        validated_evidence_paths,
         blocking_errors,
-        warnings,
     )
+
+    if blocking_errors:
+        tables: list[dict[str, Any]] = []
+        svg_plots: list[dict[str, Any]] = []
+        contact_sheets: list[dict[str, Any]] = []
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        tables = _build_tables(config_payload.get("table_specs", []), output_dir, blocking_errors)
+        svg_plots = _build_svg_plots(
+            config_payload.get("svg_plot_specs", []), output_dir, blocking_errors
+        )
+        contact_sheets = _build_contact_sheets(
+            config_payload.get("contact_sheet_specs", []),
+            output_dir,
+            blocking_errors,
+            warnings,
+        )
 
     ready = not blocking_errors
     bundle = _sort_mapping(
@@ -208,6 +235,11 @@ def _load_config(config: Mapping[str, Any] | str | Path) -> dict[str, Any]:
         if not isinstance(loaded, dict):
             raise ThesisOutputError(f"{config_path}: config must be a JSON object")
         payload = loaded
+    if payload.get("schema_version") != CONFIG_SCHEMA_VERSION:
+        raise ThesisOutputError(f"schema_version must be {CONFIG_SCHEMA_VERSION!r}")
+    output_dir = payload.get("output_dir")
+    if not isinstance(output_dir, str) or not output_dir.strip():
+        raise ThesisOutputError("output_dir must be a non-empty path")
     if not isinstance(payload.get("source_manifests", []), list):
         raise ThesisOutputError("source_manifests must be a list")
     for field in ("score_reports", "diagnostic_reports", "table_specs"):
@@ -216,7 +248,76 @@ def _load_config(config: Mapping[str, Any] | str | Path) -> dict[str, Any]:
     for field in ("svg_plot_specs", "contact_sheet_specs"):
         if not isinstance(payload.get(field, []), list):
             raise ThesisOutputError(f"{field} must be a list")
+    if not payload.get("source_manifests"):
+        raise ThesisOutputError("source_manifests must contain at least one run manifest")
+    if not payload.get("score_reports"):
+        raise ThesisOutputError("score_reports must contain at least one recorded score report")
+    _validate_output_paths(payload, Path(output_dir))
     return payload
+
+
+def _validate_output_paths(payload: Mapping[str, Any], output_dir: Path) -> None:
+    fields = (
+        ("table_specs", "output_csv", "tables/table.csv"),
+        ("svg_plot_specs", "output_svg", "plots/plot.svg"),
+        ("contact_sheet_specs", "output_image", "contact_sheets/contact.png"),
+    )
+    for collection_name, field_name, fallback in fields:
+        for index, spec in enumerate(payload.get(collection_name, [])):
+            if not isinstance(spec, Mapping):
+                continue
+            raw_path = str(spec.get(field_name) or fallback)
+            try:
+                _safe_output_path(output_dir, raw_path)
+            except ThesisOutputError as exc:
+                raise ThesisOutputError(f"{collection_name}[{index}].{field_name}: {exc}") from exc
+
+
+def _validate_artifact_specs(
+    payload: Mapping[str, Any],
+    output_dir: Path,
+    validated_evidence_paths: set[str],
+    errors: list[str],
+) -> None:
+    del output_dir
+    for kind, specs in (
+        ("table", payload.get("table_specs", [])),
+        ("svg plot", payload.get("svg_plot_specs", [])),
+    ):
+        for raw_spec in specs:
+            spec = _mapping_spec(raw_spec, kind, errors)
+            if spec is None:
+                continue
+            name = str(spec.get("name") or kind)
+            source = Path(str(spec.get("source") or ""))
+            if not source.is_file():
+                errors.append(f"{kind} {name}: missing source {source}")
+                continue
+            if _resolved_path(str(source)) not in validated_evidence_paths:
+                errors.append(
+                    f"{kind} {name}: source is not a validated score or diagnostic report: {source}"
+                )
+                continue
+            if kind == "table" and not spec.get("columns"):
+                errors.append(f"table {name}: columns must not be empty")
+                continue
+            try:
+                _read_records(source)
+            except ThesisOutputError as exc:
+                errors.append(f"{kind} {name}: {exc}")
+
+
+def _safe_output_path(output_dir: Path, relative_path: str) -> Path:
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ThesisOutputError("path must be relative and stay inside output_dir")
+    output_root = output_dir.resolve()
+    candidate = (output_root / relative).resolve()
+    try:
+        candidate.relative_to(output_root)
+    except ValueError as exc:
+        raise ThesisOutputError("path must stay inside output_dir") from exc
+    return candidate
 
 
 def _load_source_manifests(paths: Sequence[Any], errors: list[str]) -> list[dict[str, Any]]:
@@ -238,15 +339,105 @@ def _load_source_manifests(paths: Sequence[Any], errors: list[str]) -> list[dict
 def _manifest_summary(manifest: RunManifest) -> dict[str, Any]:
     return {
         "path": str(manifest.manifest_path),
+        "sha256": _sha256_file(manifest.manifest_path),
         "run_id": manifest.run_id,
         "stage": manifest.stage,
         "git": dict(manifest.git),
         "config_snapshot_path": str(manifest.config_snapshot_path),
+        "config_snapshot_sha256": manifest.config_snapshot_sha256,
         "config_snapshot": dict(manifest.config_snapshot),
         "inputs": dict(manifest.inputs),
         "outputs": dict(manifest.outputs),
         "metrics": dict(manifest.metrics),
     }
+
+
+def _load_score_reports(
+    paths: Sequence[Any],
+    configured_manifest_hashes: Mapping[str, str],
+    linked_manifest_paths: set[str],
+    errors: list[str],
+) -> list[dict[str, Any]]:
+    reports: list[dict[str, Any]] = []
+    for raw_path in paths:
+        report_path = Path(str(raw_path))
+        if not report_path.is_file():
+            errors.append(f"missing score report: {report_path}")
+            continue
+        if report_path.suffix.lower() not in {".csv", ".jsonl"}:
+            errors.append(
+                f"score report must be a canonical .csv or .jsonl artifact: {report_path}"
+            )
+            continue
+
+        validation_paths = {
+            "scores_csv" if report_path.suffix.lower() == ".csv" else "scores_jsonl": report_path
+        }
+        validation = validate_artifacts("evaluation_scores", validation_paths, require_ready=False)
+        errors.extend(f"invalid score report {report_path}: {error}" for error in validation.errors)
+        try:
+            _payload, records = _read_records(report_path)
+        except ThesisOutputError as exc:
+            errors.append(str(exc))
+            continue
+
+        sidecar_path = report_path.with_suffix(".schema.json")
+        sidecar = _load_json_object(sidecar_path, "score sidecar", errors)
+        if sidecar is None:
+            continue
+        raw_source_paths = sidecar.get("source_manifest_paths")
+        raw_source_hashes = sidecar.get("source_manifest_sha256")
+        if not isinstance(raw_source_paths, list) or not isinstance(raw_source_hashes, dict):
+            continue
+
+        report_links: list[dict[str, str]] = []
+        configured_link_count = 0
+        for raw_manifest_path in raw_source_paths:
+            manifest_path = str(raw_manifest_path)
+            resolved_manifest_path = _resolved_path(manifest_path)
+            configured_hash = configured_manifest_hashes.get(resolved_manifest_path)
+            if configured_hash is None:
+                declared_hash = raw_source_hashes.get(manifest_path)
+                manifest_file = Path(manifest_path)
+                if not manifest_file.is_file() or declared_hash != _sha256_file(manifest_file):
+                    errors.append(
+                        f"score sidecar auxiliary manifest is missing or changed: "
+                        f"{sidecar_path}: {manifest_path}"
+                    )
+                    continue
+                report_links.append({"path": manifest_path, "sha256": str(declared_hash)})
+                continue
+            declared_hash = raw_source_hashes.get(manifest_path)
+            if declared_hash != configured_hash:
+                errors.append(
+                    f"score sidecar source manifest hash does not match configured manifest: "
+                    f"{sidecar_path}: {manifest_path}"
+                )
+                continue
+            linked_manifest_paths.add(resolved_manifest_path)
+            configured_link_count += 1
+            report_links.append({"path": manifest_path, "sha256": configured_hash})
+
+        if configured_link_count == 0:
+            errors.append(
+                f"score sidecar does not link any configured source_manifests: {sidecar_path}"
+            )
+
+        reports.append(
+            {
+                "path": str(report_path),
+                "sha256": _sha256_file(report_path),
+                "sidecar_path": str(sidecar_path),
+                "sidecar_sha256": _sha256_file(sidecar_path),
+                "schema_version": str(sidecar.get("score_file_schema_version") or ""),
+                "record_count": len(records),
+                "formula": sidecar.get("formula"),
+                "primary_score": sidecar.get("primary_score"),
+                "source_manifests": report_links,
+                "keys": sorted(str(key) for key in sidecar.keys()),
+            }
+        )
+    return reports
 
 
 def _load_evidence_reports(
@@ -274,6 +465,32 @@ def _load_evidence_reports(
     return reports
 
 
+def _load_json_object(path: Path, description: str, errors: list[str]) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"malformed {description} {path}: {exc}")
+        return None
+    if not isinstance(payload, dict):
+        errors.append(f"{description} must be a JSON object: {path}")
+        return None
+    return payload
+
+
+def _resolved_path(path: str) -> str:
+    return str(Path(path).resolve(strict=False))
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _build_tables(
     specs: Sequence[Any], output_dir: Path, errors: list[str]
 ) -> list[dict[str, Any]]:
@@ -297,7 +514,7 @@ def _build_tables(
         except ThesisOutputError as exc:
             errors.append(f"table {name}: {exc}")
             continue
-        path = output_dir / output_csv
+        path = _safe_output_path(output_dir, output_csv)
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
@@ -339,7 +556,7 @@ def _build_svg_plots(
             continue
         x_field = str(spec.get("x") or "sample_id")
         y_field = str(spec.get("y") or "product_score")
-        path = output_dir / output_svg
+        path = _safe_output_path(output_dir, output_svg)
         _write_svg_plot(
             records,
             path,
@@ -448,7 +665,7 @@ def _build_contact_sheets(
                     "caption": str(raw_entry.get("caption") or raw_entry.get("sample_id") or index),
                 }
             )
-        path = output_dir / output_image
+        path = _safe_output_path(output_dir, output_image)
         _write_contact_sheet(entries, path)
         sheets.append(
             {
@@ -507,9 +724,7 @@ def _read_records(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
                 try:
                     payload = json.loads(line)
                 except json.JSONDecodeError as exc:
-                    raise ThesisOutputError(
-                        f"{path}: line {line_number}: malformed JSON"
-                    ) from exc
+                    raise ThesisOutputError(f"{path}: line {line_number}: malformed JSON") from exc
                 if not isinstance(payload, dict):
                     raise ThesisOutputError(
                         f"{path}: line {line_number}: record must be a JSON object"
@@ -536,9 +751,7 @@ def _read_records(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return dict(payload), list(records)
 
 
-def _mapping_spec(
-    raw_spec: Any, spec_kind: str, errors: list[str]
-) -> dict[str, Any] | None:
+def _mapping_spec(raw_spec: Any, spec_kind: str, errors: list[str]) -> dict[str, Any] | None:
     if not isinstance(raw_spec, Mapping):
         errors.append(f"{spec_kind} spec must be an object")
         return None
@@ -572,9 +785,7 @@ def _format_artifact_section(title: str, artifacts: Sequence[Mapping[str, Any]])
     for artifact in artifacts:
         destination = artifact.get("relative_path") or artifact.get("path", "")
         source_paths = ", ".join(f"`{path}`" for path in artifact.get("source_paths", []))
-        lines.append(
-            f"| {artifact.get('name', '')} | `{destination}` | {source_paths} |"
-        )
+        lines.append(f"| {artifact.get('name', '')} | `{destination}` | {source_paths} |")
     return lines
 
 

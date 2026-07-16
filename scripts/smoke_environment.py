@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-CHECKS = ("imports", "cuda", "cache", "model-access", "ocr")
+CHECKS = ("imports", "platform", "mlx", "mps", "cuda", "cache", "model-access", "ocr")
 
 _LOCAL_IMPORT_MODULES = (
     "src",
@@ -51,6 +51,12 @@ def run_check(name: str, *, allow_missing: bool = False) -> int:
     """Run a named smoke check and return a process-style status code."""
     if name == "imports":
         return _check_imports(allow_missing=allow_missing)
+    if name == "platform":
+        return _check_platform()
+    if name == "mlx":
+        return _check_mlx(allow_missing=allow_missing)
+    if name == "mps":
+        return _check_mps(allow_missing=allow_missing)
     if name == "cuda":
         return _check_cuda(allow_missing=allow_missing)
     if name == "cache":
@@ -111,6 +117,49 @@ def _check_cuda(*, allow_missing: bool) -> int:
     _print_status("cuda", "torch.cuda.is_available()", cuda_available)
     if not cuda_available:
         failures.append("CUDA is not available through torch")
+    return _result(failures, allow_missing=allow_missing)
+
+
+def _check_platform() -> int:
+    from src.runtime.capabilities import inspect_runtime_capabilities
+
+    capabilities = inspect_runtime_capabilities(probe_torch=False)
+    print(f"system: {capabilities.system}")
+    print(f"machine: {capabilities.machine}")
+    print(f"python: {capabilities.python}")
+    print(f"apple-silicon: {'yes' if capabilities.apple_silicon else 'no'}")
+    return 0
+
+
+def _check_mlx(*, allow_missing: bool) -> int:
+    from src.runtime.capabilities import check_stage_support
+
+    support = check_stage_support("prompt-mlx")
+    _print_status("platform", "Apple Silicon", support.capabilities.apple_silicon)
+    _print_status("package", "mlx + mlx-lm", support.capabilities.mlx_available)
+    failures = list(support.errors)
+    if support.ok:
+        try:
+            import mlx.core as mx
+            import mlx_lm
+
+            total = int(mx.sum(mx.array([1, 2])).item())
+            _print_status("runtime", "mlx tiny array operation", total == 3)
+            _print_status("runtime", "mlx_lm import", bool(mlx_lm))
+            if total != 3:
+                failures.append("MLX tiny array operation returned an unexpected result")
+        except Exception as exc:
+            failures.append(f"MLX runtime import/operation failed: {exc}")
+    return _result(failures, allow_missing=allow_missing)
+
+
+def _check_mps(*, allow_missing: bool) -> int:
+    from src.runtime.capabilities import inspect_runtime_capabilities
+
+    capabilities = inspect_runtime_capabilities(probe_torch=True)
+    _print_status("package", "torch", bool(capabilities.torch_importable))
+    _print_status("mps", "torch.backends.mps.is_available()", bool(capabilities.mps_available))
+    failures = [] if capabilities.mps_available else ["PyTorch MPS is not available"]
     return _result(failures, allow_missing=allow_missing)
 
 

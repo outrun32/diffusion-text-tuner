@@ -3,16 +3,18 @@ Test PaddleOCR PP-OCRv5 with Cyrillic recognition on three test images.
 Compare with previous PP-OCRv3 results.
 """
 import os
+from pathlib import Path
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
 from paddleocr import PaddleOCR
 
+ASSETS_DIR = Path(__file__).resolve().parents[1] / "assets"
 IMAGES = [
-    ("/Users/udmurtpsycho/Dev/diffusion-text-tuner/bad_text.png",
+    (ASSETS_DIR / "bad_text.png",
      "AI-gen cat with broken text (intended: ЛУЧШЕЕ КАПУЧИНО 2025!)"),
-    ("/Users/udmurtpsycho/Dev/diffusion-text-tuner/good_text.jpg",
+    (ASSETS_DIR / "good_text.jpg",
      "AI-gen cat with correct text ПРИВЕТ МИР!"),
-    ("/Users/udmurtpsycho/Dev/diffusion-text-tuner/good_handwritten_text.jpg",
+    (ASSETS_DIR / "good_handwritten_text.jpg",
      "Handwritten Russian text"),
 ]
 
@@ -96,7 +98,7 @@ def run_config(cfg):
             print(f"  FILE NOT FOUND: {img_path}")
             continue
         try:
-            result = ocr.predict(img_path)
+            result = ocr.predict(str(img_path))
             lines = extract_results(result)
             if not lines:
                 print("  (no text detected)")

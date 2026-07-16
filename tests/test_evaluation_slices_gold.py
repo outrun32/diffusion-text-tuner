@@ -115,7 +115,7 @@ def test_load_gold_benchmark_aggregates_schema_errors(tmp_path: Path) -> None:
 
     malformed_path = tmp_path / "bad.jsonl"
     malformed_path.write_text(
-        '\n'.join(
+        "\n".join(
             [
                 '{"sample_id": "missing-fields", "target_text": "Привет"}',
                 '{"sample_id": 42, "target_text": "Мир", "image_path": "fixtures/mir.png", '

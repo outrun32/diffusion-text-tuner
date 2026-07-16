@@ -1,0 +1,20 @@
+{
+  "schema_version": "historical-selection-bias/v1",
+  "evidence_status": "historical-aggregate-only",
+  "scope": "Product candidate filtering reported in the defense analysis",
+  "metric": {
+    "name": "median_target_length",
+    "reported_unit": "characters",
+    "before_product_selection": 15,
+    "after_product_selection": 8,
+    "absolute_change": -7
+  },
+  "interpretation": "The historical aggregate suggests that Product filtering favored shorter target strings.",
+  "provenance": {
+    "source_kind": "transcription of a defense aggregate",
+    "raw_selection_rows_available": false,
+    "recomputable_from_checkout": false,
+    "related_static_figure": "docs/project-page/assets/product_bias.webp"
+  },
+  "claim_boundary": "This file preserves the reported aggregate; it does not reconstruct the missing selection rows or prove the cause of the shift."
+}

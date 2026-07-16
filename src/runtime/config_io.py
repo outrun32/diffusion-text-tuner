@@ -7,7 +7,15 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from src.training.config import (
     DPOConfig,
@@ -180,13 +188,14 @@ class _MultiRankLoraModel(_StrictRuntimeModel):
 
 class _SFTModel(_StrictRuntimeModel):
     model_id: str
+    model_revision: str | None = None
     latents_dir: str
     text_embeds_dir: str
     scores_csv: str
     score_threshold: float = Field(0.3, ge=0.0, le=1.0)
-    selection_mode: Literal[
-        "hard_positive", "score_weighted", "threshold", "top_k_per_prompt"
-    ] = "threshold"
+    selection_mode: Literal["hard_positive", "score_weighted", "threshold", "top_k_per_prompt"] = (
+        "threshold"
+    )
     selected_samples_path: str | None = None
     score_column: str = "score"
     hard_negative_threshold: float = Field(0.2, ge=0.0, le=1.0)
@@ -218,6 +227,26 @@ class _SFTModel(_StrictRuntimeModel):
     gradient_checkpointing: bool = True
     mixed_precision: str
 
+    @model_validator(mode="after")
+    def _validate_selection_execution_contract(self):
+        materialized_modes = {"hard_positive", "top_k_per_prompt"}
+        if self.selection_mode in materialized_modes and not self.selected_samples_path:
+            raise ValueError(
+                f"selection_mode={self.selection_mode!r} requires selected_samples_path; "
+                "materialize it with scripts.materialize_training_data"
+            )
+        if self.selection_mode == "score_weighted" and self.sample_weighting != "score_normalized":
+            raise ValueError(
+                "selection_mode='score_weighted' requires sample_weighting='score_normalized'"
+            )
+        if self.sample_weighting == "score_normalized" and self.selection_mode != "score_weighted":
+            raise ValueError(
+                "sample_weighting='score_normalized' requires selection_mode='score_weighted'"
+            )
+        if self.resume_step > 0 and not self.resume_lora_path:
+            raise ValueError("resume_step > 0 requires resume_lora_path")
+        return self
+
     def to_dataclass(self) -> SFTConfig:
         payload = self.model_dump()
         payload["lora"] = self.lora.to_dataclass()
@@ -226,6 +255,7 @@ class _SFTModel(_StrictRuntimeModel):
 
 class _DPOModel(_StrictRuntimeModel):
     model_id: str
+    model_revision: str | None = None
     sft_lora_path: str | None = None
     latents_dir: str
     text_embeds_dir: str
@@ -265,6 +295,36 @@ class _DPOModel(_StrictRuntimeModel):
     gradient_checkpointing: bool = True
     mixed_precision: str
 
+    @model_validator(mode="after")
+    def _validate_pair_execution_contract(self):
+        needs_materialized_pairs = (
+            self.pair_construction_mode != "best_vs_worst"
+            or self.pair_weighting != "uniform"
+            or self.ambiguity_margin > 0
+        )
+        if needs_materialized_pairs and not self.preference_pairs_path:
+            raise ValueError(
+                "non-default DPO pair construction/weighting requires preference_pairs_path; "
+                "materialize it with scripts.materialize_training_data"
+            )
+        if (
+            self.pair_construction_mode == "margin_weighted"
+            and self.pair_weighting != "margin_normalized"
+        ):
+            raise ValueError(
+                "pair_construction_mode='margin_weighted' requires "
+                "pair_weighting='margin_normalized'"
+            )
+        if (
+            self.pair_weighting == "margin_normalized"
+            and self.pair_construction_mode != "margin_weighted"
+        ):
+            raise ValueError(
+                "pair_weighting='margin_normalized' requires "
+                "pair_construction_mode='margin_weighted'"
+            )
+        return self
+
     def to_dataclass(self) -> DPOConfig:
         payload = self.model_dump()
         payload["lora"] = self.lora.to_dataclass()
@@ -273,6 +333,7 @@ class _DPOModel(_StrictRuntimeModel):
 
 class _MaskedSFTModel(_StrictRuntimeModel):
     model_id: str
+    model_revision: str | None = None
     data_dir: str
     val_n_samples: int = Field(200, ge=0)
     num_training_steps: int = Field(..., gt=0)
@@ -307,6 +368,12 @@ class _MaskedSFTModel(_StrictRuntimeModel):
     progress_bar_mininterval: float = Field(30.0, gt=0.0)
     gradient_checkpointing: bool = True
     mixed_precision: str
+
+    @model_validator(mode="after")
+    def _validate_resume_execution_contract(self):
+        if self.resume_step > 0 and not self.resume_lora_path:
+            raise ValueError("resume_step > 0 requires resume_lora_path")
+        return self
 
     def to_dataclass(self) -> MaskedSFTConfig:
         payload = self.model_dump()

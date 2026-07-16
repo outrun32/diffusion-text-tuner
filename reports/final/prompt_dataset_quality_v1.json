@@ -1,0 +1,139 @@
+{
+  "content_type_distribution": {
+    "book_cover": 1072,
+    "clothing": 1147,
+    "photo_text": 3033,
+    "poster": 4457,
+    "product": 1516,
+    "social_media": 1524,
+    "typography": 2251
+  },
+  "dataset_path": "data/prompts_simple.jsonl",
+  "duplicate_examples": [
+    "ЁБАНАЯ",
+    "БЕРЁТ",
+    "БПЕЛЪ",
+    "БРЭДШОУ",
+    "БРЭНДОН"
+  ],
+  "duplicate_rate": 0.0382,
+  "errors": [],
+  "length_buckets": {
+    "1-4": 547,
+    "13-24": 6307,
+    "25+": 3266,
+    "5-12": 4880
+  },
+  "malformed_records": 0,
+  "metadata": {
+    "distribution_entropy": {
+      "content_type": 1.817564,
+      "style_signature": 7.446483
+    },
+    "required_fields": [
+      "id",
+      "prompt",
+      "target_text",
+      "content_type",
+      "style",
+      "lang"
+    ],
+    "source": {
+      "sha256": "13f88a37e53b2592eae34456317b64f7b7269ef0d77f02622ad350febbbe5511",
+      "size_bytes": 9595734
+    },
+    "thresholds": {
+      "max_duplicate_rate": 0.05,
+      "max_target_length": 160,
+      "min_content_type_entropy": 1.5,
+      "min_rare_character_coverage": 0.05,
+      "min_style_entropy": 1.5
+    }
+  },
+  "missing_required_records": 0,
+  "ok": true,
+  "rare_character_coverage": {
+    "counts": {
+      "ф": 2554,
+      "ц": 2592,
+      "щ": 2852,
+      "ъ": 2941,
+      "э": 3016,
+      "ю": 3310,
+      "ё": 3283
+    },
+    "coverage_ratio": 1.0,
+    "covered": [
+      "ф",
+      "ц",
+      "щ",
+      "ъ",
+      "э",
+      "ю",
+      "ё"
+    ],
+    "missing": [],
+    "required": [
+      "ф",
+      "ц",
+      "щ",
+      "ъ",
+      "э",
+      "ю",
+      "ё"
+    ]
+  },
+  "schema_version": "prompt-quality/v1",
+  "script_coverage": {
+    "cyrillic": 15000,
+    "digits": 1064,
+    "latin": 4,
+    "punctuation": 2439
+  },
+  "style_distribution": {
+    "color": {
+      "black": 984,
+      "burgundy": 1013,
+      "cream": 1035,
+      "dark green": 997,
+      "deep purple": 1017,
+      "electric yellow": 1000,
+      "gold": 950,
+      "metallic grey": 995,
+      "neon blue": 1005,
+      "orange": 1022,
+      "pastel pink": 974,
+      "red": 971,
+      "silver": 1026,
+      "teal": 972,
+      "white": 1039
+    },
+    "effect": {
+      "3D": 2346,
+      "clean": 2261,
+      "embossed": 1790,
+      "gradient": 2237,
+      "neon glow": 2164,
+      "outlined": 2410,
+      "shadow": 1792
+    },
+    "font": {
+      "bold sans-serif": 1985,
+      "futuristic": 1973,
+      "gothic": 2072,
+      "minimalist": 1721,
+      "monospace": 1185,
+      "retro": 1393,
+      "serif": 1530,
+      "stencil": 1948,
+      "thin sans-serif": 1193
+    },
+    "size": {
+      "large": 7513,
+      "medium": 7487
+    }
+  },
+  "total_lines": 15000,
+  "valid_records": 15000,
+  "warnings": []
+}

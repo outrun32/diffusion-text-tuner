@@ -45,7 +45,12 @@ class QwenYesProbReward:
         "Answer ONLY with a single word: 'Yes' or 'No'. Do not explain."
     )
 
-    def __init__(self, model_id: str = "Qwen/Qwen3.5-9B", device: str = "cuda"):
+    def __init__(
+        self,
+        model_id: str = "Qwen/Qwen3.5-9B",
+        device: str = "cuda",
+        revision: str | None = None,
+    ):
         import torch
         from transformers import AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig
 
@@ -60,9 +65,10 @@ class QwenYesProbReward:
             bnb_4bit_quant_type="nf4",
         )
 
-        self.processor = AutoProcessor.from_pretrained(model_id)
+        self.processor = AutoProcessor.from_pretrained(model_id, revision=revision)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_id,
+            revision=revision,
             quantization_config=quant_config,
             device_map=device,
         )
@@ -239,16 +245,22 @@ class EvaluationQwenYesProbReward:
     PROMPT_TEMPLATE = QwenYesProbReward.PROMPT_TEMPLATE
     SYSTEM_PROMPT = QwenYesProbReward.SYSTEM_PROMPT
 
-    def __init__(self, model_id: str = "Qwen/Qwen3.5-4B", device: str = "cuda"):
+    def __init__(
+        self,
+        model_id: str = "Qwen/Qwen3.5-4B",
+        device: str = "cuda",
+        revision: str | None = None,
+    ):
         import torch
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
         self.torch = torch
         self.device = device
         print(f"Loading VLM reward model: {model_id} ...")
-        self.processor = AutoProcessor.from_pretrained(model_id)
+        self.processor = AutoProcessor.from_pretrained(model_id, revision=revision)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_id,
+            revision=revision,
             torch_dtype=torch.bfloat16,
             device_map=device,
         )

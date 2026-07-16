@@ -1,42 +1,91 @@
 [project]
 name = "diffusion-text-tuner"
 version = "0.1.0"
-description = "Brownfield thesis toolkit for diffusion-based multilingual text rendering"
+description = "Research toolkit for reward-filtered LoRA alignment of FLUX.2 Klein on Russian and Cyrillic text rendering"
+readme = "README.md"
 requires-python = ">=3.11,<3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Iakov Saparov" },
+]
+keywords = [
+    "diffusion-models",
+    "flux",
+    "lora",
+    "cyrillic",
+    "text-rendering",
+    "reward-modeling",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "accelerate",
-    "datasets",
-    "diffusers",
+    "aiohttp>=3.14.1,<4",
+    "datasets>=5,<6",
+    "diffusers>=0.38,<0.40",
+    "huggingface-hub>=1,<2",
+    "idna>=3.15,<4",
+    "numpy>=2,<3",
     "peft",
-    "pillow",
+    "pillow>=12.3,<13",
     "pydantic>=2,<3",
     "tqdm",
     "transformers",
+    "urllib3>=2.7,<3",
 ]
+
+[project.urls]
+Homepage = "https://outrun32.github.io/diffusion-text-tuner/project-page/"
+Repository = "https://github.com/outrun32/diffusion-text-tuner"
+Issues = "https://github.com/outrun32/diffusion-text-tuner/issues"
+Dataset = "https://huggingface.co/datasets/Outrun32/cyrillic-prompts-15k"
+
+[project.scripts]
+dtt-prompts = "src.prompt_pipeline.generate:main"
+dtt-generate = "scripts.generate_images:main"
+dtt-score = "scripts.score_images:main"
+dtt-preflight = "scripts.preflight_runtime:main"
+dtt-manifest = "scripts.run_manifest:main"
+dtt-final-benchmark = "src.evaluation.final_benchmark:main"
+dtt-evidence = "scripts.build_evidence_manifest:main"
 
 [project.optional-dependencies]
 gpu = [
-    "bitsandbytes",
-    "torch",
-    "torchvision",
+    "bitsandbytes; platform_system == 'Linux'",
+    "torch>=2.12.1,<2.14",
+    "torchvision>=0.27,<0.29",
 ]
 ocr = [
-    "paddleocr",
+    "paddleocr==3.4.0",
+    "paddlepaddle==3.3.1",
 ]
 reward = [
-    "bitsandbytes",
-    "paddleocr",
+    "bitsandbytes; platform_system == 'Linux'",
+    "paddleocr==3.4.0",
+    "paddlepaddle==3.3.1",
+    "torch>=2.12.1,<2.14",
+    "torchvision>=0.27,<0.29",
 ]
 synthesis = [
     "opencv-python",
     "requests",
     "synthtiger",
 ]
-vllm = [
-    "vllm; sys_platform == 'linux'",
-]
 mlx = [
-    "mlx-lm; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-lm==0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+mlx-vlm = [
+    "mlx-vlm==0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+vllm = [
+    "vllm==0.25.1; sys_platform == 'linux'",
 ]
 test = [
     "pytest",
@@ -55,22 +104,55 @@ analysis = [
     "scikit-learn",
     "scipy",
 ]
-
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-cov",
-    "torch",
+    "setuptools>=83,<84",
+    "torch>=2.12.1,<2.14",
 ]
 
 [tool.uv]
-package = false
+conflicts = [
+    [{ extra = "vllm" }, { group = "dev" }],
+    [{ extra = "vllm" }, { extra = "gpu" }],
+    [{ extra = "vllm" }, { extra = "reward" }],
+]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src", "scripts"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"data/ru_freq_50k.txt" = "data/ru_freq_50k.txt"
+"data/thematic.json" = "data/thematic.json"
+"data/scenes_seed.json" = "data/scenes_seed.json"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src",
+    "scripts",
+    "data/ru_freq_50k.txt",
+    "data/thematic.json",
+    "data/scenes_seed.json",
+    "README.md",
+    "CITATION.cff",
+    "LICENSE",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
 addopts = "--strict-markers"
+filterwarnings = [
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]
 markers = [
     "slow: marks tests as slow or long-running",
     "gpu: marks tests that require CUDA or GPU hardware",
@@ -83,6 +165,11 @@ markers = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+extend-exclude = ["experiments"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E501"]
+"scripts/profile_step.py" = ["E402"]

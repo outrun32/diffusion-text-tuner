@@ -1,6 +1,9 @@
 # Synthetic Masked-SFT Quality Inspection
 
-Phase 3 adds CPU-safe synthetic dataset inspection for outputs produced by `scripts/synth/build_dataset.py`. The inspector reads local CSV, JSONL, JSON metadata, images, and masks with PIL only. It does not launch FLUX, Qwen, PaddleOCR, SynthTIGER, CUDA, or OCR/model inference in the default path.
+The CPU-safe synthetic dataset inspector checks outputs produced by
+`scripts/synth/build_dataset.py`. It reads local CSV, JSONL, JSON metadata, images, and masks with
+PIL only; the default path does not launch FLUX, Qwen, PaddleOCR, SynthTIGER, CUDA, OCR, or model
+inference.
 
 ## Required input layout
 
@@ -27,13 +30,13 @@ masked_sft/text_embeds/{sid}.pt
 Run inspection against existing build outputs without requiring OCR or model packages:
 
 ```bash
-uv run python scripts/inspect_synthetic_dataset.py \
+uv run python -m scripts.inspect_synthetic_dataset \
   --data-dir data/synth_cyrillic/masked_sft \
   --raw-dir data/synth_cyrillic/raw \
-  --config configs/synth/cyrillic.yaml \
+  --config <synthtiger-config.yaml> \
   --seed 42 \
-  --template scripts/synth/synthtiger_template.py \
-  --runner scripts/synth/build_dataset.py \
+  --template <synthtiger-template.py> \
+  --runner <synthtiger-runner.py> \
   --model-id black-forest-labs/FLUX.2-klein-base-4B \
   --word-source data/ru_freq_50k.txt \
   --font-source data/fonts/font_list.txt \
@@ -68,7 +71,7 @@ Reports use `synthetic-quality/v1` and include:
 OCR verification is optional. Default synthetic inspection never imports PaddleOCR. Produce OCR outputs with a separate opt-in diagnostic or reward pipeline, then hand the result file to the inspector:
 
 ```bash
-uv run python scripts/inspect_synthetic_dataset.py \
+uv run python -m scripts.inspect_synthetic_dataset \
   --data-dir data/synth_cyrillic/masked_sft \
   --raw-dir data/synth_cyrillic/raw \
   --report runs/synthetic-quality/synthetic-quality-with-ocr.json \
@@ -87,7 +90,7 @@ When `--manifest` is provided, the CLI writes a `dataset-manifest/v1` manifest f
 
 Use provenance flags to capture the synthetic builder inputs that matter for thesis reproducibility:
 
-- `--config`: build config such as `configs/synth/cyrillic.yaml`.
+- `--config`: explicit external SynthTIGER build config; no default renderer config is committed.
 - `--seed`: synthetic build seed.
 - `--template`: SynthTIGER template path or identifier.
 - `--runner`: builder/runner script path or identifier.
@@ -97,7 +100,9 @@ Use provenance flags to capture the synthetic builder inputs that matter for the
 - `--scene-source`: one or more scene metadata files.
 - `--background-source`: one or more background manifest/provenance files.
 
-The manifest complements Phase 2 runtime contracts: it lets later training-selection, comparison, and thesis-report steps point back to exact synthetic builder outputs, filter settings, report summaries, source hashes, and local run artifacts without committing generated data.
+The manifest lets training selection, comparisons, and thesis reports point back to exact synthetic
+builder outputs, filter settings, report summaries, source hashes, and local run artifacts without
+committing generated data.
 
 ## Threshold meanings
 

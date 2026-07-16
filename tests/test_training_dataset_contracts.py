@@ -14,6 +14,7 @@ from src.training.dataset import (
     SFTDataset,
     dpo_collate_fn,
     masked_sft_collate_fn,
+    require_drop_last_batch,
     sft_collate_fn,
 )
 from src.training.selection import materialize_dpo_pairs, materialize_sft_samples
@@ -99,8 +100,7 @@ def test_sft_dataset_loads_score_filtered_tensor_samples(tmp_path: Path) -> None
 
     assert len(dataset) == 2
     selected_samples = [
-        (sample["prompt_id"], sample["version"], sample["score"])
-        for sample in dataset.samples
+        (sample["prompt_id"], sample["version"], sample["score"]) for sample in dataset.samples
     ]
     assert selected_samples == [
         ("p1", 2, 0.3),
@@ -134,6 +134,7 @@ def test_sft_collate_stacks_latents_and_pads_prompt_embeddings() -> None:
     assert torch.equal(collated["prompt_embeds"][1, 0], torch.tensor([5.0, 6.0]))
     assert torch.equal(collated["prompt_embeds"][1, 1], torch.zeros(2))
     assert torch.allclose(collated["score"], torch.tensor([0.7, 0.9]))
+    assert torch.allclose(collated["sample_weight"], torch.ones(2))
 
 
 def test_dpo_dataset_constructs_pairs_when_winner_and_margin_pass(tmp_path: Path) -> None:
@@ -171,6 +172,7 @@ def test_dpo_dataset_constructs_pairs_when_winner_and_margin_pass(tmp_path: Path
             "loser_version": 1,
             "winner_score": 0.8,
             "loser_score": 0.2,
+            "pair_weight": 1.0,
         }
     ]
     item = dataset[0]
@@ -201,6 +203,171 @@ def test_dpo_collate_stacks_pair_latents_and_pads_shared_prompt_embeddings() -> 
     assert collated["prompt_embeds"].shape == (2, 3, 2)
     assert torch.equal(collated["prompt_embeds"][1, 0], torch.tensor([7.0, 8.0]))
     assert torch.equal(collated["prompt_embeds"][1, 1:], torch.zeros(2, 2))
+    assert torch.allclose(collated["pair_weight"], torch.ones(2))
+
+
+def test_datasets_consume_materialized_selection_and_pair_weights(tmp_path: Path) -> None:
+    scores_csv = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 0, "score": "0.2", "target_text": "Ёж"},
+            {"id": "p1", "version": 1, "score": "0.8", "target_text": "Ёж"},
+            {"id": "p2", "version": 0, "score": "0.1", "target_text": "Щит"},
+            {"id": "p2", "version": 1, "score": "0.5", "target_text": "Щит"},
+        ],
+    )
+    selected_path = tmp_path / "selected.jsonl"
+    pairs_path = tmp_path / "pairs.jsonl"
+    materialize_sft_samples(
+        scores_csv,
+        selected_path,
+        mode="score_weighted",
+        threshold=0.3,
+    )
+    materialize_dpo_pairs(
+        scores_csv,
+        pairs_path,
+        mode="margin_weighted",
+        threshold=0.3,
+        margin=0.1,
+    )
+
+    sft_dataset = SFTDataset(
+        str(tmp_path / "latents"),
+        str(tmp_path / "embeds"),
+        str(scores_csv),
+        selection_mode="score_weighted",
+        selected_samples_path=str(selected_path),
+        sample_weighting="score_normalized",
+    )
+    dpo_dataset = DPODataset(
+        str(tmp_path / "latents"),
+        str(tmp_path / "embeds"),
+        str(scores_csv),
+        pair_construction_mode="margin_weighted",
+        preference_pairs_path=str(pairs_path),
+        score_threshold=0.3,
+        pair_weighting="margin_normalized",
+    )
+
+    assert [(row["prompt_id"], row["version"]) for row in sft_dataset.samples] == [
+        ("p1", 1),
+        ("p2", 1),
+    ]
+    assert [row["sample_weight"] for row in sft_dataset.samples] == [1.0, 0.625]
+    assert [row["pair_weight"] for row in dpo_dataset.pairs] == pytest.approx([1.0, 2 / 3])
+
+
+def test_materialized_artifacts_reject_source_drift_and_inverted_pairs(tmp_path: Path) -> None:
+    scores_csv = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 0, "score": "0.1", "target_text": "Ёж"},
+            {"id": "p1", "version": 1, "score": "0.9", "target_text": "Ёж"},
+        ],
+    )
+    selected_path = tmp_path / "selected.jsonl"
+    pairs_path = tmp_path / "pairs.jsonl"
+    materialize_sft_samples(scores_csv, selected_path, threshold=0.3)
+    materialize_dpo_pairs(scores_csv, pairs_path, threshold=0.5, margin=0.1)
+
+    selected_rows = _read_jsonl(selected_path)
+    selected_rows[0]["source_scores_sha256"] = "wrong"
+    selected_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in selected_rows),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="source_scores_sha256"):
+        SFTDataset(
+            str(tmp_path / "latents"),
+            str(tmp_path / "embeds"),
+            str(scores_csv),
+            selected_samples_path=str(selected_path),
+        )
+
+    pair_rows = _read_jsonl(pairs_path)
+    pair_rows[0]["winner_score"], pair_rows[0]["loser_score"] = (
+        pair_rows[0]["loser_score"],
+        pair_rows[0]["winner_score"],
+    )
+    pairs_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in pair_rows),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="does not match source score"):
+        DPODataset(
+            str(tmp_path / "latents"),
+            str(tmp_path / "embeds"),
+            str(scores_csv),
+            preference_pairs_path=str(pairs_path),
+        )
+
+
+def test_materialized_sft_rejects_below_threshold_version_substitution(tmp_path: Path) -> None:
+    scores_csv = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 0, "score": "0.1", "target_text": "Ёж"},
+            {"id": "p1", "version": 1, "score": "0.9", "target_text": "Ёж"},
+        ],
+    )
+    selected_path = tmp_path / "selected.jsonl"
+    materialize_sft_samples(scores_csv, selected_path, threshold=0.3)
+    selected_rows = _read_jsonl(selected_path)
+    selected_rows[0]["version"] = 0
+    selected_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in selected_rows),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="does not match source score"):
+        SFTDataset(
+            str(tmp_path / "latents"),
+            str(tmp_path / "embeds"),
+            str(scores_csv),
+            selected_samples_path=str(selected_path),
+        )
+
+
+def test_materialized_dpo_rejects_swapped_winner_loser_versions(tmp_path: Path) -> None:
+    scores_csv = _write_scores(
+        tmp_path / "scores.csv",
+        [
+            {"id": "p1", "version": 0, "score": "0.1", "target_text": "Ёж"},
+            {"id": "p1", "version": 1, "score": "0.9", "target_text": "Ёж"},
+        ],
+    )
+    pairs_path = tmp_path / "pairs.jsonl"
+    materialize_dpo_pairs(scores_csv, pairs_path, threshold=0.5, margin=0.1)
+    pair_rows = _read_jsonl(pairs_path)
+    pair_rows[0]["winner_version"], pair_rows[0]["loser_version"] = (
+        pair_rows[0]["loser_version"],
+        pair_rows[0]["winner_version"],
+    )
+    pairs_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in pair_rows),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="does not match source score"):
+        DPODataset(
+            str(tmp_path / "latents"),
+            str(tmp_path / "embeds"),
+            str(scores_csv),
+            preference_pairs_path=str(pairs_path),
+        )
+
+
+@pytest.mark.parametrize(
+    ("dataset_size", "message"),
+    [(0, "selected dataset is empty"), (3, "drop_last=True would yield no batches")],
+)
+def test_drop_last_training_requires_at_least_one_full_batch(
+    dataset_size: int,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        require_drop_last_batch(dataset_size, 4, stage="sft")
 
 
 def test_masked_sft_dataset_fails_fast_for_missing_required_directories(tmp_path: Path) -> None:
@@ -322,9 +489,7 @@ def test_resolution_bucket_sampler_uses_complete_shapes_csv_without_latent_fallb
     assert batches == list(sampler_b)
     assert len(sampler_a) == 2
     batch_shapes = {
-        dataset.shapes[dataset.sample_ids[index]]
-        for batch in batches
-        for index in batch
+        dataset.shapes[dataset.sample_ids[index]] for batch in batches for index in batch
     }
     assert sorted(batch_shapes) == [
         (2, 2),

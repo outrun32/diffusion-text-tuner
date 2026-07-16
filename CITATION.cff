@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this code or prompt dataset, cite the bachelor thesis."
+title: "Diffusion Text Tuner: Reward-filtered self-training for Cyrillic text rendering"
+type: software
+authors:
+  - family-names: Saparov
+    given-names: Iakov
+repository-code: "https://github.com/outrun32/diffusion-text-tuner"
+url: "https://outrun32.github.io/diffusion-text-tuner/project-page/"
+license: Apache-2.0
+version: 0.1.0
+date-released: 2026-07-16
+preferred-citation:
+  type: thesis
+  title: "Developing a Diffusion-based Training Toolkit for Multilingual Text Rendering"
+  authors:
+    - family-names: Saparov
+      given-names: Iakov
+  institution:
+    name: Innopolis University
+  year: 2026

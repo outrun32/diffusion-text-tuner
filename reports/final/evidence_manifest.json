@@ -1,0 +1,97 @@
+{
+  "artifacts": [
+    {
+      "bytes": 3490,
+      "evidence_class": "public-source",
+      "path": "reports/final/README.md",
+      "sha256": "61546626378aa205a6b609aaf9cf1d5d077122edbeb885e7255ebbb2f91c7999"
+    },
+    {
+      "bytes": 553,
+      "evidence_class": "public-source",
+      "path": "reports/final/prompt_dataset_source.manifest.json",
+      "sha256": "1ac3e4599cfe50e8557a9cb27439b902a06bcfdc52762f820fd47de6b5e226b0"
+    },
+    {
+      "bytes": 2738,
+      "evidence_class": "public-source",
+      "path": "reports/final/prompt_dataset_quality_v1.json",
+      "sha256": "ca9e2d3a86c1b7b926ebb99abaa933600571bf15aa8d8f5dcb9fa135f1680063"
+    },
+    {
+      "bytes": 1002786,
+      "evidence_class": "public-source",
+      "path": "reports/final/prompt_training_target_hashes_v1.json",
+      "sha256": "34e3d261f754df378a3ff96320e58c9706e99f5028ab4db2dd5adf2a72d241c1"
+    },
+    {
+      "bytes": 37870,
+      "evidence_class": "public-source",
+      "path": "reports/final/benchmark_prompts_v2.jsonl",
+      "sha256": "6239b2cd942da3cd883961ed67c718df9f387717cbd5adfe73a905d579eba9b4"
+    },
+    {
+      "bytes": 1953,
+      "evidence_class": "public-source",
+      "path": "reports/final/benchmark_prompts_v2.manifest.json",
+      "sha256": "71c053ab8a5ef4bd7b40a5d815f967bd46d10e94dbb0cfc1b1f85825675e8ff6"
+    },
+    {
+      "bytes": 372,
+      "evidence_class": "public-source",
+      "path": "reports/final/historical_benchmark_summary.csv",
+      "sha256": "70f0dfb50792253126e52689e49239fb87128279791a7c407bcfa34d25d1d7b5"
+    },
+    {
+      "bytes": 869,
+      "evidence_class": "historical-aggregate-only",
+      "path": "reports/final/historical_selection_bias.json",
+      "sha256": "2d03a1039b97ee495b26d22867425ddb3ea49d5e5c5c9dd7e3f17424d48658ec"
+    },
+    {
+      "bytes": 477,
+      "evidence_class": "public-source",
+      "path": "reports/final/current_model_sources.json",
+      "sha256": "e0d52453022b091fd9f5c660918ff89b213a2a8463c59bda14a5325f5f08d03d"
+    },
+    {
+      "bytes": 82090,
+      "evidence_class": "static-defense-figure",
+      "path": "docs/project-page/assets/teaser_success.webp",
+      "sha256": "5c08f79b9ac9dde4edf44336c09e7400aa0f9d040bade087554415e9ddefeec6"
+    },
+    {
+      "bytes": 74278,
+      "evidence_class": "static-defense-figure",
+      "path": "docs/project-page/assets/method_candidates.webp",
+      "sha256": "1acbc2fde9a0a1586addea710d7d243d682409fb16af330d2431886b0158bd91"
+    },
+    {
+      "bytes": 18300,
+      "evidence_class": "static-defense-figure",
+      "path": "docs/project-page/assets/heldout_cer.webp",
+      "sha256": "a162c1720a5972325d30f74224f28e4fd1efc6fb49037c3496e2e56e6474d3a3"
+    },
+    {
+      "bytes": 24046,
+      "evidence_class": "static-defense-figure",
+      "path": "docs/project-page/assets/dpo_tradeoff.webp",
+      "sha256": "bfbb199edae6e2d7019494fa96e0127807e60491a983fc44f21b0263f4298e1e"
+    },
+    {
+      "bytes": 16540,
+      "evidence_class": "static-defense-figure",
+      "path": "docs/project-page/assets/product_bias.webp",
+      "sha256": "be27a4a77c0de174754739764b09a7168566101b33cf71d3f64d67e8ab3a4b39"
+    },
+    {
+      "bytes": 126444,
+      "evidence_class": "static-defense-figure",
+      "path": "docs/project-page/assets/failure_cases.webp",
+      "sha256": "94cf82f04653fb981d4806f1d4d5efc218e0cd3a9aeac8da3702624db7620143"
+    }
+  ],
+  "checkpoint_status": "not published",
+  "historical_results_status": "aggregate-only; raw per-sample evidence unavailable",
+  "schema_version": "public-evidence-manifest/v1"
+}

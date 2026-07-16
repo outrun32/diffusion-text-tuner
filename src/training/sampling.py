@@ -35,9 +35,7 @@ def normalize_eval_suite_items(
             raise ValueError(f"eval suite item {index} is missing target_text")
 
         normalized_item = {
-            key: value
-            for key, value in item.items()
-            if key not in {"target", "target_text"}
+            key: value for key, value in item.items() if key not in {"target", "target_text"}
         }
         normalized_item["name"] = str(item.get("name", f"item_{index:02d}"))
         normalized_item["prompt"] = prompt

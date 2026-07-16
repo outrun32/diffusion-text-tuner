@@ -7,24 +7,30 @@
 
 set -euo pipefail
 
-echo "=== Setting up diffusiontuner environment ==="
+echo "=== Setting up locked diffusiontuner environment ==="
 
 module load Python/Anaconda_v03.2023
 
-# Create conda env
-conda create -n diffusiontuner python=3.11 -y || true
-source activate diffusiontuner
-
-# Install PyTorch + deps
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install accelerate transformers diffusers peft bitsandbytes
-pip install tqdm pillow
+python -m pip install --user "uv==0.11.28"
+python -m uv python install 3.11
+python -m uv sync --frozen --group dev --extra gpu --extra reward
+# shellcheck disable=SC1091
+source .venv/bin/activate
 
 echo ""
 echo "=== Pre-caching models (REQUIRED: no internet on compute nodes) ==="
-echo "Run these Python commands to download models to HuggingFace cache:"
-echo ""
-echo "  python -c \"from diffusers import Flux2KleinPipeline; Flux2KleinPipeline.from_pretrained('black-forest-labs/FLUX.2-klein-base-4B')\""
-echo "  python -c \"from transformers import AutoModelForImageTextToText, AutoProcessor; AutoProcessor.from_pretrained('Qwen/Qwen3.5-9B'); AutoModelForImageTextToText.from_pretrained('Qwen/Qwen3.5-9B')\""
-echo ""
-echo "Environment ready. Submit jobs with: sbatch scripts/cluster/sft.sbatch"
+FLUX_MODEL_ID="black-forest-labs/FLUX.2-klein-base-4B"
+FLUX_MODEL_REVISION="a3b4f4849157f664bdbc776fd7453c2783562f4d"
+VLM_MODEL_ID="Qwen/Qwen3.5-9B"
+VLM_MODEL_REVISION="c202236235762e1c871ad0ccb60c8ee5ba337b9a"
+
+python - "$FLUX_MODEL_ID" "$FLUX_MODEL_REVISION" "$VLM_MODEL_ID" "$VLM_MODEL_REVISION" <<'PY'
+from huggingface_hub import snapshot_download
+import sys
+
+for repo_id, revision in ((sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])):
+    print(f"Caching {repo_id}@{revision}")
+    snapshot_download(repo_id=repo_id, revision=revision)
+PY
+
+echo "Locked environment ready. Submit jobs with: sbatch scripts/cluster/sft.sbatch"

@@ -252,15 +252,15 @@ def test_data_source_comparison_docs_cover_workflow_and_thesis_caveats() -> None
     docs = Path("docs/data_source_comparison.md").read_text(encoding="utf-8")
 
     required_strings = [
-        "reward-filtered generated images",
+        "reward-filtered generated-image evidence",
         "synthetic masked-SFT",
         "rare-character coverage",
         "reward/OCR false positives",
         "natural scene realism",
         "manifests",
-        "thesis comparison",
-        "training loss or DPO accuracy",
-        "compare_data_sources.py",
+        "pre-training evidence",
+        "Training loss and DPO accuracy",
+        "uv run python -m scripts.compare_data_sources",
         "data-source-comparison/v1",
     ]
     missing = [text for text in required_strings if text not in docs]

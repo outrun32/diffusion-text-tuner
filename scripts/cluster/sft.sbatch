@@ -1,26 +1,41 @@
 #!/bin/bash
 #SBATCH --job-name=sft
-#SBATCH --error=runs/sft-%j.err
-#SBATCH --output=runs/sft-%j.log
+#SBATCH --error=slurm-sft-%j.err.log
+#SBATCH --output=slurm-sft-%j.out.log
 #SBATCH --gpus=4
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
-# V100 32GB (type_a/b/c), A100 80GB (type_e), H100 (type_h — update when confirmed)
-#SBATCH --constraint="[type_a|type_b|type_c]"
+# BF16 configs require A100/H100-class hardware. Do not submit this profile to V100 nodes.
+#SBATCH --constraint="[type_e|type_h]"
+
+set -euo pipefail
 
 # ── Environment ──
-module load Python/Anaconda_v03.2023
-source activate diffusiontuner
-
-cd "$SLURM_SUBMIT_DIR"
+cd "$SLURM_SUBMIT_DIR" || exit
 mkdir -p runs
+test -f .venv/bin/activate || { echo "Run scripts/cluster/setup_env.sh first" >&2; exit 2; }
+# shellcheck disable=SC1091
+source .venv/bin/activate
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
 # ── Launch ──
 # SLURM_GPUS gives us the number of GPUs
 export CUDA_VISIBLE_DEVICES=0,1,2,3
+NUM_PROCESSES="${SLURM_GPUS_ON_NODE:-4}"
+CONFIG_PATH="${CONFIG_PATH:-configs/sft.json}"
+python -c 'import json,re,sys; p=json.load(open(sys.argv[1])); r=p.get("model_revision"); raise SystemExit(0 if isinstance(r,str) and re.fullmatch(r"[0-9a-f]{40}",r) else "an immutable 40-character model_revision is required for cluster runs")' "$CONFIG_PATH"
+RUN_DIR="$(python -m scripts.run_manifest init --stage sft --config "$CONFIG_PATH" --command "accelerate launch -m src.training.sft_trainer --config $CONFIG_PATH")"
+python -m scripts.preflight_runtime \
+    --stage sft \
+    --config "$CONFIG_PATH" \
+    --manifest "$RUN_DIR/manifest.json" \
+    --json
 
 accelerate launch \
     --config_file configs/accelerate/multi_gpu.yaml \
-    --num_processes "$SLURM_GPUS" \
+    --num_processes "$NUM_PROCESSES" \
     -m src.training.sft_trainer \
-    --config configs/sft.json
+    --config "$CONFIG_PATH"
+
+python -m scripts.run_manifest note "$RUN_DIR/manifest.json" "SLURM training command completed"

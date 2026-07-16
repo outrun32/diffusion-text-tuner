@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import subprocess
@@ -22,6 +23,10 @@ DEFAULT_CACHE_ENV_NAMES = ("HF_HOME", "HF_HUB_CACHE", "TRANSFORMERS_CACHE", "TOR
 DEFAULT_PACKAGE_NAMES = (
     "accelerate",
     "diffusers",
+    "mlx",
+    "mlx-lm",
+    "paddleocr",
+    "paddlepaddle",
     "peft",
     "pydantic",
     "pytest",
@@ -34,19 +39,19 @@ def collect_git_state(root: str | Path | None = None) -> dict[str, Any]:
     """Collect local git commit and concise dirty/untracked state without failing hard."""
 
     root_path = Path.cwd() if root is None else Path(root)
-    commit = _run_git(root_path, "rev-parse", "--short", "HEAD")
+    commit = _run_git(root_path, "rev-parse", "HEAD")
     status = _run_git(root_path, "status", "--porcelain")
     if commit is None:
         return {"available": False, "commit": None, "dirty": None, "untracked_count": None}
 
     status_lines = [] if status is None else [line for line in status.splitlines() if line]
-    untracked_paths = sorted(line[3:] for line in status_lines if line.startswith("?? "))
+    diff = _run_git(root_path, "diff", "--binary", "HEAD") or ""
     return {
         "available": True,
         "commit": commit,
         "dirty": bool(status_lines),
-        "untracked_count": len(untracked_paths),
-        "untracked_paths": untracked_paths,
+        "untracked_count": sum(1 for line in status_lines if line.startswith("?? ")),
+        "working_tree_diff_sha256": hashlib.sha256(diff.encode("utf-8")).hexdigest(),
     }
 
 
@@ -69,6 +74,7 @@ def collect_environment_summary(
         "implementation": platform.python_implementation(),
         "packages": _collect_package_versions(package_names),
         "cuda": _collect_cuda_presence(),
+        "accelerators": _collect_accelerator_presence(),
         "cache": cache,
         "env_presence": env_presence,
     }
@@ -145,6 +151,21 @@ def _collect_cuda_presence() -> dict[str, Any]:
         "torch_importable": True,
         "available": bool(torch.cuda.is_available()),
         "device_count": int(torch.cuda.device_count()) if torch.cuda.is_available() else 0,
+        "bf16_supported": (
+            bool(torch.cuda.is_bf16_supported()) if torch.cuda.is_available() else False
+        ),
+    }
+
+
+def _collect_accelerator_presence() -> dict[str, Any]:
+    from src.runtime.capabilities import inspect_runtime_capabilities
+
+    capabilities = inspect_runtime_capabilities(probe_torch=True)
+    return {
+        "apple_silicon": capabilities.apple_silicon,
+        "mlx_available": capabilities.mlx_available,
+        "mps_available": capabilities.mps_available,
+        "cuda_bf16_supported": capabilities.cuda_bf16_supported,
     }
 
 

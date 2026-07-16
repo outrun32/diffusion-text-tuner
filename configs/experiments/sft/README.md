@@ -2,6 +2,10 @@
 
 Place new supervised fine-tuning variants in this directory. Keep `configs/sft.json` and existing root variants runnable for compatibility with documented local and SLURM commands.
 
+`sft_product_rerun_v2.json` is the future comparison-grade Product SFT config. It pins the current
+base-model revision and requires a materialized `selected_samples.jsonl`. Files ending in `_final`
+are historical defense configs; absent run manifests mean their exact model revisions are unknown.
+
 ## Naming
 
 Use `{stage}_{reward_or_data}_{purpose}.json` with `stage=sft`.

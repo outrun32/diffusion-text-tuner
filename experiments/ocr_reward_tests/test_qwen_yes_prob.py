@@ -1,5 +1,5 @@
 """
-Test Qwen3.5-4B as a differentiable OCR reward.
+Test Qwen3.5-4B as an offline MLX-VLM OCR reward probe.
 Extract P(yes) from the model's logits as a continuous score
 for how well text is rendered in an image.
 
@@ -9,6 +9,7 @@ Also test with a system prompt enforcing direct yes/no answers.
 """
 
 import os
+from pathlib import Path
 import mlx.core as mx
 import numpy as np
 from mlx_vlm import load, stream_generate, apply_chat_template
@@ -31,7 +32,7 @@ IMAGES = [
     ("good_handwritten_text.jpg", "handwritten correct"),
 ]
 
-BASE_DIR = "/Users/udmurtpsycho/Dev/diffusion-text-tuner"
+BASE_DIR = Path(__file__).resolve().parents[1] / "assets"
 
 
 def get_yes_no_probs(model, processor, tokenizer, image_path, prompt_text,
@@ -154,7 +155,7 @@ def main():
 
     results = []
     for filename, description in IMAGES:
-        image_path = os.path.join(BASE_DIR, filename)
+        image_path = str(BASE_DIR / filename)
         if not os.path.exists(image_path):
             print(f"  SKIP: {image_path} not found\n")
             continue

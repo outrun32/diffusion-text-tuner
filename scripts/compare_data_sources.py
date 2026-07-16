@@ -118,7 +118,7 @@ def _markdown_summary(payload: dict[str, Any]) -> str:
             "- Synthetic masked-SFT data helps controlled reconstruction with masks.",
             "- Generated data can inherit reward/OCR false positives and prompt distribution gaps.",
             "- Synthetic data can miss natural scene realism and domain complexity.",
-            "- Treat training loss or DPO accuracy as internal until Phase 6 evaluation.",
+            "- Treat training loss or DPO accuracy as internal until held-out evaluation.",
             "",
         ]
     )

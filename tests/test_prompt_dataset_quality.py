@@ -78,6 +78,8 @@ def test_prompt_quality_report_counts_valid_records_and_distributions(tmp_path: 
     assert report.rare_character_coverage["coverage_ratio"] == 1.0
     assert report.content_type_distribution == {"poster": 1, "product": 1, "typography": 1}
     assert report.style_distribution["font"] == {"gothic": 1, "serif": 2}
+    assert len(report.metadata["source"]["sha256"]) == 64
+    assert report.metadata["source"]["size_bytes"] == prompts.stat().st_size
 
 
 def test_prompt_quality_report_aggregates_malformed_rows_missing_fields_and_duplicates(
@@ -159,6 +161,95 @@ def test_prompt_quality_report_flags_cpu_safe_naturalness_and_script_heuristics(
     assert any("unmatched quote" in warning for warning in report.warnings)
     assert any("illegal character" in error and "line 5" in error for error in report.errors)
     assert any("disallowed script latin" in error and "line 5" in error for error in report.errors)
+
+
+def test_prompt_quality_accepts_currency_and_unicode_minus_as_text_symbols(tmp_path: Path) -> None:
+    prompts = _write_jsonl(
+        tmp_path / "prompts.jsonl",
+        [_prompt_record("p1", "СКИДКА 500 ₽ − 10%")],
+    )
+
+    report = validate_prompt_dataset(prompts)
+
+    assert report.ok
+    assert report.script_coverage["digits"] == 1
+    assert report.script_coverage["punctuation"] == 1
+
+
+def test_prompt_quality_applies_entropy_and_stage_provenance_thresholds(tmp_path: Path) -> None:
+    missing_stage = _prompt_record("p1", "АФИША")
+    prompts = _write_jsonl(tmp_path / "prompts.jsonl", [missing_stage])
+
+    report = validate_prompt_dataset(
+        prompts,
+        thresholds={
+            "require_stage_provenance": True,
+            "min_content_type_entropy": 0.5,
+            "min_style_entropy": 0.5,
+        },
+    )
+
+    assert not report.ok
+    assert report.valid_records == 0
+    assert any("missing required provenance field" in error for error in report.errors)
+    assert report.metadata["distribution_entropy"] == {
+        "content_type": 0.0,
+        "style_signature": 0.0,
+    }
+
+
+def test_prompt_validation_cli_uses_config_thresholds_and_cli_overrides(tmp_path: Path) -> None:
+    from scripts.validate_prompt_dataset import main
+
+    prompts = _write_jsonl(tmp_path / "prompts.jsonl", [_prompt_record("p1", "ДЛИННАЯ СТРОКА")])
+    config = _write_json(
+        tmp_path / "config.json",
+        {
+            "seed": 11,
+            "validation_thresholds": {
+                "max_target_length": 3,
+                "min_rare_char_coverage": 0.0,
+            },
+        },
+    )
+    configured_report = tmp_path / "configured.json"
+    overridden_report = tmp_path / "overridden.json"
+
+    assert (
+        main(
+            [
+                "--input",
+                str(prompts),
+                "--config",
+                str(config),
+                "--report",
+                str(configured_report),
+                "--strict-warnings",
+            ]
+        )
+        == 1
+    )
+    assert (
+        main(
+            [
+                "--input",
+                str(prompts),
+                "--config",
+                str(config),
+                "--report",
+                str(overridden_report),
+                "--max-target-length",
+                "64",
+                "--strict-warnings",
+            ]
+        )
+        == 0
+    )
+    configured = json.loads(configured_report.read_text(encoding="utf-8"))
+    overridden = json.loads(overridden_report.read_text(encoding="utf-8"))
+    assert configured["metadata"]["thresholds"]["min_rare_character_coverage"] == 0.0
+    assert configured["metadata"]["thresholds"]["max_target_length"] == 3
+    assert overridden["metadata"]["thresholds"]["max_target_length"] == 64
 
 
 def test_dataset_manifest_records_deterministic_prompt_provenance(
@@ -323,7 +414,7 @@ def test_dataset_quality_docs_cover_cli_and_artifact_safety() -> None:
     docs = Path("docs/dataset_quality.md").read_text(encoding="utf-8")
     required = [
         "validate_prompt_dataset.py",
-        "--input data/prompts_simple.jsonl",
+        "--input data/prompts/simple.jsonl",
         "--manifest runs/prompt-quality/dataset-manifest.json",
         "simple prompt datasets",
         "full prompt datasets",

@@ -109,12 +109,12 @@ def evaluate_gold_predictions(
                 per_slice[label]["missing_predictions"] += 1
             continue
 
-        exact_matches = _coerce_bool(prediction.get("exact_text_match")) == gold_record[
-            "expected_exact_match"
-        ]
-        ocr_matches = _coerce_bool(prediction.get("ocr_detected")) == gold_record[
-            "expected_ocr_detected"
-        ]
+        exact_matches = (
+            _coerce_bool(prediction.get("exact_text_match")) == gold_record["expected_exact_match"]
+        )
+        ocr_matches = (
+            _coerce_bool(prediction.get("ocr_detected")) == gold_record["expected_ocr_detected"]
+        )
         text_matches = _normalize_text(prediction.get("detected_text")) == _normalize_text(
             gold_record["target_text"]
         )
@@ -236,9 +236,7 @@ def _validate_record(
     elif payload["sample_id"] in seen_sample_ids:
         errors.append(f"line {line_number}: duplicate sample_id {payload['sample_id']}")
     for field in ("target_text", "image_path", "human_label"):
-        if field in payload and (
-            not isinstance(payload[field], str) or not payload[field].strip()
-        ):
+        if field in payload and (not isinstance(payload[field], str) or not payload[field].strip()):
             errors.append(f"line {line_number}: {field} must be a non-empty string")
     for field in ("expected_exact_match", "expected_ocr_detected"):
         if field in payload and not isinstance(payload[field], bool):
@@ -307,13 +305,10 @@ def _build_findings(
             )
         )
     if exact_agreement["disagree"]:
-        findings.append(
-            f"Exact-match expectation disagreements: {exact_agreement['disagree']}"
-        )
+        findings.append(f"Exact-match expectation disagreements: {exact_agreement['disagree']}")
     if ocr_detection_agreement["disagree"]:
         findings.append(
-            "OCR-detection expectation disagreements: "
-            f"{ocr_detection_agreement['disagree']}"
+            f"OCR-detection expectation disagreements: {ocr_detection_agreement['disagree']}"
         )
     if ocr_text_agreement["disagree"]:
         findings.append(f"OCR text disagreements: {ocr_text_agreement['disagree']}")

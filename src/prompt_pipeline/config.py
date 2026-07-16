@@ -15,31 +15,31 @@ CYRILLIC_WORD_RE = re.compile(r"^[а-яёА-ЯЁ\-]+$")
 # Content types  (sum = 1.0)
 # ---------------------------------------------------------------------------
 CONTENT_TYPES = {
-    "poster":      0.25,   # Movie / concert / event / ad posters
-    "photo_text":  0.20,   # Photo with overlaid text, quotes, memes
-    "typography":  0.15,   # Art lettering, calligraphy, decorative text
-    "product":     0.10,   # Packaging, labels, brand shots
+    "poster": 0.25,  # Movie / concert / event / ad posters
+    "photo_text": 0.20,  # Photo with overlaid text, quotes, memes
+    "typography": 0.15,  # Art lettering, calligraphy, decorative text
+    "product": 0.10,  # Packaging, labels, brand shots
     "social_media": 0.10,  # YouTube thumbnails, stories, banners
-    "clothing":    0.08,   # T-shirt / hoodie prints, merch
-    "book_cover":  0.07,   # Book / album / magazine covers
-    "street_art":  0.03,   # Graffiti, murals, stencils
-    "niche":       0.02,   # Coins, medals, engravings, carvings
+    "clothing": 0.08,  # T-shirt / hoodie prints, merch
+    "book_cover": 0.07,  # Book / album / magazine covers
+    "street_art": 0.03,  # Graffiti, murals, stencils
+    "niche": 0.02,  # Coins, medals, engravings, carvings
 }
 
 # ---------------------------------------------------------------------------
 # Text tiers  (global default + per-content overrides)
 # ---------------------------------------------------------------------------
 TIER_WEIGHTS = {
-    1: 0.05,   # single word  (1-4 chars)
-    2: 0.20,   # 1-3 words
-    3: 0.35,   # short phrase / slogan  (LLM)
-    4: 0.25,   # title + subtitle       (LLM)
-    5: 0.15,   # 1-2 sentences          (LLM)
+    1: 0.05,  # single word  (1-4 chars)
+    2: 0.20,  # 1-3 words
+    3: 0.35,  # short phrase / slogan  (LLM)
+    4: 0.25,  # title + subtitle       (LLM)
+    5: 0.15,  # 1-2 sentences          (LLM)
 }
 
 TIER_OVERRIDES = {
-    "niche":      {1: 0.30, 2: 0.40, 3: 0.25, 4: 0.05, 5: 0.00},
-    "clothing":   {1: 0.15, 2: 0.35, 3: 0.35, 4: 0.10, 5: 0.05},
+    "niche": {1: 0.30, 2: 0.40, 3: 0.25, 4: 0.05, 5: 0.00},
+    "clothing": {1: 0.15, 2: 0.35, 3: 0.35, 4: 0.10, 5: 0.05},
     "street_art": {1: 0.20, 2: 0.40, 3: 0.30, 4: 0.10, 5: 0.00},
     "typography": {1: 0.10, 2: 0.25, 3: 0.35, 4: 0.20, 5: 0.10},
     "book_cover": {1: 0.05, 2: 0.15, 3: 0.30, 4: 0.35, 5: 0.15},
@@ -52,29 +52,63 @@ CASE_WEIGHTS = {
     "upper": 0.50,
     "title": 0.30,
     "lower": 0.15,
-    "mixed": 0.05,   # e.g. "ЗАГОЛОВОК\nподзаголовок"
+    "mixed": 0.05,  # e.g. "ЗАГОЛОВОК\nподзаголовок"
 }
 
 # ---------------------------------------------------------------------------
 # Style options
 # ---------------------------------------------------------------------------
 FONTS = [
-    "bold sans-serif", "thin sans-serif", "italic serif", "serif",
-    "monospace", "handwritten", "calligraphic", "decorative",
-    "stencil", "grunge", "gothic", "minimalist", "retro",
-    "futuristic", "brush script",
+    "bold sans-serif",
+    "thin sans-serif",
+    "italic serif",
+    "serif",
+    "monospace",
+    "handwritten",
+    "calligraphic",
+    "decorative",
+    "stencil",
+    "grunge",
+    "gothic",
+    "minimalist",
+    "retro",
+    "futuristic",
+    "brush script",
 ]
 
 COLORS = [
-    "white", "black", "gold", "red", "neon blue", "silver",
-    "dark green", "orange", "pastel pink", "metallic grey",
-    "deep purple", "teal", "cream", "electric yellow", "burgundy",
+    "white",
+    "black",
+    "gold",
+    "red",
+    "neon blue",
+    "silver",
+    "dark green",
+    "orange",
+    "pastel pink",
+    "metallic grey",
+    "deep purple",
+    "teal",
+    "cream",
+    "electric yellow",
+    "burgundy",
 ]
 
 EFFECTS = [
-    "clean", "embossed", "engraved", "neon glow", "shadow",
-    "outlined", "gradient", "distressed", "3D", "watercolor",
-    "chalk", "spray-painted", "laser-etched", "frosted glass",
+    "clean",
+    "embossed",
+    "engraved",
+    "neon glow",
+    "shadow",
+    "outlined",
+    "gradient",
+    "distressed",
+    "3D",
+    "watercolor",
+    "chalk",
+    "spray-painted",
+    "laser-etched",
+    "frosted glass",
     "holographic",
 ]
 
@@ -93,25 +127,41 @@ STYLE_CONSTRAINTS = {
     },
     "typography": {
         "fonts": [
-            "calligraphic", "decorative", "brush script",
-            "handwritten", "gothic", "futuristic",
+            "calligraphic",
+            "decorative",
+            "brush script",
+            "handwritten",
+            "gothic",
+            "futuristic",
         ],
         "effects": [
-            "clean", "gradient", "3D", "watercolor",
-            "outlined", "holographic",
+            "clean",
+            "gradient",
+            "3D",
+            "watercolor",
+            "outlined",
+            "holographic",
         ],
         "sizes": ["large", "medium"],
     },
     "book_cover": {
         "fonts": [
-            "serif", "italic serif", "decorative", "gothic",
-            "minimalist", "calligraphic",
+            "serif",
+            "italic serif",
+            "decorative",
+            "gothic",
+            "minimalist",
+            "calligraphic",
         ],
     },
     "clothing": {
         "fonts": [
-            "bold sans-serif", "grunge", "minimalist",
-            "stencil", "retro", "futuristic",
+            "bold sans-serif",
+            "grunge",
+            "minimalist",
+            "stencil",
+            "retro",
+            "futuristic",
         ],
         "sizes": ["large", "medium"],
     },
@@ -202,11 +252,28 @@ SIZE_RU = {
 
 CHAR_RENDER_BOOST: dict[str, float] = {
     # Group B — partial resemblance
-    "б": 2.5, "г": 2.5, "д": 2.0, "з": 2.5, "и": 1.5,
-    "й": 3.0, "л": 2.0, "п": 2.0, "я": 2.0,
+    "б": 2.5,
+    "г": 2.5,
+    "д": 2.0,
+    "з": 2.5,
+    "и": 1.5,
+    "й": 3.0,
+    "л": 2.0,
+    "п": 2.0,
+    "я": 2.0,
     # Group C — visually unique
-    "ж": 5.0, "ц": 5.0, "ч": 5.0, "ш": 5.0, "щ": 5.0,
-    "ъ": 5.0, "ы": 5.0, "ь": 4.0, "э": 5.0, "ю": 4.0, "ё": 4.5, "ф": 4.5,
+    "ж": 5.0,
+    "ц": 5.0,
+    "ч": 5.0,
+    "ш": 5.0,
+    "щ": 5.0,
+    "ъ": 5.0,
+    "ы": 5.0,
+    "ь": 4.0,
+    "э": 5.0,
+    "ю": 4.0,
+    "ё": 4.5,
+    "ф": 4.5,
 }
 # Uppercase versions map to same boost (matching is done on lowercased chars)
 

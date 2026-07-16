@@ -122,9 +122,7 @@ def create_dataset_manifest(
 
     config_payload = _build_config_payload(config_path, config_snapshot)
     snapshot = (
-        config_payload.get("snapshot")
-        if isinstance(config_payload.get("snapshot"), dict)
-        else {}
+        config_payload.get("snapshot") if isinstance(config_payload.get("snapshot"), dict) else {}
     )
     all_source_paths = _merge_source_paths(config_path, source_paths)
     source_hashes = {

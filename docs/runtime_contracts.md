@@ -1,7 +1,7 @@
 # Runtime Artifact Contracts
 
-This document defines the Phase 2 and Phase 3 filesystem contracts that generation, scoring,
-training, synthesis, data-quality, evaluation, and run-provenance helpers share. The contracts are
+This document defines the filesystem contracts shared by generation, scoring, training, synthesis,
+data-quality, evaluation, and run-provenance helpers. The contracts are
 intentionally local and SLURM-compatible: paths are relative to the repository or to a job
 workspace root, never to a personal absolute directory.
 
@@ -11,7 +11,7 @@ workspace root, never to a personal absolute directory.
 |------|---------|---------------------------|-------|
 | `data/` | Prompt resources and generated synthetic dataset roots | Mixed: source metadata may be committed; generated tensors/images remain non-committable | Use relative paths in configs and scripts. |
 | `outputs/` | Generated images, latents, scores, samples, checkpoints, evaluation outputs, and plots | Non-committable runtime output | Ignored by `.gitignore`; safe for local and SLURM scratch/workspace output. |
-| `runs/` | Run manifests, config snapshots, logs, and provenance metadata | Non-committable runtime output | Plan 02-03 owns manifest creation; this plan reserves the path contract. |
+| `runs/` | Run manifests, config snapshots, logs, and provenance metadata | Non-committable runtime output | `scripts.run_manifest` owns manifest creation and updates. |
 | `configs/` | Committed config inputs for local and SLURM commands | Committable source | Configs should use relative runtime paths and avoid home/off-repo absolutes. |
 | `experiments/assets/` | Tiny documented image assets for OCR/VLM experiments | Allowed fixture/documentation exception | `.gitignore` explicitly allows PNG/JPG files in this directory. |
 | `tests/fixtures/` | Future tiny test fixtures | Allowed fixture exception | Prefer `tmp_path` fixtures for tensors; do not commit generated binary artifacts unless intentionally tiny and reviewed. |
@@ -38,12 +38,28 @@ anchored below the supplied root.
 | contact sheets | `runs/synthetic-quality/contact-sheet.png` | `scripts/inspect_synthetic_dataset.py --contact-sheet` | human visual inspection and thesis notes after review | PNG image grid with sample IDs, accepted/rejected status, target text, rejection reasons | Referenced from `dataset-manifest/v1`; no separate JSON schema | `assert_artifact_git_safety([contact_sheet])` | May expose generated images and prompt text; promote only reviewed docs assets | Non-committable runtime output outside allowed fixture/doc roots. |
 | selected samples | `outputs/generated/selected_samples.jsonl` | `scripts/materialize_training_data.py --kind sft` | SFT configs/manifests, source comparison reports, analysis | JSONL rows with `schema_version`, `sample_id`, `prompt_id`, `version`, `selected_score`, `score_column`, source hash | `selected-samples/v1` | `validate_artifacts("selected_samples", {"selected_samples": ...})` | Inspect as materialized SFT sample selection for reproducibility | Non-committable under `outputs/` by default. |
 | preference pairs | `outputs/generated/preference_pairs.jsonl` | `scripts/materialize_training_data.py --kind dpo` | DPO training, source comparison reports, manifest comparison | JSONL rows with `schema_version`, `pair_id`, `prompt_id`, `winner_version`, `loser_version`, winner/loser scores, margin | `preference-pairs/v1` | `validate_artifacts("preference_pairs", {"preference_pairs": ...})` | Prefer materialized pairs before comparison-grade DPO runs; winners must score above losers | Non-committable under `outputs/` by default. |
-| source comparison reports | `runs/comparisons/generated-vs-synthetic.json` and optional Markdown summary | `scripts/compare_data_sources.py` | experiment planning, thesis notes, Phase 5/6 comparison setup | `schema_version`, `evidence_available`, `evidence_missing`, counts, distributions, expected help/failure, provenance | `data-source-comparison/v1` | `validate_artifacts("data_source_comparison", {"data_source_comparison": ...})` | Missing optional evidence remains explicit instead of fabricating metrics | Non-committable runtime output by default. |
-| checkpoints | `outputs/{sft,dpo,masked_sft}/checkpoints/...` | trainers via PEFT/Accelerate | resume, sampling, evaluation | LoRA/checkpoint files such as `.safetensors`, `.pt`, `.bin` | Run manifests should record checkpoint step and schema in Plan 02-03 | `validate_artifacts("checkpoints", {"checkpoints_dir": ...})` | Resume paths should be relative or repo-contained per config path policy | Non-committable model artifact. |
+| source comparison reports | `runs/comparisons/generated-vs-synthetic.json` and optional Markdown summary | `scripts/compare_data_sources.py` | experiment review, thesis notes, comparison setup | `schema_version`, `evidence_available`, `evidence_missing`, counts, distributions, expected help/failure, provenance | `data-source-comparison/v1` | `validate_artifacts("data_source_comparison", {"data_source_comparison": ...})` | Missing optional evidence remains explicit instead of fabricating metrics | Non-committable runtime output by default. |
+| checkpoints | `outputs/{sft,dpo,masked_sft}/checkpoints/...` | trainers via PEFT/Accelerate | resume, sampling, evaluation | LoRA/checkpoint files such as `.safetensors`, `.pt`, `.bin` | Run manifests record checkpoint step and schema | `validate_artifacts("checkpoints", {"checkpoints_dir": ...})` | Resume paths should be relative or repo-contained per config path policy | Non-committable model artifact. |
 | samples | `outputs/{sft,dpo,masked_sft,evaluation}/samples/...` | trainers and evaluation commands | visual inspection, thesis contact sheets | Image files plus optional per-sample metadata | Run/eval manifests should capture producer config | Stage-specific output validation and git-safety checks | Use contact sheets or copied docs assets for publication, not raw runtime roots | Non-committable generated images outside allowed docs/experiment assets. |
-| logs | `runs/<run_id>/`, `runs/{sft,dpo,masked_sft}/`, `*.log` | local commands, SLURM, trainers | debugging, provenance, thesis notes | Text logs and structured run metadata | Run manifest `schema_version` starts in Plan 02-03 | `validate_artifacts("logs", {"logs_dir": ...})` plus `assert_artifact_git_safety` | SLURM stdout/stderr should stay in runtime/log roots | Non-committable and ignored by `*.log`, `runs/`. |
+| logs | `runs/<run_id>/`, `runs/{sft,dpo,masked_sft}/`, `*.log` | local commands, SLURM, trainers | debugging, provenance, thesis notes | Text logs and structured run metadata | `run-manifest/v1` when a manifest owns the run | `validate_artifacts("logs", {"logs_dir": ...})` plus `assert_artifact_git_safety` | SLURM stdout/stderr should stay in runtime/log roots | Non-committable and ignored by `*.log`, `runs/`. |
 | eval outputs | `outputs/evaluation/` | `src.evaluation.*`, future eval harness | thesis plots, reward diagnostics | Scores CSV, generated samples, report files | Future `evaluation/v1`; current path reserved | `validate_artifacts("evaluation", {"outputs_dir": ..., "scores_csv": ...})` | Tie final claims back to run manifests and fixed prompt/eval configs | Non-committable generated outputs. |
-| run manifests | `runs/<run_id>/manifest.json` | Plan 02-03 runtime manifest helper | all long-running stages, comparison tools | JSON object with command, git/config/env/artifact metadata | Manifest contains `schema_version` (planned) | `validate_artifacts("run_manifest", {"manifest_json": ...})` | `run_id` should be stable and not include personal absolute paths | Non-committable local provenance by default. |
+| run manifests | `runs/<run_id>/manifest.json` | `uv run python -m scripts.run_manifest` | all long-running stages, comparison tools | command, full Git SHA/dirty diff hash, config snapshot SHA-256, small-input hashes, models/revisions, seeds, outputs, metrics, and notes | `run-manifest/v1` | `load_run_manifest` verifies the embedded/file snapshot match and declared hash | Comparison-grade runs require a clean Git tree; secrets are redacted on create/load/update | Non-committable local provenance by default. |
+
+## Run manifest integrity
+
+New manifests store the full Git commit SHA, dirty-state flag, a SHA-256 of the tracked working-tree
+diff, the immutable config snapshot hash, and hashes for small file inputs such as score CSV/sidecar,
+prompt JSONL, or materialized selection files. Large tensor/checkpoint directories should be linked
+through their own dataset/artifact manifests instead of being rehashed on every command.
+
+The loader requires the snapshot file and a declared SHA-256, then rejects path traversal, schema
+drift, any embedded/file mismatch, and any byte-level snapshot hash mismatch. Inspect/diff paths redact
+legacy command/config/metric values before rendering. A dirty tree blocks comparison-grade preflight;
+commit or record the patch before launching the run.
+
+Canonical score sidecars may cite only strict `run-manifest/v1` files or the current
+`generation-manifest/v4`. The generation contract must have a non-empty model revision, valid prompt,
+selected-record, and contract hashes, an unchanged prompt file, and a valid linked run manifest.
 
 ## Run manifest diff
 
@@ -55,13 +71,13 @@ outputs, model caches, or network resources.
 Print a deterministic JSON diff to stdout:
 
 ```bash
-python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json
+uv run python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json
 ```
 
 Write a Markdown report under an ignored runtime comparison directory:
 
 ```bash
-python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json --markdown --output runs/comparisons/run-diff.md
+uv run python -m scripts.compare_run_manifests --left runs/<a>/manifest.json --right runs/<b>/manifest.json --markdown --output runs/comparisons/run-diff.md
 ```
 
 The diff report includes `left_run_id`, `right_run_id`, manifest paths, and categorized changes for
@@ -76,7 +92,7 @@ values and private cache paths must not appear in diff output.
 - In SLURM jobs, set the working directory to the checkout or a job workspace and keep config paths
   relative, for example `outputs/generated`, `data/synth_cyrillic/masked_sft`, and `runs/<run_id>`.
 - Do not write personal paths such as `/home/<user>/...`, `/Users/<name>/...`, or `~/...` into
-  committed configs. Plan 02-01 `validate_path_policy` rejects home paths, traversal, and off-repo
+  committed configs. `validate_path_policy` rejects home paths, traversal, and off-repo
   absolutes for committed config fields.
 - It is fine for a job wrapper to bind a scratch/work directory at runtime; capture the resolved root
   in the run manifest instead of hardcoding it in source control.
@@ -95,14 +111,13 @@ Allowed exceptions are intentionally narrow:
   fixtures should normally be created under pytest `tmp_path` instead of committed.
 
 Generated binary artifacts should not be added to the repository during validation or test runs.
-Phase 3 reports, manifests, contact sheets, selected samples, preference pairs, and source
-comparison files are non-committable runtime output unless they are intentionally tiny reviewed
-fixtures or documentation assets.
+Reports, manifests, contact sheets, selected samples, preference pairs, and source-comparison files
+are non-committable runtime output unless they are tiny reviewed fixtures or documentation assets.
 
 ## Characterization Test Fixture Contract
 
-Phase 4 CPU-safe characterization tests use the same runtime trust boundaries while keeping all
-fixtures small enough for default pytest. The characterization suite covers config/artifact
+CPU-safe characterization tests use the same runtime trust boundaries while keeping every fixture
+small enough for default pytest. The characterization suite covers config/artifact
 characterization, dataset and collator characterization, objective math and DPO characterization,
 prompt determinism characterization, and reward wrapper fake characterization through focused files:
 
@@ -129,10 +144,12 @@ default; optional slow/GPU/OCR/model/integration/manual diagnostics are not incl
 | Stage | Recommended call | Blocks expensive work when |
 |-------|------------------|----------------------------|
 | prompt generation / prompts | `validate_artifacts("prompts", {"prompts_jsonl": path})` | Prompt JSONL is missing, malformed, or lacks required `prompt` fields. |
-| image generation outputs | `validate_artifacts("generated", resolve_stage_paths("generated").paths)` | Images, latents, text embeddings, prompt IDs, or versions do not line up. |
-| scoring outputs | `validate_artifacts("scores", {"scores_csv": path})` | Scores CSV is missing required columns or has invalid numeric fields. |
-| SFT/DPO preflight | `validate_artifacts("sft", {**paths, "require_ready": True})` | Required `scores_csv`, `latents_dir`, or `text_embeds_dir` inputs are missing. |
-| masked-SFT preflight | `validate_artifacts("masked_sft", {"data_dir": path})` | Latent/text embedding sample IDs or tensor keys do not match. |
+| image generation inputs | `scripts.preflight_runtime --stage generate ...` | Prompt JSONL is missing/malformed, output parent is invalid, or the host lacks Linux/CUDA/BF16 support. |
+| image generation outputs | `validate_artifacts("generated", resolve_stage_paths("generated").paths)` | Images, latents, text embeddings, prompt IDs, or versions do not line up after generation. |
+| scoring inputs | `scripts.preflight_runtime --stage score ...` | Image/embed IDs differ, sampled embedding metadata is invalid, output parent is invalid, or the requested scorer backend is unavailable. |
+| scoring outputs | `validate_artifacts("evaluation_scores", {"scores_csv": path})` | Canonical rows, complete sidecar, score hash/row count, or source-manifest hashes are invalid. |
+| SFT/DPO preflight | `scripts.preflight_runtime --stage {sft,dpo} --config ...` | Scores/latents/embeddings, configured selected rows or preference pairs, initialization/resume weights, or Product formula provenance are missing or invalid. Product is detected from explicit score columns, sidecar formula/primary score, and materialized selection metadata—not only filenames—and must use `thesis_vlm_ocr_product_v1` with VLM and OCR. |
+| masked-SFT preflight | `validate_artifacts("masked_sft", paths)` | Latent/text embedding sample IDs or tensor keys do not match, or a configured resume checkpoint has no weights. |
 | synthetic outputs | `validate_artifacts("synthetic", paths)` | Reserved for index/selection checks as materialized dataset contracts evolve. |
 | dataset manifests | `validate_artifacts("dataset_manifest", {"dataset_manifest": path})` | Manifest JSON is missing, malformed, lacks `dataset_kind` / `dataset_paths`, or has the wrong `dataset-manifest/v1` schema. |
 | prompt quality reports | `validate_artifacts("prompt_quality_report", {"prompt_quality_report": path})` | Prompt quality JSON is missing, malformed, lacks `valid_records`, or has the wrong `prompt-quality/v1` schema. |

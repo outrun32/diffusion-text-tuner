@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 from scripts import check_training_comparability as comparability_cli
@@ -84,7 +85,7 @@ def test_compare_training_configs_reports_blocking_controlled_field_mismatches()
     assert blocking_by_field["reward_model"]["group"] == "reward"
     assert blocking_by_field["scorer"]["group"] == "reward"
 
-    assert warning_by_field["num_training_steps"]["severity"] == "warning"
+    assert blocking_by_field["num_training_steps"]["severity"] == "blocking"
     assert warning_by_field["metric_columns"]["group"] == "metrics"
     assert warning_by_field["samples_dir"]["group"] == "artifacts"
     assert report["controlled_fields"]["inference"] == [
@@ -128,6 +129,48 @@ def test_compare_training_configs_identical_controlled_fields_has_no_blockers():
     assert report["blocking_mismatches"] == []
     assert report["summary"]["is_comparable"] is True
     assert {item["field"] for item in report["warnings"]} == {"metric_columns", "samples_dir"}
+
+
+def test_optimizer_and_effective_batch_mismatches_are_blocking():
+    left = _base_config(batch_size=2, gradient_accumulation_steps=4, lr=2e-5)
+    right = _base_config(batch_size=4, gradient_accumulation_steps=4, lr=1e-5)
+
+    report = compare_training_configs(left, right)
+    mismatches = {item["field"]: item for item in report["blocking_mismatches"]}
+
+    assert mismatches["batch_size"]["group"] == "optimization"
+    assert mismatches["effective_batch_size"]["left"] == 8
+    assert mismatches["effective_batch_size"]["right"] == 16
+    assert mismatches["lr"]["group"] == "optimization"
+
+
+def test_pair_selection_and_initialization_differences_are_reported():
+    left = _base_config(
+        score_diff_min=0.1,
+        ambiguity_margin=0.0,
+        hard_negative_threshold=0.2,
+        sft_lora_path="outputs/sft-a/final",
+        resolution=512,
+    )
+    right = _base_config(
+        score_diff_min=0.9,
+        ambiguity_margin=0.2,
+        hard_negative_threshold=0.4,
+        sft_lora_path="outputs/sft-b/final",
+        resolution=768,
+    )
+
+    report = compare_training_configs(left, right)
+    blocking = {item["field"] for item in report["blocking_mismatches"]}
+    warnings = {item["field"] for item in report["warnings"]}
+
+    assert "resolution" in blocking
+    assert {
+        "sft_lora_path",
+        "score_diff_min",
+        "ambiguity_margin",
+        "hard_negative_threshold",
+    } <= warnings
 
 
 def test_format_comparability_report_renders_deterministic_markdown():
@@ -241,6 +284,16 @@ def _base_config(**overrides):
     config = {
         "model_id": "black-forest-labs/FLUX.2-klein-base-4B",
         "num_training_steps": 1000,
+        "batch_size": 2,
+        "gradient_accumulation_steps": 1,
+        "lr": 2e-5,
+        "warmup_steps": 100,
+        "weight_decay": 0.0,
+        "max_grad_norm": 1.0,
+        "mixed_precision": "bf16",
+        "shift": 3.0,
+        "num_train_timesteps": 1000,
+        "lora": {"r": 64, "lora_alpha": 64, "target_modules": ["to_q"]},
         "num_inference_steps": 28,
         "guidance_scale": 4.0,
         "prompt_embedding_padding": "max_length",
@@ -263,6 +316,10 @@ def _base_config(**overrides):
 
 def _write_manifest(path, *, run_id, config_snapshot):
     path.parent.mkdir(parents=True, exist_ok=True)
+    (path.parent / "config_snapshot.json").write_text(
+        json.dumps(config_snapshot, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     payload = {
         "schema_version": "run-manifest/v1",
         "run_id": run_id,
@@ -272,6 +329,7 @@ def _write_manifest(path, *, run_id, config_snapshot):
         "git": {"commit": "abc1234"},
         "environment": {},
         "config_snapshot_path": "config_snapshot.json",
+        "config_snapshot_sha256": _json_sha256(config_snapshot),
         "config_snapshot": config_snapshot,
         "seeds": {},
         "models": {},
@@ -283,6 +341,13 @@ def _write_manifest(path, *, run_id, config_snapshot):
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     return path
+
+
+def _json_sha256(payload):
+    serialized = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    return hashlib.sha256(serialized).hexdigest()
 
 
 def _write_config(path, *, stage, seed):

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src.runtime import manifests
 from src.runtime.reproducibility import collect_environment_summary
 
@@ -18,7 +20,6 @@ def test_create_run_manifest_writes_complete_secret_safe_snapshot(tmp_path, monk
             "commit": "abc1234",
             "dirty": True,
             "untracked_count": 2,
-            "untracked_paths": ["notes.txt", "outputs/sample.png"],
         },
     )
     monkeypatch.setattr(
@@ -56,7 +57,6 @@ def test_create_run_manifest_writes_complete_secret_safe_snapshot(tmp_path, monk
         "commit": "abc1234",
         "dirty": True,
         "untracked_count": 2,
-        "untracked_paths": ["notes.txt", "outputs/sample.png"],
     }
     assert payload["environment"]["env_presence"] == {
         "AWS_SECRET_ACCESS_KEY": True,
@@ -64,6 +64,7 @@ def test_create_run_manifest_writes_complete_secret_safe_snapshot(tmp_path, monk
     }
     assert "secret-value" not in json.dumps(payload)
     assert payload["config_snapshot_path"] == "config_snapshot.json"
+    assert len(payload["config_snapshot_sha256"]) == 64
     assert payload["config_snapshot"]["schema_version"] == "runtime-config/v1"
     assert payload["seeds"] == {"seed": 123}
     assert payload["models"] == {
@@ -76,7 +77,11 @@ def test_create_run_manifest_writes_complete_secret_safe_snapshot(tmp_path, monk
         "scores_csv": "outputs/generated/scores.csv",
         "text_embeds_dir": "outputs/generated/text_embeds",
     }
-    assert payload["outputs"] == {"samples_dir": "outputs/sft/samples"}
+    assert len(payload["input_hashes"]["config_path"]) == 64
+    assert payload["outputs"] == {
+        "output_dir": "outputs/sft",
+        "samples_dir": "outputs/sft/samples",
+    }
     assert payload["metrics"] == {}
     assert payload["notes"] == []
     assert payload["artifact_schema_versions"] == {"runtime_artifacts": "runtime-artifacts/v1"}
@@ -94,6 +99,7 @@ def test_load_update_and_inspect_manifest_preserve_prior_provenance(tmp_path, mo
         metrics={"loss": 1.0},
     )
     original = manifests.load_run_manifest(manifest.manifest_path)
+    original_snapshot_bytes = manifest.config_snapshot_path.read_bytes()
 
     updated = manifests.update_run_manifest(
         manifest.manifest_path,
@@ -108,6 +114,7 @@ def test_load_update_and_inspect_manifest_preserve_prior_provenance(tmp_path, mo
     assert len(updated.notes) == 1
     assert updated.notes[0]["text"] == "first checkpoint finished"
     assert "timestamp" in updated.notes[0]
+    assert manifest.config_snapshot_path.read_bytes() == original_snapshot_bytes
 
     manifests.print_manifest_summary(updated, file=capsys.disabled() if False else None)
     summary = manifests.format_manifest_summary(updated)
@@ -115,9 +122,225 @@ def test_load_update_and_inspect_manifest_preserve_prior_provenance(tmp_path, mo
     assert "Stage: sft" in summary
     assert "Command: python train.py" in summary
     assert "Config snapshot: config_snapshot.json" in summary
-    assert "Outputs: none" in summary
+    assert "Outputs: output_dir" in summary
     assert "Metrics: accuracy, loss" in summary
     assert "Notes: 1" in summary
+
+
+def test_manifest_rejects_snapshot_path_escape(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "runs" / "bad" / "manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "run-manifest/v1",
+                "run_id": "bad",
+                "stage": "sft",
+                "created_at": "2026-01-01T00:00:00Z",
+                "command": ["python", "train.py"],
+                "config_snapshot_path": "../../private.json",
+                "config_snapshot": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(manifests.ManifestError, match="stay inside the run directory"):
+        manifests.load_run_manifest(manifest_path)
+
+
+def test_manifest_detects_config_snapshot_tampering(tmp_path: Path, monkeypatch) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=["python", "train.py"],
+        run_root=tmp_path / "runs",
+    )
+    snapshot = json.loads(manifest.config_snapshot_path.read_text(encoding="utf-8"))
+    snapshot["seed"] = 999
+    manifest.config_snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    with pytest.raises(manifests.ManifestError, match="embedded config_snapshot differs"):
+        manifests.load_run_manifest(manifest.manifest_path)
+
+
+def test_manifest_requires_snapshot_file_and_declared_hash(tmp_path: Path, monkeypatch) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=["python", "train.py"],
+        run_root=tmp_path / "runs",
+    )
+
+    manifest.config_snapshot_path.unlink()
+    with pytest.raises(manifests.ManifestError, match="config snapshot file is missing"):
+        manifests.load_run_manifest(manifest.manifest_path)
+
+    manifest.config_snapshot_path.write_text(
+        json.dumps(manifest.config_snapshot, ensure_ascii=False), encoding="utf-8"
+    )
+    payload = json.loads(manifest.manifest_path.read_text(encoding="utf-8"))
+    del payload["config_snapshot_sha256"]
+    manifest.manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(manifests.ManifestError, match="must be a declared SHA-256"):
+        manifests.load_run_manifest(manifest.manifest_path)
+    with pytest.raises(manifests.ManifestError, match="must be a declared SHA-256"):
+        manifests.update_run_manifest(manifest.manifest_path, note="must not legitimize")
+    assert "config_snapshot_sha256" not in json.loads(
+        manifest.manifest_path.read_text(encoding="utf-8")
+    )
+
+
+def test_manifest_rejects_matching_embedded_and_file_snapshot_with_stale_hash(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=["python", "train.py"],
+        run_root=tmp_path / "runs",
+    )
+    payload = json.loads(manifest.manifest_path.read_text(encoding="utf-8"))
+    tampered = dict(payload["config_snapshot"])
+    tampered["seed"] = 999
+    payload["config_snapshot"] = tampered
+    manifest.manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    manifest.config_snapshot_path.write_text(json.dumps(tampered), encoding="utf-8")
+
+    with pytest.raises(manifests.ManifestError, match="config snapshot SHA-256 mismatch"):
+        manifests.load_run_manifest(manifest.manifest_path)
+
+
+def test_manifest_rejects_snapshot_byte_tampering(tmp_path: Path, monkeypatch) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=["python", "train.py"],
+        run_root=tmp_path / "runs",
+    )
+    manifest.config_snapshot_path.write_text(
+        manifest.config_snapshot_path.read_text(encoding="utf-8") + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(manifests.ManifestError, match="config snapshot SHA-256 mismatch"):
+        manifests.load_run_manifest(manifest.manifest_path)
+
+
+def test_manifest_redacts_secrets_from_commands_notes_and_metrics(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=[
+            "python",
+            "train.py",
+            "--token",
+            "hf_ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        ],  # gitleaks:allow
+        run_root=tmp_path / "runs",
+        metrics={"api_key": "secret-value", "safe": 1},
+        notes=[{"text": "AWS AKIAABCDEFGHIJKLMNOP was seen"}],  # gitleaks:allow
+    )
+    serialized = manifest.manifest_path.read_text(encoding="utf-8")
+
+    assert "hf_ABCDEFGHIJKLMNOPQRSTUVWXYZ" not in serialized  # gitleaks:allow
+    assert "AKIAABCDEFGHIJKLMNOP" not in serialized  # gitleaks:allow
+    assert "secret-value" not in serialized
+    assert "[REDACTED]" in serialized
+
+
+def test_manifest_redacts_generic_sensitive_flags_without_token_shape(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=[
+            "tool",
+            "--hf-token",
+            "plain-secret-value",
+            "--client-secret=another-plain-value",
+        ],
+        run_root=tmp_path / "runs",
+    )
+
+    assert manifest.command == [
+        "tool",
+        "--hf-token",
+        "[REDACTED]",
+        "--client-secret=[REDACTED]",
+    ]
+
+
+def test_manifest_redacts_authorization_headers_and_split_bearer_tokens(
+    tmp_path: Path, monkeypatch
+) -> None:
+    config_path = _write_sft_config(tmp_path / "configs" / "sft.json")
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+
+    manifest = manifests.create_run_manifest(
+        stage="sft",
+        config_path=config_path,
+        command=[
+            "curl",
+            "-H",
+            "Authorization: Bearer plain-header-secret",
+            "Authorization: plain-auth-secret",
+            "Authorization:",
+            "Bearer",
+            "plain-split-secret",
+            "Bearer plain-positional-secret",
+            "api_key: plain-key-secret",
+            "hf_ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        ],  # gitleaks:allow
+        run_root=tmp_path / "runs",
+    )
+
+    serialized = manifest.manifest_path.read_text(encoding="utf-8")
+    for secret in (
+        "plain-header-secret",
+        "plain-auth-secret",
+        "plain-split-secret",
+        "plain-positional-secret",
+        "plain-key-secret",
+        "hf_ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    ):
+        assert secret not in serialized  # gitleaks:allow
+    assert manifest.command == [
+        "curl",
+        "-H",
+        "Authorization: [REDACTED]",
+        "Authorization: [REDACTED]",
+        "Authorization:",
+        "Bearer",
+        "[REDACTED]",
+        "[REDACTED_AUTH]",
+        "[REDACTED]",
+        "[REDACTED_HF_TOKEN]",
+    ]
 
 
 def test_environment_summary_records_secret_presence_without_values(monkeypatch):
@@ -162,7 +385,7 @@ def test_run_manifest_cli_init_inspect_note_and_metrics(tmp_path, monkeypatch, c
     assert manifest_path.is_file()
 
     assert run_manifest.main(["note", str(manifest_path), "checkpoint complete"]) == 0
-    assert run_manifest.main(["metrics", str(manifest_path), '--json', '{"loss": 0.4}']) == 0
+    assert run_manifest.main(["metrics", str(manifest_path), "--json", '{"loss": 0.4}']) == 0
     metrics_file = tmp_path / "metrics.json"
     metrics_file.write_text('{"accuracy": 0.9}', encoding="utf-8")
     assert run_manifest.main(["metrics", str(manifest_path), "--file", str(metrics_file)]) == 0
@@ -173,7 +396,7 @@ def test_run_manifest_cli_init_inspect_note_and_metrics(tmp_path, monkeypatch, c
     assert "Stage: sft" in stdout
     assert "Command: accelerate launch scripts/train_sft.py" in stdout
     assert "Config snapshot: config_snapshot.json" in stdout
-    assert "Outputs: none" in stdout
+    assert "Outputs: output_dir" in stdout
     assert "Metrics: accuracy, loss" in stdout
     assert "Notes: 1" in stdout
 
@@ -296,6 +519,79 @@ def test_run_manifest_cli_reports_invalid_metrics_payloads(tmp_path, monkeypatch
     assert run_manifest.main(["metrics", str(manifest), "--file", str(missing_metrics)]) == 2
     assert "could not read metrics file" in capsys.readouterr().err
 
+
+def test_source_manifest_validation_accepts_current_generation_contract_and_rejects_arbitrary_json(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from src.generation.pipeline import (
+        GenerationConfig,
+        _contract_artifact_paths,
+        begin_generation_attempt,
+        complete_generation_attempt,
+        ensure_generation_resume_contract,
+        load_prompt_records,
+        resolve_generation_paths,
+    )
+
+    monkeypatch.setattr(manifests, "collect_git_state", lambda _root: {"commit": "abc"})
+    monkeypatch.setattr(manifests, "collect_environment_summary", lambda: {})
+    run_manifest = manifests.create_run_manifest(
+        stage="generate",
+        command=["pytest", "generation-source"],
+        run_root=tmp_path / "runs",
+        root=tmp_path,
+    ).manifest_path
+    prompts = tmp_path / "prompts.jsonl"
+    prompts.write_text('{"prompt":"Render ТЕСТ","target_text":"ТЕСТ"}\n', encoding="utf-8")
+    generation_manifest = tmp_path / "generation.manifest.json"
+    config = GenerationConfig(
+        prompts=prompts,
+        output_dir=tmp_path / "generated",
+        model_revision="a3b4f4849157f664bdbc776fd7453c2783562f4d",
+        versions_per_prompt=1,
+        end_idx=1,
+        manifest_path=generation_manifest,
+        run_manifest_path=str(run_manifest),
+    )
+    records = load_prompt_records(prompts)
+    ensure_generation_resume_contract(config, resolve_generation_paths(config.output_dir), records)
+    begin_generation_attempt(generation_manifest, run_manifest_path=str(run_manifest))
+    payload = json.loads(generation_manifest.read_text(encoding="utf-8"))
+    for artifact_paths in _contract_artifact_paths(payload["contract"]).values():
+        for artifact_path in artifact_paths:
+            artifact_path.parent.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_bytes(b"fixture")
+    complete_generation_attempt(
+        generation_manifest,
+        generated={"text_embeddings": 1, "images": 1, "latents": 1},
+        skipped={"text_embeddings": 0, "images": 0, "latents": 0},
+    )
+
+    assert manifests.validate_source_manifest(generation_manifest)["schema_version"] == (
+        "generation-manifest/v4"
+    )
+
+    payload = json.loads(generation_manifest.read_text(encoding="utf-8"))
+    mutable_revision = dict(payload)
+    mutable_revision["contract"] = dict(payload["contract"])
+    mutable_revision["contract"]["model_revision"] = "main"
+    mutable_revision["contract_sha256"] = manifests._compact_json_sha256(
+        mutable_revision["contract"]
+    )
+    generation_manifest.write_text(json.dumps(mutable_revision), encoding="utf-8")
+    with pytest.raises(manifests.ManifestError, match="immutable commit SHA"):
+        manifests.validate_source_manifest(generation_manifest)
+
+    payload["contract"]["model_revision"] = "b" * 40
+    generation_manifest.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(manifests.ManifestError, match="contract SHA-256 mismatch"):
+        manifests.validate_source_manifest(generation_manifest)
+
+    arbitrary = tmp_path / "arbitrary.json"
+    arbitrary.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(manifests.ManifestError, match="unsupported source manifest schema"):
+        manifests.validate_source_manifest(arbitrary)
 
 
 def _write_sft_config(path: Path) -> Path:

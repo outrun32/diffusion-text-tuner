@@ -7,13 +7,17 @@ plans. It never launches generation, scoring, CUDA, OCR, or model-loading code.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.runtime.manifests import ManifestError, load_run_manifest
+
 CONFIG_SCHEMA_VERSION = "heldout-evaluation-config/v1"
 PLAN_SCHEMA_VERSION = "heldout-evaluation-plan/v1"
+_IMMUTABLE_REVISION_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
 class HeldoutEvaluationError(ValueError):
@@ -137,6 +141,7 @@ def build_evaluation_plan(config: str | Path | HeldoutEvaluationConfig) -> dict[
         "manifest_links": [target.source_run_manifest_path for target in heldout_config.targets],
         "planned_generation_commands": _build_generation_commands(heldout_config),
         "planned_scoring_commands": _build_scoring_commands(heldout_config),
+        "planned_aggregation_commands": _build_aggregation_commands(heldout_config),
     }
 
 
@@ -160,8 +165,7 @@ def write_evaluation_plan(
 def format_markdown_summary(plan: dict[str, Any]) -> str:
     """Render a concise Markdown report for a held-out evaluation plan."""
     target_lines = [
-        "| Target | LoRA checkpoint | source_run_manifest_path | "
-        "Generation output | Score output |"
+        "| Target | LoRA checkpoint | source_run_manifest_path | Generation output | Score output |"
     ]
     target_lines.append("| --- | --- | --- | --- | --- |")
     for target in plan["targets"]:
@@ -175,10 +179,11 @@ def format_markdown_summary(plan: dict[str, Any]) -> str:
                 score=target["score_output_path"],
             )
         )
-    generation_lines = [
-        f"- `{entry['command']}`" for entry in plan["planned_generation_commands"]
-    ]
+    generation_lines = [f"- `{entry['command']}`" for entry in plan["planned_generation_commands"]]
     scoring_lines = [f"- `{entry['command']}`" for entry in plan["planned_scoring_commands"]]
+    aggregation_lines = [
+        f"- `{entry['command']}`" for entry in plan["planned_aggregation_commands"]
+    ]
     return "\n".join(
         [
             "# Held-out evaluation plan",
@@ -204,6 +209,10 @@ def format_markdown_summary(plan: dict[str, Any]) -> str:
             "",
             *scoring_lines,
             "",
+            "## Planned score aggregation commands",
+            "",
+            *aggregation_lines,
+            "",
         ]
     )
 
@@ -213,30 +222,42 @@ def _build_generation_commands(config: HeldoutEvaluationConfig) -> list[dict[str
     settings = config.inference_settings
     for target in config.targets:
         for seed in config.fixed_seeds:
-            output_dir = str(Path(target.generation_output_path) / f"seed-{seed}")
+            output_root = Path(target.generation_output_path) / f"seed-{seed}"
+            output_dir = str(output_root)
+            generation_manifest_path = str(output_root / "generation.manifest.json")
             argv = [
                 "python",
                 "-m",
-                "src.evaluation.generate_baseline",
+                "scripts.generate_images",
                 "--prompts",
                 config.fixed_prompts_path,
-                "--output-dir",
+                "--output_dir",
                 output_dir,
+                "--versions_per_prompt",
+                "1",
+                "--batch_size",
+                "1",
                 "--seed",
                 str(seed),
+                "--device",
+                "cuda",
+                "--manifest_path",
+                generation_manifest_path,
+                "--run_manifest_path",
+                target.source_run_manifest_path,
             ]
             if settings.get("model") is not None:
-                argv.extend(["--model", str(settings["model"])])
+                argv.extend(["--model_id", str(settings["model"])])
+            if settings.get("model_revision") is not None:
+                argv.extend(["--model_revision", str(settings["model_revision"])])
             if settings.get("num_inference_steps") is not None:
-                argv.extend(["--steps", str(settings["num_inference_steps"])])
+                argv.extend(["--num_inference_steps", str(settings["num_inference_steps"])])
             if settings.get("guidance_scale") is not None:
-                argv.extend(["--guidance-scale", str(settings["guidance_scale"])])
+                argv.extend(["--guidance_scale", str(settings["guidance_scale"])])
             if settings.get("height") is not None:
-                argv.extend(["--height", str(settings["height"])])
-            if settings.get("width") is not None:
-                argv.extend(["--width", str(settings["width"])])
+                argv.extend(["--resolution", str(settings["height"])])
             if target.lora_checkpoint_path is not None:
-                argv.extend(["--lora-checkpoint", target.lora_checkpoint_path])
+                argv.extend(["--lora_path", target.lora_checkpoint_path])
             commands.append(
                 {
                     "target_name": target.name,
@@ -245,6 +266,7 @@ def _build_generation_commands(config: HeldoutEvaluationConfig) -> list[dict[str
                     "argv": argv,
                     "command": shlex.join(argv),
                     "output_dir": output_dir,
+                    "generation_manifest_path": generation_manifest_path,
                     "source_run_manifest_path": target.source_run_manifest_path,
                 }
             )
@@ -254,27 +276,71 @@ def _build_generation_commands(config: HeldoutEvaluationConfig) -> list[dict[str
 def _build_scoring_commands(config: HeldoutEvaluationConfig) -> list[dict[str, Any]]:
     commands: list[dict[str, Any]] = []
     scorer = str(config.inference_settings.get("scorer", "both"))
+    ocr_device = str(config.inference_settings.get("ocr_device", "cpu"))
     for target in config.targets:
-        argv = [
-            "python",
-            "-m",
-            "scripts.score_images",
-            "--images_dir",
-            str(Path(target.generation_output_path) / "images"),
-            "--text_embeds_dir",
-            str(Path(target.generation_output_path) / "text_embeds"),
-            "--output_csv",
-            target.score_output_path,
-            "--scorer",
-            scorer,
-        ]
+        for seed in config.fixed_seeds:
+            seed_root = Path(target.generation_output_path) / f"seed-{seed}"
+            seed_score_path = seed_root / "scores.csv"
+            generation_manifest_path = seed_root / "generation.manifest.json"
+            argv = [
+                "python",
+                "-m",
+                "scripts.score_images",
+                "--images_dir",
+                str(seed_root / "images"),
+                "--text_embeds_dir",
+                str(seed_root / "text_embeds"),
+                "--output_csv",
+                str(seed_score_path),
+                "--scorer",
+                scorer,
+                "--ocr_device",
+                ocr_device,
+                "--product_formula",
+                "thesis",
+                "--source_manifest",
+                target.source_run_manifest_path,
+                "--source_manifest",
+                str(generation_manifest_path),
+            ]
+            if scorer in {"vlm", "both"}:
+                argv.extend(
+                    [
+                        "--vlm_model_id",
+                        str(config.inference_settings["vlm_model"]),
+                        "--vlm_model_revision",
+                        str(config.inference_settings["vlm_model_revision"]),
+                    ]
+                )
+            commands.append(
+                {
+                    "target_name": target.name,
+                    "seed": seed,
+                    "status": "planned-not-run",
+                    "argv": argv,
+                    "command": shlex.join(argv),
+                    "source_run_manifest_path": target.source_run_manifest_path,
+                    "score_output_path": str(seed_score_path),
+                    "generation_manifest_path": str(generation_manifest_path),
+                }
+            )
+    return commands
+
+
+def _build_aggregation_commands(config: HeldoutEvaluationConfig) -> list[dict[str, Any]]:
+    commands: list[dict[str, Any]] = []
+    for target in config.targets:
+        argv = ["python", "-m", "scripts.aggregate_heldout_scores"]
+        for seed in config.fixed_seeds:
+            score_path = Path(target.generation_output_path) / f"seed-{seed}" / "scores.csv"
+            argv.extend(["--input", f"{seed}={score_path}"])
+        argv.extend(["--output", target.score_output_path])
         commands.append(
             {
                 "target_name": target.name,
                 "status": "planned-not-run",
                 "argv": argv,
                 "command": shlex.join(argv),
-                "source_run_manifest_path": target.source_run_manifest_path,
                 "score_output_path": target.score_output_path,
             }
         )
@@ -319,15 +385,43 @@ def _validate_fixed_seeds(value: Any) -> tuple[int, ...]:
         raise HeldoutEvaluationError("fixed_seeds must be a non-empty list of integers")
     if any(isinstance(seed, bool) or not isinstance(seed, int) for seed in value):
         raise HeldoutEvaluationError("fixed_seeds must be a non-empty list of integers")
+    if any(seed < 0 for seed in value):
+        raise HeldoutEvaluationError("fixed_seeds must contain only nonnegative integers")
+    if len(set(value)) != len(value):
+        raise HeldoutEvaluationError("fixed_seeds must not contain duplicates")
     return tuple(value)
 
 
 def _validate_inference_settings(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or not value:
         raise HeldoutEvaluationError("inference_settings must be a non-empty object")
-    for key in ("model", "height", "width", "num_inference_steps", "guidance_scale"):
+    for key in (
+        "model",
+        "model_revision",
+        "height",
+        "width",
+        "num_inference_steps",
+        "guidance_scale",
+        "scorer",
+    ):
         if key not in value:
             raise HeldoutEvaluationError(f"inference_settings.{key} is required")
+    if value["scorer"] not in {"vlm", "ocr", "both"}:
+        raise HeldoutEvaluationError("inference_settings.scorer must be vlm, ocr, or both")
+    if not isinstance(value.get("model"), str) or not value["model"].strip():
+        raise HeldoutEvaluationError("inference_settings.model is required")
+    _validate_immutable_revision(value.get("model_revision"), "inference_settings.model_revision")
+    if value["scorer"] in {"vlm", "both"}:
+        if not isinstance(value.get("vlm_model"), str) or not value["vlm_model"].strip():
+            raise HeldoutEvaluationError("inference_settings.vlm_model is required")
+        _validate_immutable_revision(
+            value.get("vlm_model_revision"), "inference_settings.vlm_model_revision"
+        )
+    if value["height"] != value["width"]:
+        raise HeldoutEvaluationError(
+            "inference_settings.height and width must match because the supported generation "
+            "pipeline uses one square resolution"
+        )
     return dict(sorted(value.items()))
 
 
@@ -396,21 +490,16 @@ def _validate_manifest_link(path: str, *, target_name: str) -> None:
     if not manifest_path.is_file():
         raise HeldoutEvaluationError(f"{target_name}: source_run_manifest_path does not exist")
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise HeldoutEvaluationError(f"{target_name}: malformed source_run_manifest_path") from exc
-    except OSError as exc:
+        load_run_manifest(manifest_path)
+    except ManifestError as exc:
         raise HeldoutEvaluationError(
-            f"{target_name}: could not read source_run_manifest_path"
+            f"{target_name}: source_run_manifest_path is not a valid run manifest: {exc}"
         ) from exc
-    if not isinstance(payload, dict) or payload.get("schema_version") != "run-manifest/v1":
-        raise HeldoutEvaluationError(
-            f"{target_name}: source_run_manifest_path is not a run manifest"
-        )
-    if not payload.get("run_id") or not payload.get("command"):
-        raise HeldoutEvaluationError(
-            f"{target_name}: source_run_manifest_path lacks run_id/command"
-        )
+
+
+def _validate_immutable_revision(value: Any, field: str) -> None:
+    if not isinstance(value, str) or not _IMMUTABLE_REVISION_PATTERN.fullmatch(value):
+        raise HeldoutEvaluationError(f"{field} must be an immutable 40-character commit SHA")
 
 
 def _validate_writable_path(value: str, *, field: str, target_name: str | None = None) -> None:

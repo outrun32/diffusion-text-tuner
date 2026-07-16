@@ -6,9 +6,7 @@ from pathlib import Path
 
 
 class ScenePool:
-
-    def __init__(self, seed_path: str, expanded_path: str | None = None,
-                 seed: int = 42):
+    def __init__(self, seed_path: str, expanded_path: str | None = None, seed: int = 42):
         self.rng = random.Random(seed)
         self.scenes: list[dict] = []
         self._by_type: dict[str, list[dict]] = {}

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING
 
 from .config import (
     CONTENT_TYPE_RU,
@@ -22,24 +21,26 @@ from .config import (
     LLM_SYSTEM_PROMPT,
 )
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 
 class LLMClient:
     """Thin wrapper around a local text-generation model."""
 
-    def __init__(self, model_id: str = "Qwen/Qwen3.5-4B",
-                 backend: str = "transformers",
-                 max_new_tokens: int = 80,
-                 temperature: float = 0.7,
-                 device: str | None = None):
+    def __init__(
+        self,
+        model_id: str = "Qwen/Qwen3.5-4B",
+        backend: str = "transformers",
+        max_new_tokens: int = 80,
+        temperature: float = 0.7,
+        device: str | None = None,
+        seed: int = 42,
+    ):
         self.model_id = model_id
         self.backend = backend
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
+        self.seed = seed
         self._model = None
         self._tokenizer = None
         self._generate_fn = None
@@ -58,7 +59,9 @@ class LLMClient:
             self._thinking_checked = True
             try:
                 text = self._tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True,
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
                     enable_thinking=False,
                 )
                 self._supports_thinking = True
@@ -91,6 +94,10 @@ class LLMClient:
         device = self._device or ("cuda" if torch.cuda.is_available() else "cpu")
         logger.info("Loading %s on %s via transformers …", self.model_id, device)
 
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
+
         self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
         self._model = AutoModelForCausalLM.from_pretrained(
             self.model_id,
@@ -117,7 +124,7 @@ class LLMClient:
                     top_p=0.9,
                     pad_token_id=pad_id,
                 )
-            new_tokens = out[0][inputs["input_ids"].shape[1]:]
+            new_tokens = out[0][inputs["input_ids"].shape[1] :]
             return self._tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
         self._generate_fn = _gen
@@ -138,6 +145,7 @@ class LLMClient:
             temperature=self.temperature,
             top_p=0.9,
             max_tokens=self.max_new_tokens,
+            seed=self.seed,
         )
 
         def _gen(prompt: str) -> str:
@@ -152,10 +160,15 @@ class LLMClient:
         self._generate_fn = _gen
 
     def _load_mlx(self):
-        from mlx_lm import load as mlx_load, generate as mlx_generate
+        import mlx.core as mx
+        from mlx_lm import generate as mlx_generate
+        from mlx_lm import load as mlx_load
+        from mlx_lm.sample_utils import make_sampler
 
         logger.info("Loading %s via mlx-lm …", self.model_id)
+        mx.random.seed(self.seed)
         self._model, self._tokenizer = mlx_load(self.model_id)
+        sampler = make_sampler(temp=self.temperature, top_p=0.9)
 
         def _gen(prompt: str) -> str:
             messages = [
@@ -164,8 +177,11 @@ class LLMClient:
             ]
             text = self._apply_chat_template(messages)
             return mlx_generate(
-                self._model, self._tokenizer, prompt=text,
-                max_tokens=self.max_new_tokens, temp=self.temperature,
+                self._model,
+                self._tokenizer,
+                prompt=text,
+                max_tokens=self.max_new_tokens,
+                sampler=sampler,
             ).strip()
 
         self._generate_fn = _gen
@@ -174,8 +190,9 @@ class LLMClient:
     # Public API
     # ------------------------------------------------------------------
 
-    def generate_phrase(self, tier: int, must_include: list[str],
-                        content_type: str = "poster") -> str:
+    def generate_phrase(
+        self, tier: int, must_include: list[str], content_type: str = "poster"
+    ) -> str:
         """Generate a natural phrase incorporating *must_include* words."""
         template = LLM_PHRASE_PROMPTS.get(tier)
         if template is None:
@@ -189,7 +206,8 @@ class LLMClient:
         return self._clean_phrase(raw)
 
     def generate_phrases_batch(
-        self, items: list[tuple[int, list[str], str]],
+        self,
+        items: list[tuple[int, list[str], str]],
     ) -> list[str]:
         """Batch-generate phrases.
 
@@ -199,9 +217,7 @@ class LLMClient:
         """
         if self.backend == "vllm":
             return self._batch_vllm(items)
-        return [
-            self.generate_phrase(tier, mi, ct) for tier, mi, ct in items
-        ]
+        return [self.generate_phrase(tier, mi, ct) for tier, mi, ct in items]
 
     def generate_scenes(self, content_type: str, n: int = 20) -> list[str]:
         """Generate *n* scene descriptions for a content type."""
@@ -246,7 +262,7 @@ class LLMClient:
         """Strip quotes, think-tags, and stray whitespace from LLM output."""
         # Safety net: remove <think>…</think> blocks if any leak through
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        text = text.strip().strip("«»\"'""''")
+        text = text.strip().strip("«»\"'")
         # Collapse internal whitespace
         text = re.sub(r"[ \t]+", " ", text)
         return text

@@ -1,0 +1,4 @@
+run,strict_cer,normalized_cer,strict_exact,normalized_exact,ocr_score,vlm_score,product_score,script_mix,evidence_status
+Base,0.984,0.859,0.333,0.417,0.560,0.658,0.392,0.233,historical-aggregate-only
+Product SFT,0.238,0.126,0.408,0.500,0.635,0.681,0.444,0.167,historical-aggregate-only
+Product DPO,0.287,0.168,0.442,0.525,0.639,0.704,0.470,0.175,historical-aggregate-only

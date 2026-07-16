@@ -14,25 +14,28 @@ from __future__ import annotations
 import argparse
 import copy
 import csv
-import json
 import logging
-import math
 import os
 import time
 
 import torch
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from peft import LoraConfig as PeftLoraConfig, get_peft_model, PeftModel
+from peft import LoraConfig as PeftLoraConfig
+from peft import get_peft_model
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from .config import DPOConfig, LoraConfig
-from .dataset import DPODataset, dpo_collate_fn
-from .dpo_objective import compute_dpo_objective, compute_sigma, time_dependent_beta
-from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids, decode_latents
-from .sft_trainer import setup_sample_states, save_samples
 from src.runtime import config_io
+
+from .checkpointing import checkpoint_dir, should_save_checkpoint
+from .config import DPOConfig
+from .dataset import DPODataset, dpo_collate_fn, require_drop_last_batch
+from .dpo_objective import compute_dpo_objective, compute_sigma
+from .dpo_objective import time_dependent_beta as time_dependent_beta
+from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids
+from .sampling import should_sample_step
+from .sft_trainer import save_samples, setup_sample_states
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,11 @@ def load_models(cfg: DPOConfig, device, dtype):
     from diffusers import Flux2KleinPipeline
 
     logger.info("Loading pipeline: %s", cfg.model_id)
-    pipe = Flux2KleinPipeline.from_pretrained(cfg.model_id, torch_dtype=dtype)
+    pipe = Flux2KleinPipeline.from_pretrained(
+        cfg.model_id,
+        revision=cfg.model_revision,
+        torch_dtype=dtype,
+    )
 
     base_transformer = pipe.transformer
 
@@ -65,7 +72,9 @@ def load_models(cfg: DPOConfig, device, dtype):
 
     trainable = sum(p.numel() for p in policy.parameters() if p.requires_grad)
     total = sum(p.numel() for p in policy.parameters())
-    logger.info("Policy LoRA: %d trainable / %d total (%.2f%%)", trainable, total, 100 * trainable / total)
+    logger.info(
+        "Policy LoRA: %d trainable / %d total (%.2f%%)", trainable, total, 100 * trainable / total
+    )
 
     # Reference model: deep copy of policy → freeze everything
     # We copy the full LoRA model so reference has the same SFT init
@@ -91,16 +100,17 @@ def load_models(cfg: DPOConfig, device, dtype):
 def compute_dpo_loss(
     policy: torch.nn.Module,
     ref_model: torch.nn.Module,
-    winner_packed: torch.Tensor,     # (B, S, C) packed x0
+    winner_packed: torch.Tensor,  # (B, S, C) packed x0
     loser_packed: torch.Tensor,
-    prompt_embeds: torch.Tensor,     # (B, L, D)
+    prompt_embeds: torch.Tensor,  # (B, L, D)
     text_ids: torch.Tensor,
     latent_ids: torch.Tensor,
-    t: torch.Tensor,                 # (B,) timesteps
-    noise: torch.Tensor,             # (B, S, C) shared noise
+    t: torch.Tensor,  # (B,) timesteps
+    noise: torch.Tensor,  # (B, S, C) shared noise
     beta_conf: float,
     shift: float,
     dtype: torch.dtype,
+    pair_weight: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict]:
     """Compute DPO sigmoid loss with time-dependent beta and shared noise."""
 
@@ -119,30 +129,42 @@ def compute_dpo_loss(
 
     # Policy predictions
     w_policy_pred = policy(
-        hidden_states=w_noisy, timestep=timestep,
-        encoder_hidden_states=prompt_embeds, txt_ids=text_ids, img_ids=latent_ids,
+        hidden_states=w_noisy,
+        timestep=timestep,
+        encoder_hidden_states=prompt_embeds,
+        txt_ids=text_ids,
+        img_ids=latent_ids,
         return_dict=False,
-    )[0][:, :winner_packed.shape[1]]
+    )[0][:, : winner_packed.shape[1]]
 
     l_policy_pred = policy(
-        hidden_states=l_noisy, timestep=timestep,
-        encoder_hidden_states=prompt_embeds, txt_ids=text_ids, img_ids=latent_ids,
+        hidden_states=l_noisy,
+        timestep=timestep,
+        encoder_hidden_states=prompt_embeds,
+        txt_ids=text_ids,
+        img_ids=latent_ids,
         return_dict=False,
-    )[0][:, :loser_packed.shape[1]]
+    )[0][:, : loser_packed.shape[1]]
 
     # Reference predictions (no grad)
     with torch.no_grad():
         w_ref_pred = ref_model(
-            hidden_states=w_noisy, timestep=timestep,
-            encoder_hidden_states=prompt_embeds, txt_ids=text_ids, img_ids=latent_ids,
+            hidden_states=w_noisy,
+            timestep=timestep,
+            encoder_hidden_states=prompt_embeds,
+            txt_ids=text_ids,
+            img_ids=latent_ids,
             return_dict=False,
-        )[0][:, :winner_packed.shape[1]]
+        )[0][:, : winner_packed.shape[1]]
 
         l_ref_pred = ref_model(
-            hidden_states=l_noisy, timestep=timestep,
-            encoder_hidden_states=prompt_embeds, txt_ids=text_ids, img_ids=latent_ids,
+            hidden_states=l_noisy,
+            timestep=timestep,
+            encoder_hidden_states=prompt_embeds,
+            txt_ids=text_ids,
+            img_ids=latent_ids,
             return_dict=False,
-        )[0][:, :loser_packed.shape[1]]
+        )[0][:, : loser_packed.shape[1]]
 
     # Per-sample MSE losses (mean over seq, dim)
     w_policy_loss = (w_policy_pred.float() - w_target.float()).pow(2).mean(dim=(1, 2))
@@ -158,6 +180,7 @@ def compute_dpo_loss(
         t=t,
         beta_conf=beta_conf,
         shift=shift,
+        sample_weight=pair_weight,
     )
 
     metrics = {
@@ -174,6 +197,26 @@ def compute_dpo_loss(
 
 
 def train(cfg: DPOConfig):
+    from src.runtime.capabilities import check_stage_support
+
+    support = check_stage_support("dpo", mixed_precision=cfg.mixed_precision)
+    if not support.ok:
+        raise RuntimeError("; ".join(support.errors))
+
+    dataset = DPODataset(
+        latents_dir=cfg.latents_dir,
+        text_embeds_dir=cfg.text_embeds_dir,
+        scores_csv=cfg.scores_csv,
+        score_threshold=cfg.score_threshold,
+        score_diff_min=cfg.score_diff_min,
+        pair_construction_mode=cfg.pair_construction_mode,
+        preference_pairs_path=cfg.preference_pairs_path,
+        score_column=cfg.score_column,
+        ambiguity_margin=cfg.ambiguity_margin,
+        pair_weighting=cfg.pair_weighting,
+    )
+    require_drop_last_batch(len(dataset), cfg.batch_size, stage="dpo")
+
     accelerator = Accelerator(
         mixed_precision=cfg.mixed_precision,
         gradient_accumulation_steps=cfg.gradient_accumulation_steps,
@@ -216,15 +259,6 @@ def train(cfg: DPOConfig):
 
             base.register_forward_hook(_make_inputs_require_grad)
 
-    # ── Dataset ──
-    dataset = DPODataset(
-        latents_dir=cfg.latents_dir,
-        text_embeds_dir=cfg.text_embeds_dir,
-        scores_csv=cfg.scores_csv,
-        score_threshold=cfg.score_threshold,
-        score_diff_min=cfg.score_diff_min,
-    )
-
     dataloader = DataLoader(
         dataset,
         batch_size=cfg.batch_size,
@@ -246,6 +280,7 @@ def train(cfg: DPOConfig):
     )
 
     from transformers import get_constant_schedule_with_warmup
+
     lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps)
 
     # ── Prepare with accelerate ──
@@ -326,6 +361,7 @@ def train(cfg: DPOConfig):
                     beta_conf=cfg.beta,
                     shift=cfg.shift,
                     dtype=dtype,
+                    pair_weight=batch["pair_weight"],
                 )
 
                 accelerator.backward(loss)
@@ -358,29 +394,35 @@ def train(cfg: DPOConfig):
                     with open(csv_path, "a", newline="") as f:
                         csv.DictWriter(f, csv_fields).writerow(row)
 
-                    accelerator.log({
-                        "loss": loss.item(),
-                        "grad_norm": grad_norm,
-                        "lr": lr_scheduler.get_last_lr()[0],
-                        "reward_margin": metrics["reward_margin"],
-                        "accuracy": metrics["accuracy"],
-                    }, step=global_step)
+                    accelerator.log(
+                        {
+                            "loss": loss.item(),
+                            "grad_norm": grad_norm,
+                            "lr": lr_scheduler.get_last_lr()[0],
+                            "reward_margin": metrics["reward_margin"],
+                            "accuracy": metrics["accuracy"],
+                        },
+                        step=global_step,
+                    )
 
                     logger.info(
                         "step %d | loss %.4f | margin %.4f | acc %.3f | grad %.3f",
-                        global_step, loss.item(), metrics["reward_margin"],
-                        metrics["accuracy"], grad_norm,
+                        global_step,
+                        loss.item(),
+                        metrics["reward_margin"],
+                        metrics["accuracy"],
+                        grad_norm,
                     )
 
-                if global_step % cfg.save_interval == 0:
-                    ckpt_dir = os.path.join(cfg.output_dir, "checkpoints", f"step_{global_step:06d}")
+                if should_save_checkpoint(global_step, cfg.save_interval):
+                    ckpt_dir = checkpoint_dir(cfg.output_dir, global_step)
                     accelerator.wait_for_everyone()
                     if accelerator.is_main_process:
                         unwrapped = accelerator.unwrap_model(policy)
                         unwrapped.save_pretrained(ckpt_dir)
                         logger.info("Saved checkpoint: %s", ckpt_dir)
 
-                if global_step % cfg.sample_interval == 0 and cfg.sample_interval > 0:
+                if should_sample_step(global_step, cfg.sample_interval):
                     if accelerator.is_main_process and sample_states:
                         unwrapped = accelerator.unwrap_model(policy)
                         save_samples(

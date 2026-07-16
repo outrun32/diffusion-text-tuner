@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -87,7 +88,6 @@ def test_art_03_scores_csv_validates_columns_and_schema_metadata(tmp_path: Path)
 
     report = validate_artifacts("scores", {"scores_csv": scores})
 
-
     assert report.ok
     assert report.metadata["scores_schema_version"] == "scores/v1"
     assert not report.errors
@@ -140,6 +140,26 @@ def test_art_01_generated_layout_reports_missing_tensor_keys(tmp_path: Path) -> 
     assert any("000000/v0.pt" in error and "latent" in error for error in report.errors)
 
 
+def test_scoring_input_validation_reports_corrupt_embeddings_and_bad_versions(
+    tmp_path: Path,
+) -> None:
+    images = tmp_path / "images" / "p1"
+    embeds = tmp_path / "embeds"
+    images.mkdir(parents=True)
+    embeds.mkdir()
+    (images / "vbad.png").write_bytes(b"image")
+    (embeds / "p1.pt").write_bytes(b"not-a-torch-file")
+
+    report = validate_artifacts(
+        "scoring_inputs",
+        {"images_dir": images.parent, "text_embeds_dir": embeds},
+    )
+
+    assert report.ok is False
+    assert any("invalid image version" in error for error in report.errors)
+    assert any("could not read text embedding" in error for error in report.errors)
+
+
 def test_art_01_masked_sft_validates_latents_masks_embeds_and_shapes(tmp_path: Path) -> None:
     data_dir = tmp_path / "data" / "synth_cyrillic" / "masked_sft"
     _torch_save(
@@ -181,6 +201,115 @@ def test_blocking_required_inputs_raise_for_expensive_downstream_stages(tmp_path
 
     with pytest.raises(ArtifactValidationError, match="scores_csv"):
         validate_artifacts("sft", {"scores_csv": missing, "require_ready": True})
+
+
+def test_training_artifacts_require_configured_materialized_rows_and_checkpoints(
+    tmp_path: Path,
+) -> None:
+    scores = _write_scores_csv(
+        tmp_path / "outputs" / "generated" / "scores.csv",
+        [{"id": "p1", "version": 0, "score": 0.8, "target_text": "ТЕСТ"}],
+    )
+    latents = tmp_path / "outputs" / "generated" / "latents"
+    embeds = tmp_path / "outputs" / "generated" / "text_embeds"
+    latents.mkdir(parents=True)
+    embeds.mkdir(parents=True)
+
+    sft = validate_artifacts(
+        "sft",
+        {
+            "scores_csv": scores,
+            "latents_dir": latents,
+            "text_embeds_dir": embeds,
+            "selected_samples": tmp_path / "missing-selected.jsonl",
+            "resume_lora": tmp_path / "missing-resume",
+        },
+    )
+    dpo = validate_artifacts(
+        "dpo",
+        {
+            "scores_csv": scores,
+            "latents_dir": latents,
+            "text_embeds_dir": embeds,
+            "preference_pairs": tmp_path / "missing-pairs.jsonl",
+            "sft_lora": tmp_path / "empty-checkpoint",
+        },
+    )
+
+    assert not sft.ok
+    assert any("selected_samples file is missing" in error for error in sft.errors)
+    assert any("resume_lora_path: checkpoint path does not exist" in error for error in sft.errors)
+    assert not dpo.ok
+    assert any("preference_pairs file is missing" in error for error in dpo.errors)
+    assert any("sft_lora_path: checkpoint path does not exist" in error for error in dpo.errors)
+
+
+def test_phase6_jsonl_validation_rejects_nonfinite_invalid_and_duplicate_rows(
+    tmp_path: Path,
+) -> None:
+    from src.evaluation.reward_interface import ProductScoreFormula
+    from src.runtime.artifacts import PHASE6_REQUIRED_SCORE_FIELDS
+    from src.runtime.manifests import create_run_manifest
+
+    scores = tmp_path / "scores.jsonl"
+    base = {
+        "sample_id": "p1",
+        "version": 0,
+        "score": 0.5,
+        "product_score": 0.5,
+        "target_text": "ТЕСТ",
+        "score_vlm": 0.8,
+        "score_ocr": 0.7,
+        "cer": 0.0,
+        "entropy": 0.1,
+        "ocr_detected": "ТЕСТ",
+        "detection_status": "detected_exact",
+        "exact_text_match": True,
+        "char_accuracy": 1.0,
+        "char_matches": 4,
+        "char_total": 4,
+        "missing_components": [],
+        "formula_complete": True,
+        "manifest_path": "runs/eval/manifest.json",
+        "text_metrics": {},
+        "scorer_metadata": {},
+        "thresholds": {},
+    }
+    invalid = dict(base)
+    invalid.update(score=float("nan"), detection_status="unknown", exact_text_match="true")
+    _write_jsonl(scores, [invalid, dict(base)])
+    source = create_run_manifest(
+        stage="evaluation",
+        command=["pytest", "jsonl-validation"],
+        run_root=tmp_path / "runs",
+        outputs={"scores_jsonl": str(scores)},
+        root=tmp_path,
+    )
+    sidecar = {
+        "schema_version": "reward-score-metadata/v1",
+        "score_file_schema_version": "phase6-score-jsonl/v1",
+        "formula": ProductScoreFormula().to_metadata(),
+        "primary_score": "product",
+        "required_phase6_fields": sorted(PHASE6_REQUIRED_SCORE_FIELDS),
+        "source_manifest_paths": [str(source.manifest_path)],
+        "source_manifest_sha256": {
+            str(source.manifest_path): hashlib.sha256(source.manifest_path.read_bytes()).hexdigest()
+        },
+        "execution": {
+            "status": "complete",
+            "scored_row_count": 2,
+            "scores_sha256": hashlib.sha256(scores.read_bytes()).hexdigest(),
+        },
+    }
+    scores.with_suffix(".schema.json").write_text(json.dumps(sidecar), encoding="utf-8")
+
+    report = validate_artifacts("evaluation_scores", {"scores_jsonl": scores})
+
+    assert not report.ok
+    assert any("score must be a finite number" in error for error in report.errors)
+    assert any("detection_status is invalid" in error for error in report.errors)
+    assert any("exact_text_match must be boolean" in error for error in report.errors)
+    assert any("duplicate sample_id/version pair" in error for error in report.errors)
 
 
 def test_runtime_contract_docs_cover_required_artifact_families() -> None:

@@ -272,7 +272,7 @@ def test_synthetic_inspection_cli_returns_nonzero_for_blocking_thresholds(
 def test_synthetic_quality_docs_cover_reports_manifests_and_artifact_safety() -> None:
     docs = Path("docs/synthetic_quality.md").read_text(encoding="utf-8")
     required = [
-        "inspect_synthetic_dataset.py",
+        "uv run python -m scripts.inspect_synthetic_dataset",
         "scripts/synth/build_dataset.py",
         "raw/imgs/{sid}.png",
         "masked_sft/index.csv",

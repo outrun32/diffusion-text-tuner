@@ -14,20 +14,17 @@ import argparse
 import json
 import logging
 import random
-import sys
 from collections import Counter
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-from src.prompt_pipeline.text_generator import TextGenerator
-from src.prompt_pipeline.scene_pool import ScenePool
-from src.prompt_pipeline.assembler import Assembler
 from src.prompt_pipeline import config
+from src.prompt_pipeline.assembler import Assembler
+from src.prompt_pipeline.scene_pool import ScenePool
+from src.prompt_pipeline.text_generator import TextGenerator
 
 logger = logging.getLogger(__name__)
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
 # ── Simplified config overrides ──────────────────────────────────────────
@@ -64,22 +61,22 @@ SIMPLE_SIZES = ["large", "medium"]
 # Tier 2: 2-3 words (up to ~25 chars)
 # Tier 3: short phrase 3-5 words (LLM) — small amount for variety
 SIMPLE_TIER_WEIGHTS = {
-    1: 0.35,   # single word
-    2: 0.45,   # 2-3 words
-    3: 0.20,   # short phrase (3-5 words, LLM)
-    4: 0.00,   # disabled — title+subtitle too complex
-    5: 0.00,   # disabled — sentences too complex
+    1: 0.35,  # single word
+    2: 0.45,  # 2-3 words
+    3: 0.20,  # short phrase (3-5 words, LLM)
+    4: 0.00,  # disabled — title+subtitle too complex
+    5: 0.00,  # disabled — sentences too complex
 }
 
 # Content types — keep variety but remove hardest ones
 SIMPLE_CONTENT_TYPES = {
-    "poster":      0.30,
-    "photo_text":  0.20,
-    "typography":  0.15,
-    "product":     0.10,
+    "poster": 0.30,
+    "photo_text": 0.20,
+    "typography": 0.15,
+    "product": 0.10,
     "social_media": 0.10,
-    "clothing":    0.08,
-    "book_cover":  0.07,
+    "clothing": 0.08,
+    "book_cover": 0.07,
 }
 
 # 100% Russian
@@ -139,20 +136,22 @@ def patch_config():
 
     # Remove cursive/handwritten from all style constraints
     config.STYLE_CONSTRAINTS.clear()
-    config.STYLE_CONSTRAINTS.update({
-        "typography": {
-            "fonts": ["gothic", "futuristic", "bold sans-serif", "stencil"],
-            "effects": ["clean", "gradient", "3D", "outlined", "neon glow"],
-            "sizes": ["large", "medium"],
-        },
-        "book_cover": {
-            "fonts": ["serif", "gothic", "minimalist"],
-        },
-        "clothing": {
-            "fonts": ["bold sans-serif", "minimalist", "stencil", "retro", "futuristic"],
-            "sizes": ["large", "medium"],
-        },
-    })
+    config.STYLE_CONSTRAINTS.update(
+        {
+            "typography": {
+                "fonts": ["gothic", "futuristic", "bold sans-serif", "stencil"],
+                "effects": ["clean", "gradient", "3D", "outlined", "neon glow"],
+                "sizes": ["large", "medium"],
+            },
+            "book_cover": {
+                "fonts": ["serif", "gothic", "minimalist"],
+            },
+            "clothing": {
+                "fonts": ["bold sans-serif", "minimalist", "stencil", "retro", "futuristic"],
+                "sizes": ["large", "medium"],
+            },
+        }
+    )
 
 
 def generate_dataset(
@@ -172,10 +171,10 @@ def generate_dataset(
         seed=seed,
     )
     # Override the tier weights in the text generator too
-    from src.prompt_pipeline.config import TIER_WEIGHTS as TW, CASE_WEIGHTS as CW
     # These are already patched by patch_config()
 
     from src.prompt_pipeline.style_generator import StyleGenerator
+
     style_gen = StyleGenerator(seed=seed)
 
     expanded = DATA_DIR / "scenes_expanded.json"
@@ -212,6 +211,7 @@ def generate_dataset(
     try:
         from tqdm import tqdm
     except ImportError:
+
         def tqdm(it, **_kw):
             return it
 
@@ -225,7 +225,7 @@ def generate_dataset(
         texts: dict[int, str] = {}
         llm_jobs: list[tuple[int, int, list[str], str]] = []
 
-        for j, (ct, tier, case, lang) in enumerate(chunk):
+        for j, (ct, tier, case, _lang) in enumerate(chunk):
             if tier <= 2:
                 texts[j] = text_gen.generate_text(tier, case)
             elif llm is not None:
@@ -238,11 +238,11 @@ def generate_dataset(
             batch_results = llm.generate_phrases_batch(
                 [(tier, mi, ct) for _, tier, mi, ct in llm_jobs]
             )
-            for (j, _tier, _mi, _ct), txt in zip(llm_jobs, batch_results):
+            for (j, _tier, _mi, _ct), txt in zip(llm_jobs, batch_results, strict=True):
                 texts[j] = txt
             llm_calls += len(llm_jobs)
 
-        for j, (content_type, tier, case, lang) in enumerate(chunk):
+        for j, (content_type, tier, _case, lang) in enumerate(chunk):
             i = pos + j
             target_text = texts[j]
 
@@ -289,17 +289,19 @@ def generate_dataset(
                 if ch in config.CYRILLIC_LOWER:
                     char_cov[ch] = char_cov.get(ch, 0) + 1
 
-            records.append({
-                "id": f"p_{i:05d}",
-                "prompt": prompt,
-                "target_text": target_text,
-                "tier": tier,
-                "content_type": content_type,
-                "scene_id": scene["id"],
-                "style": style,
-                "lang": lang,
-                "char_coverage": char_cov,
-            })
+            records.append(
+                {
+                    "id": f"p_{i:05d}",
+                    "prompt": prompt,
+                    "target_text": target_text,
+                    "tier": tier,
+                    "content_type": content_type,
+                    "scene_id": scene["id"],
+                    "style": style,
+                    "lang": lang,
+                    "char_coverage": char_cov,
+                }
+            )
 
         pbar.update(chunk_end - pos)
         pos = chunk_end
@@ -325,14 +327,19 @@ def generate_dataset(
     logger.info("\n=== DISTRIBUTION ===")
     logger.info("Tier distribution:")
     for t in sorted(tier_counts):
-        logger.info("  Tier %d: %d (%.1f%%)", t, tier_counts[t], 100 * tier_counts[t] / len(records))
+        logger.info(
+            "  Tier %d: %d (%.1f%%)", t, tier_counts[t], 100 * tier_counts[t] / len(records)
+        )
     logger.info("Content type distribution:")
     for ct in sorted(ct_counts, key=ct_counts.get, reverse=True):
         logger.info("  %s: %d (%.1f%%)", ct, ct_counts[ct], 100 * ct_counts[ct] / len(records))
-    logger.info("Text length: min=%d, max=%d, mean=%.1f, median=%.1f",
-                min(text_lens), max(text_lens),
-                sum(text_lens) / len(text_lens),
-                sorted(text_lens)[len(text_lens) // 2])
+    logger.info(
+        "Text length: min=%d, max=%d, mean=%.1f, median=%.1f",
+        min(text_lens),
+        max(text_lens),
+        sum(text_lens) / len(text_lens),
+        sorted(text_lens)[len(text_lens) // 2],
+    )
 
     # Character coverage
     cov = text_gen.coverage_report()
@@ -351,8 +358,9 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-llm", action="store_true")
     parser.add_argument("--model", type=str, default="Qwen/Qwen3.5-4B")
-    parser.add_argument("--backend", type=str, default="transformers",
-                        choices=["transformers", "mlx", "vllm"])
+    parser.add_argument(
+        "--backend", type=str, default="transformers", choices=["transformers", "mlx", "vllm"]
+    )
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=0.7)
     args = parser.parse_args()
@@ -370,10 +378,12 @@ def main():
     if not args.no_llm:
         logger.info("Loading LLM: %s (backend=%s)", args.model, args.backend)
         from src.prompt_pipeline.llm_client import LLMClient
+
         llm = LLMClient(
             model_id=args.model,
             backend=args.backend,
             temperature=args.temperature,
+            seed=args.seed,
         )
         logger.info("LLM loaded")
 

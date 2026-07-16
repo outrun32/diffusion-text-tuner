@@ -7,13 +7,13 @@ import math
 import pytest
 import torch
 
-from src.training.flux2_utils import pack_latents, patchify_latents, unpatchify_latents
-from src.training.losses import mask_to_latent_grid, masked_flow_matching_loss
 from src.training.dpo_objective import (
     compute_dpo_objective,
     compute_sigma,
     time_dependent_beta,
 )
+from src.training.flux2_utils import pack_latents, patchify_latents, unpatchify_latents
+from src.training.losses import mask_to_latent_grid, masked_flow_matching_loss
 
 
 def _flow_match_scheduler_class():
@@ -180,6 +180,64 @@ def test_dpo_objective_gradients_decrease_winner_and_increase_loser_mse():
     assert l_policy.grad is not None
     assert w_policy.grad.item() > 0.0
     assert l_policy.grad.item() < 0.0
+
+
+def test_dpo_objective_applies_materialized_pair_weights():
+    ref = torch.ones(2)
+    unweighted, _ = compute_dpo_objective(
+        w_policy_loss=torch.tensor([0.5, 1.0]),
+        l_policy_loss=torch.tensor([1.0, 0.5]),
+        w_ref_loss=ref,
+        l_ref_loss=ref,
+        t=torch.zeros(2),
+        beta_conf=2.0,
+        shift=3.0,
+    )
+    weighted, _ = compute_dpo_objective(
+        w_policy_loss=torch.tensor([0.5, 1.0]),
+        l_policy_loss=torch.tensor([1.0, 0.5]),
+        w_ref_loss=ref,
+        l_ref_loss=ref,
+        t=torch.zeros(2),
+        beta_conf=2.0,
+        shift=3.0,
+        sample_weight=torch.tensor([1.0, 0.0]),
+    )
+
+    assert weighted < unweighted
+
+
+def test_single_item_pair_weight_changes_gradient_scale():
+    winner = torch.tensor([0.5], requires_grad=True)
+    loser = torch.tensor([1.0], requires_grad=True)
+    reference = torch.ones(1)
+    weighted, _ = compute_dpo_objective(
+        w_policy_loss=winner,
+        l_policy_loss=loser,
+        w_ref_loss=reference,
+        l_ref_loss=reference,
+        t=torch.zeros(1),
+        beta_conf=2.0,
+        shift=3.0,
+        sample_weight=torch.tensor([0.25]),
+    )
+    weighted.backward()
+    weighted_gradient = winner.grad.item()
+
+    plain_winner = torch.tensor([0.5], requires_grad=True)
+    plain_loser = torch.tensor([1.0], requires_grad=True)
+    plain, _ = compute_dpo_objective(
+        w_policy_loss=plain_winner,
+        l_policy_loss=plain_loser,
+        w_ref_loss=reference,
+        l_ref_loss=reference,
+        t=torch.zeros(1),
+        beta_conf=2.0,
+        shift=3.0,
+    )
+    plain.backward()
+
+    assert weighted_gradient == pytest.approx(plain_winner.grad.item() * 0.25)
 
 
 def test_dpo_trainer_re_exports_objective_helpers():

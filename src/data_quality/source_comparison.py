@@ -1,6 +1,6 @@
 """CPU-safe generated-vs-synthetic dataset source comparison.
 
-The comparison layer consumes existing Phase 3 JSON/JSONL metadata artifacts. It
+The comparison layer consumes existing JSON/JSONL data-quality artifacts. It
 does not inspect generated images, load tensors, import OCR/model stacks, or run
 training code. Missing optional inputs are represented explicitly so reports do
 not fabricate unavailable evidence.
@@ -88,9 +88,7 @@ def compare_data_sources(
     synthetic_report = context.load_json("synthetic_quality_report", synthetic_quality_report)
     context.load_json("synthetic_manifest", synthetic_manifest)
 
-    generated_rare = _nonzero_counts(
-        _nested_counts(generated_prompt, "rare_character_coverage")
-    )
+    generated_rare = _nonzero_counts(_nested_counts(generated_prompt, "rare_character_coverage"))
     synthetic_rare = _nonzero_counts(_nested_counts(synthetic_report, "character_coverage"))
     rare_coverage = _coverage_overlap(generated_rare, synthetic_rare)
 
@@ -245,9 +243,7 @@ def _generated_score_summary(
     pair_rows: list[dict[str, Any]] | None,
 ) -> dict[str, dict[str, float | int | None]]:
     return {
-        "selected_score": _summary(
-            _numeric_values(selected_rows or [], "selected_score")
-        ),
+        "selected_score": _summary(_numeric_values(selected_rows or [], "selected_score")),
         "preference_margin": _summary(_numeric_values(pair_rows or [], "margin")),
         "winner_score": _summary(_numeric_values(pair_rows or [], "winner_score")),
         "loser_score": _summary(_numeric_values(pair_rows or [], "loser_score")),
@@ -303,7 +299,8 @@ def _expected_failure() -> dict[str, list[str]]:
         "synthetic_masked_sft": [
             "Can miss natural scene complexity, domain realism, and FLUX artifacts.",
             "Renderer masks, contrast, and fonts may create shortcuts that do not transfer.",
-            "Synthetic reconstruction loss is internal until Phase 6 validates text quality.",
+            "Synthetic reconstruction loss is internal until held-out evaluation "
+            "validates text quality.",
         ],
     }
 

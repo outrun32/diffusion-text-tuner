@@ -75,7 +75,10 @@ def main() -> int:
     lat_ids = prepare_latent_ids(latents_sp).to("cuda")
 
     print("Testing gradient magnitude at different grad_steps (50 inference steps):")
-    print(f"{'grad_step':>10} | {'x0_grad':>12} | {'img_grad':>12} | {'lora_grad':>12} | {'img_range':>12}")
+    print(
+        f"{'grad_step':>10} | {'x0_grad':>12} | {'img_grad':>12} | "
+        f"{'lora_grad':>12} | {'img_range':>12}"
+    )
     print("-" * 70)
 
     for step_with_grad in [5, 10, 20, 30, 40, 45, 49]:

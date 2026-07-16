@@ -6,7 +6,16 @@ import importlib
 import sys
 
 HEAVY_MODULES = ("torch", "diffusers", "transformers", "paddleocr", "vllm", "mlx_lm")
-EXPECTED_CHECKS = ("imports", "cuda", "cache", "model-access", "ocr")
+EXPECTED_CHECKS = (
+    "imports",
+    "platform",
+    "mlx",
+    "mps",
+    "cuda",
+    "cache",
+    "model-access",
+    "ocr",
+)
 
 
 def test_list_outputs_all_checks():
@@ -49,3 +58,23 @@ def test_import_has_no_heavy_side_effects():
     finally:
         sys.modules.pop("scripts.smoke_environment", None)
         sys.modules.update(removed_modules)
+
+
+def test_platform_check_is_safe_and_reports_host(capsys):
+    from scripts.smoke_environment import run_check
+
+    assert run_check("platform") == 0
+    output = capsys.readouterr().out
+    assert "system:" in output
+    assert "machine:" in output
+    assert "python:" in output
+
+
+def test_manual_profiler_wrapper_has_no_import_time_model_side_effects(monkeypatch):
+    for module_name in ("scripts.profile_step", "diffusers", "peft"):
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    importlib.import_module("scripts.profile_step")
+
+    assert "diffusers" not in sys.modules
+    assert "peft" not in sys.modules

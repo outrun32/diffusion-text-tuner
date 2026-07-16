@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import math
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import torch
-
 ARTIFACT_SCHEMA_VERSION = "runtime-artifacts/v1"
 REQUIRED_SCORE_COLUMNS = frozenset({"id", "version", "score", "target_text"})
 PHASE6_SCORE_FILE_SCHEMA_VERSION = "phase6-score-file/v1"
 PHASE6_SCORE_JSONL_SCHEMA_VERSION = "phase6-score-jsonl/v1"
+HELDOUT_SCORE_AGGREGATE_SCHEMA_VERSION = "heldout-score-aggregate/v1"
 PHASE6_REQUIRED_SCORE_FIELDS = frozenset(
     {
         "sample_id",
@@ -45,7 +47,10 @@ PHASE6_REQUIRED_SIDECAR_FIELDS = frozenset(
         "schema_version",
         "score_file_schema_version",
         "formula",
+        "primary_score",
         "source_manifest_paths",
+        "source_manifest_sha256",
+        "execution",
     }
 )
 PHASE3_JSON_SCHEMAS = {
@@ -139,6 +144,8 @@ def validate_artifacts(
         _validate_evaluation_scores(context, normalized, require_ready=require_ready)
     elif stage_key == "generated":
         _validate_generated_layout(context, normalized)
+    elif stage_key == "scoring_inputs":
+        _validate_scoring_inputs(context, normalized)
     elif stage_key == "masked_sft":
         _validate_masked_sft_layout(context, normalized)
     elif stage_key in {"sft", "dpo"}:
@@ -200,6 +207,7 @@ def _normalize_stage(stage: str) -> str:
         "generation": "generated",
         "scoring": "scores",
         "score": "scores",
+        "score_inputs": "scoring_inputs",
         "masked-sft": "masked_sft",
         "dataset-manifest": "dataset_manifest",
         "prompt-quality": "prompt_quality_report",
@@ -215,6 +223,64 @@ def _normalize_stage(stage: str) -> str:
         "score-outputs": "evaluation_scores",
     }
     return aliases.get(stage, stage)
+
+
+def _validate_scoring_inputs(context: _ValidationContext, paths: dict[str, Path]) -> None:
+    images_dir = _required_path(context, paths, "images_dir")
+    text_embeds_dir = _required_path(context, paths, "text_embeds_dir")
+    if str(images_dir) == "<missing>" or str(text_embeds_dir) == "<missing>":
+        return
+    context.checked(images_dir)
+    context.checked(text_embeds_dir)
+    if not images_dir.is_dir():
+        context.error(f"images_dir does not exist or is not a directory: {images_dir}")
+        return
+    if not text_embeds_dir.is_dir():
+        context.error(f"text_embeds_dir does not exist or is not a directory: {text_embeds_dir}")
+        return
+
+    prompt_ids: set[str] = set()
+    for prompt_dir in images_dir.iterdir():
+        if not prompt_dir.is_dir():
+            continue
+        image_files = list(prompt_dir.glob("v*.png"))
+        if not image_files:
+            continue
+        invalid_names = sorted(
+            path.name for path in image_files if not re.fullmatch(r"v\d+\.png", path.name)
+        )
+        if invalid_names:
+            context.error(
+                f"invalid image version filenames under {prompt_dir}: " + ", ".join(invalid_names)
+            )
+        prompt_ids.add(prompt_dir.name)
+    if not prompt_ids:
+        context.error(f"images_dir contains no prompt/vN.png files: {images_dir}")
+        return
+    embed_ids = {path.stem for path in text_embeds_dir.glob("*.pt")}
+    missing_embeds = sorted(prompt_ids - embed_ids)
+    if missing_embeds:
+        context.error(
+            "text embeddings are missing for image prompt IDs: " + ", ".join(missing_embeds)
+        )
+    matched_ids = sorted(prompt_ids & embed_ids)
+    inspected_ids = matched_ids[:32]
+    for prompt_id in inspected_ids:
+        path = text_embeds_dir / f"{prompt_id}.pt"
+        try:
+            payload = _load_trusted_tensor(path)
+        except Exception as exc:
+            context.error(f"could not read text embedding {path}: {exc}")
+            continue
+        if not isinstance(payload, dict) or not payload.get("target_text"):
+            context.error(f"text embedding lacks target_text: {path}")
+    context.metadata["scoring_prompt_count"] = len(prompt_ids)
+    context.metadata["embedding_metadata_inspected"] = len(inspected_ids)
+    if len(matched_ids) > len(inspected_ids):
+        context.warn(
+            f"sampled {len(inspected_ids)} of {len(matched_ids)} text embeddings for metadata; "
+            "full tensors are loaded by the scoring job"
+        )
 
 
 def _required_path(context: _ValidationContext, paths: Mapping[str, Path], key: str) -> Path:
@@ -272,10 +338,11 @@ def _validate_scores_csv(context: _ValidationContext, path: Path, *, phase6: boo
             missing_phase6 = sorted(PHASE6_REQUIRED_SCORE_FIELDS - fieldnames)
             if missing_phase6:
                 context.error(
-                    f"{path}: missing required Phase 6 columns: {', '.join(missing_phase6)}"
+                    f"{path}: missing required canonical score columns: {', '.join(missing_phase6)}"
                 )
         rows = list(reader)
 
+    seen_keys: set[tuple[str, str]] = set()
     for row_number, row in enumerate(rows, start=2):
         _validate_float(context, path, row_number, "score", row.get("score"))
         _validate_int(context, path, row_number, "version", row.get("version"))
@@ -283,13 +350,18 @@ def _validate_scores_csv(context: _ValidationContext, path: Path, *, phase6: boo
             _validate_phase6_score_row(context, path, row_number, row)
         if not row.get("id"):
             context.error(f"{path}: row {row_number}: id is required")
+        else:
+            key = (str(row.get("id")), str(row.get("version") or ""))
+            if key in seen_keys:
+                context.error(f"{path}: row {row_number}: duplicate id/version pair: {key}")
+            seen_keys.add(key)
         if row.get("target_text") is None:
             context.error(f"{path}: row {row_number}: target_text is required")
     context.metadata["scores_rows"] = len(rows)
 
     sidecar = path.with_suffix(".schema.json")
     if sidecar.is_file():
-        _validate_score_sidecar(context, sidecar, phase6=phase6)
+        _validate_score_sidecar(context, sidecar, score_path=path, phase6=phase6)
     else:
         message = f"{sidecar}: score schema metadata sidecar is missing"
         if phase6:
@@ -334,7 +406,13 @@ def _validate_phase6_score_row(
             _validate_json_field(context, path, row_number, json_field, row.get(json_field))
 
 
-def _validate_score_sidecar(context: _ValidationContext, sidecar: Path, *, phase6: bool) -> None:
+def _validate_score_sidecar(
+    context: _ValidationContext,
+    sidecar: Path,
+    *,
+    score_path: Path,
+    phase6: bool,
+) -> None:
     context.checked(sidecar)
     try:
         metadata = json.loads(sidecar.read_text(encoding="utf-8"))
@@ -354,12 +432,16 @@ def _validate_score_sidecar(context: _ValidationContext, sidecar: Path, *, phase
     missing_sidecar = sorted(PHASE6_REQUIRED_SIDECAR_FIELDS - metadata.keys())
     if missing_sidecar:
         context.error(
-            f"{sidecar}: missing required Phase 6 sidecar fields: {', '.join(missing_sidecar)}"
+            f"{sidecar}: missing required canonical sidecar fields: {', '.join(missing_sidecar)}"
         )
     if metadata.get("schema_version") != "reward-score-metadata/v1":
         context.error(f"{sidecar}: schema_version must be reward-score-metadata/v1")
     file_schema = metadata.get("score_file_schema_version")
-    if file_schema not in {PHASE6_SCORE_FILE_SCHEMA_VERSION, PHASE6_SCORE_JSONL_SCHEMA_VERSION}:
+    if file_schema not in {
+        PHASE6_SCORE_FILE_SCHEMA_VERSION,
+        PHASE6_SCORE_JSONL_SCHEMA_VERSION,
+        HELDOUT_SCORE_AGGREGATE_SCHEMA_VERSION,
+    }:
         context.error(f"{sidecar}: score_file_schema_version is invalid")
     else:
         context.metadata["score_file_schema_version"] = file_schema
@@ -367,17 +449,65 @@ def _validate_score_sidecar(context: _ValidationContext, sidecar: Path, *, phase
     if not isinstance(formula, dict):
         context.error(f"{sidecar}: formula must be an object")
     else:
-        for key in ("name", "weights", "thresholds", "scorer_versions"):
+        for key in (
+            "name",
+            "weights",
+            "thresholds",
+            "scorer_versions",
+            "aggregation",
+            "require_all",
+        ):
             if key not in formula:
                 context.error(f"{sidecar}: formula missing required field {key!r}")
-    if not isinstance(metadata.get("source_manifest_paths"), list):
-        context.error(f"{sidecar}: source_manifest_paths must be a list")
+    source_manifest_paths = metadata.get("source_manifest_paths")
+    source_manifest_sha256 = metadata.get("source_manifest_sha256")
+    if not isinstance(source_manifest_paths, list) or not source_manifest_paths:
+        context.error(f"{sidecar}: source_manifest_paths must be a non-empty list")
+    elif not isinstance(source_manifest_sha256, dict):
+        context.error(f"{sidecar}: source_manifest_sha256 must be an object")
+    else:
+        from src.runtime.manifests import ManifestError, validate_source_manifest
+
+        for raw_manifest_path in source_manifest_paths:
+            manifest_path = Path(str(raw_manifest_path))
+            if not manifest_path.is_file():
+                context.error(f"{sidecar}: source manifest does not exist: {manifest_path}")
+                continue
+            try:
+                validate_source_manifest(manifest_path)
+            except ManifestError as exc:
+                context.error(f"{sidecar}: invalid source manifest {manifest_path}: {exc}")
+                continue
+            expected_hash = source_manifest_sha256.get(str(raw_manifest_path))
+            if expected_hash != _sha256_file(manifest_path):
+                context.error(f"{sidecar}: source manifest hash mismatch: {manifest_path}")
+    if metadata.get("primary_score") not in {"vlm", "ocr", "product"}:
+        context.error(f"{sidecar}: primary_score must be vlm, ocr, or product")
+    execution = metadata.get("execution")
+    if not isinstance(execution, dict):
+        context.error(f"{sidecar}: execution must be an object")
+    else:
+        if execution.get("status") != "complete":
+            context.error(f"{sidecar}: execution.status must be complete")
+        expected_rows = execution.get("scored_row_count", execution.get("row_count"))
+        if expected_rows != context.metadata.get("scores_rows"):
+            context.error(f"{sidecar}: execution row count does not match score file")
+        if execution.get("scores_sha256") != _sha256_file(score_path):
+            context.error(f"{sidecar}: execution scores_sha256 does not match score file")
     required_fields = set(metadata.get("required_phase6_fields") or [])
     if required_fields and not PHASE6_REQUIRED_SCORE_FIELDS <= required_fields:
         missing = sorted(PHASE6_REQUIRED_SCORE_FIELDS - required_fields)
         context.error(
             f"{sidecar}: required_phase6_fields missing canonical fields: {', '.join(missing)}"
         )
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _validate_json_field(
@@ -402,6 +532,7 @@ def _validate_phase6_scores_jsonl(context: _ValidationContext, path: Path) -> No
         context.error(f"{path}: scores JSONL file is missing")
         return
     record_count = 0
+    seen_keys: set[tuple[str, int]] = set()
     with path.open("r", encoding="utf-8") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.strip()
@@ -419,15 +550,100 @@ def _validate_phase6_scores_jsonl(context: _ValidationContext, path: Path) -> No
             missing = sorted(PHASE6_REQUIRED_SCORE_FIELDS - payload.keys())
             if missing:
                 context.error(
-                    f"{path}: line {line_number}: missing required Phase 6 fields: "
+                    f"{path}: line {line_number}: missing required canonical score fields: "
                     f"{', '.join(missing)}"
                 )
+                continue
+            _validate_phase6_json_record(
+                context,
+                path,
+                line_number,
+                payload,
+                seen_keys=seen_keys,
+            )
     context.metadata["scores_rows"] = record_count
     sidecar = path.with_suffix(".schema.json")
     if sidecar.is_file():
-        _validate_score_sidecar(context, sidecar, phase6=True)
+        _validate_score_sidecar(context, sidecar, score_path=path, phase6=True)
     else:
         context.error(f"{sidecar}: score schema metadata sidecar is missing")
+
+
+def _validate_phase6_json_record(
+    context: _ValidationContext,
+    path: Path,
+    line_number: int,
+    payload: Mapping[str, Any],
+    *,
+    seen_keys: set[tuple[str, int]],
+) -> None:
+    sample_id = payload.get("sample_id")
+    version = payload.get("version")
+    if not isinstance(sample_id, str) or not sample_id:
+        context.error(f"{path}: line {line_number}: sample_id must be a non-empty string")
+    if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+        context.error(f"{path}: line {line_number}: version must be a non-negative integer")
+    if (
+        isinstance(sample_id, str)
+        and sample_id
+        and isinstance(version, int)
+        and not isinstance(version, bool)
+    ):
+        key = (sample_id, version)
+        if key in seen_keys:
+            context.error(f"{path}: line {line_number}: duplicate sample_id/version pair: {key}")
+        seen_keys.add(key)
+
+    if not isinstance(payload.get("target_text"), str) or not payload.get("target_text"):
+        context.error(f"{path}: line {line_number}: target_text must be a non-empty string")
+    for field_name in ("score", "product_score"):
+        _validate_finite_json_number(
+            context, path, line_number, field_name, payload.get(field_name)
+        )
+    for field_name in ("score_vlm", "score_ocr", "cer", "entropy", "char_accuracy"):
+        value = payload.get(field_name)
+        if value not in (None, ""):
+            _validate_finite_json_number(context, path, line_number, field_name, value)
+    for field_name in ("char_matches", "char_total"):
+        value = payload.get(field_name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            context.error(
+                f"{path}: line {line_number}: {field_name} must be a non-negative integer"
+            )
+    if payload.get("detection_status") not in {
+        "detected_exact",
+        "detected_mismatch",
+        "not_detected",
+    }:
+        context.error(f"{path}: line {line_number}: detection_status is invalid")
+    for field_name in ("exact_text_match", "formula_complete"):
+        if not isinstance(payload.get(field_name), bool):
+            context.error(f"{path}: line {line_number}: {field_name} must be boolean")
+    missing_components = payload.get("missing_components")
+    if not isinstance(missing_components, list) or not all(
+        isinstance(item, str) for item in missing_components
+    ):
+        context.error(f"{path}: line {line_number}: missing_components must be a list of strings")
+    if not isinstance(payload.get("manifest_path"), str) or not payload.get("manifest_path"):
+        context.error(f"{path}: line {line_number}: manifest_path must be a non-empty string")
+    for field_name in ("text_metrics", "scorer_metadata", "thresholds"):
+        if not isinstance(payload.get(field_name), dict):
+            context.error(f"{path}: line {line_number}: {field_name} must be a JSON object")
+
+
+def _validate_finite_json_number(
+    context: _ValidationContext,
+    path: Path,
+    line_number: int,
+    field_name: str,
+    value: Any,
+) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(float(value))
+    ):
+        context.error(f"{path}: line {line_number}: {field_name} must be a finite number")
 
 
 def _validate_generated_layout(context: _ValidationContext, paths: Mapping[str, Path]) -> None:
@@ -491,6 +707,8 @@ def _validate_masked_sft_layout(context: _ValidationContext, paths: Mapping[str,
 
     if shapes_csv is not None:
         _validate_shapes_csv(context, shapes_csv, required=False)
+    if "resume_lora" in paths:
+        _validate_checkpoint_input(context, paths["resume_lora"], "resume_lora_path")
     context.metadata["masked_sft_samples"] = sorted(sample_ids & embed_ids)
 
 
@@ -505,8 +723,29 @@ def _validate_training_inputs(context: _ValidationContext, paths: Mapping[str, P
             _validate_scores_csv(context, path)
         else:
             _validate_directory(context, path, key)
-    if context.stage == "dpo" and "preference_pairs" in paths:
-        _validate_optional_index_file(context, paths, "preference_pairs", required=False)
+    if "selected_samples" in paths:
+        _validate_phase3_jsonl(context, paths, "selected_samples", required=True)
+    if "preference_pairs" in paths:
+        _validate_phase3_jsonl(context, paths, "preference_pairs", required=True)
+    if "resume_lora" in paths:
+        _validate_checkpoint_input(context, paths["resume_lora"], "resume_lora_path")
+    if "sft_lora" in paths:
+        _validate_checkpoint_input(context, paths["sft_lora"], "sft_lora_path")
+
+
+def _validate_checkpoint_input(context: _ValidationContext, path: Path, key: str) -> None:
+    context.checked(path)
+    weight_suffixes = {".bin", ".pt", ".safetensors"}
+    if path.is_file():
+        if path.suffix not in weight_suffixes:
+            context.error(f"{key}: checkpoint file has unsupported suffix: {path}")
+        return
+    if not path.is_dir():
+        context.error(f"{key}: checkpoint path does not exist: {path}")
+        return
+    weights = [candidate for candidate in path.rglob("*") if candidate.suffix in weight_suffixes]
+    if not weights:
+        context.error(f"{key}: checkpoint directory contains no weight files: {path}")
 
 
 def _validate_synthetic_outputs(context: _ValidationContext, paths: Mapping[str, Path]) -> None:
@@ -787,7 +1026,7 @@ def _validate_torch_dict(
 ) -> None:
     context.checked(path)
     try:
-        payload = torch.load(path, map_location="cpu", weights_only=True)
+        payload = _load_trusted_tensor(path)
     except Exception as exc:  # noqa: BLE001 - report validation context instead of leaking tracebacks.
         context.error(f"{path}: could not load trusted local tensor artifact: {exc}")
         return
@@ -797,6 +1036,12 @@ def _validate_torch_dict(
     for key in required_keys:
         if key not in payload:
             context.error(f"{path}: missing required key {key!r}")
+
+
+def _load_trusted_tensor(path: Path) -> Any:
+    import torch
+
+    return torch.load(path, map_location="cpu", weights_only=True)
 
 
 def _parse_version(path: Path) -> int | None:
@@ -813,9 +1058,12 @@ def _validate_float(
     context: _ValidationContext, path: Path, row_number: int, field_name: str, value: str | None
 ) -> None:
     try:
-        float(value or "")
-    except ValueError:
+        number = float(value or "")
+    except (TypeError, ValueError):
         context.error(f"{path}: row {row_number}: {field_name} must be numeric")
+        return
+    if not math.isfinite(number):
+        context.error(f"{path}: row {row_number}: {field_name} must be finite")
 
 
 def _validate_int(
@@ -823,5 +1071,5 @@ def _validate_int(
 ) -> None:
     try:
         int(value or "")
-    except ValueError:
+    except (TypeError, ValueError):
         context.error(f"{path}: row {row_number}: {field_name} must be an integer")

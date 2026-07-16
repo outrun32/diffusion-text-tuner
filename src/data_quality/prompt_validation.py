@@ -7,7 +7,9 @@ OCR, CUDA, or diffusion libraries.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import re
 import string
 from collections import Counter, defaultdict
@@ -21,6 +23,7 @@ from src.prompt_pipeline.config import RARE_CHARS
 PROMPT_QUALITY_SCHEMA_VERSION = "prompt-quality/v1"
 DEFAULT_REQUIRED_FIELDS = ("id", "prompt", "target_text", "content_type", "style", "lang")
 DEFAULT_ALLOWED_SCRIPTS = frozenset({"cyrillic", "latin", "digits", "punctuation"})
+EXTRA_ALLOWED_SYMBOLS = "—–−«»…№₽"
 MAX_DUPLICATE_EXAMPLES = 5
 INSTRUCTION_MARKERS = (
     "ответь",
@@ -140,6 +143,7 @@ class _PromptValidationContext:
     target_text_counts: Counter[str] = field(default_factory=Counter)
     content_types: Counter[str] = field(default_factory=Counter)
     style_values: dict[str, Counter[str]] = field(default_factory=lambda: defaultdict(Counter))
+    style_signatures: Counter[str] = field(default_factory=Counter)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -157,6 +161,11 @@ class _PromptValidationContext:
         metadata = {
             "thresholds": dict(self.thresholds),
             "required_fields": list(_required_fields(self.thresholds)),
+            "source": _source_metadata(self.path),
+            "distribution_entropy": {
+                "content_type": round(_shannon_entropy(self.content_types), 6),
+                "style_signature": round(_shannon_entropy(self.style_signatures), 6),
+            },
         }
         return PromptQualityReport(
             dataset_path=str(self.path),
@@ -194,6 +203,21 @@ def _validate_record(
                 f"{context.path}: line {line_number}: missing required field: {field_name}"
             )
         return
+
+    if context.thresholds.get("require_stage_provenance"):
+        missing_provenance = [
+            field_name
+            for field_name in ("prompt_mode", "curriculum_stage", "curriculum_family")
+            if not isinstance(payload.get(field_name), str) or not payload[field_name].strip()
+        ]
+        if missing_provenance:
+            context.missing_required_records += 1
+            for field_name in missing_provenance:
+                context.errors.append(
+                    f"{context.path}: line {line_number}: missing required provenance field: "
+                    f"{field_name}"
+                )
+            return
 
     target_text = payload.get("target_text")
     if not isinstance(target_text, str):
@@ -238,7 +262,7 @@ def _collect_scripts(context: _PromptValidationContext, target_text: str, line_n
         scripts.add("latin")
     if DIGIT_RE.search(target_text):
         scripts.add("digits")
-    if any(ch in string.punctuation or ch in "—–«»…№" for ch in target_text):
+    if any(ch in string.punctuation or ch in EXTRA_ALLOWED_SYMBOLS for ch in target_text):
         scripts.add("punctuation")
     for script in sorted(scripts):
         context.script_coverage[script] += 1
@@ -249,7 +273,7 @@ def _collect_scripts(context: _PromptValidationContext, target_text: str, line_n
     for ch in target_text:
         if ch.isspace() or CYRILLIC_RE.match(ch) or LATIN_RE.match(ch) or ch.isdigit():
             continue
-        if ch in string.punctuation or ch in "—–«»…№":
+        if ch in string.punctuation or ch in EXTRA_ALLOWED_SYMBOLS:
             continue
         context.errors.append(
             f"{context.path}: line {line_number}: illegal character in target_text"
@@ -273,10 +297,12 @@ def _collect_content_type(context: _PromptValidationContext, payload: Mapping[st
 def _collect_style(context: _PromptValidationContext, payload: Mapping[str, Any]) -> None:
     style = payload.get("style")
     if isinstance(style, Mapping):
+        context.style_signatures[json.dumps(style, ensure_ascii=False, sort_keys=True)] += 1
         for key, value in style.items():
             if isinstance(value, str) and value:
                 context.style_values[str(key)][value] += 1
     elif isinstance(style, str) and style:
+        context.style_signatures[style] += 1
         context.style_values["style"][style] += 1
 
 
@@ -343,6 +369,18 @@ def _finalize_rare_character_metrics(context: _PromptValidationContext) -> None:
 
 
 def _apply_distribution_thresholds(context: _PromptValidationContext) -> None:
+    _apply_entropy_threshold(
+        context,
+        label="content_type",
+        counts=context.content_types,
+        minimum=context.thresholds.get("min_content_type_entropy"),
+    )
+    _apply_entropy_threshold(
+        context,
+        label="style_signature",
+        counts=context.style_signatures,
+        minimum=context.thresholds.get("min_style_entropy"),
+    )
     _apply_expected_distribution(
         context,
         label="content_type",
@@ -358,6 +396,27 @@ def _apply_distribution_thresholds(context: _PromptValidationContext) -> None:
                 counts=context.style_values.get(str(style_key), Counter()),
                 expected=expected,
             )
+
+
+def _apply_entropy_threshold(
+    context: _PromptValidationContext,
+    *,
+    label: str,
+    counts: Counter[str],
+    minimum: Any,
+) -> None:
+    if not isinstance(minimum, int | float):
+        return
+    entropy = _shannon_entropy(counts)
+    if entropy < float(minimum):
+        context.warnings.append(f"{label}_entropy {entropy:.3f} below minimum {float(minimum):.3f}")
+
+
+def _shannon_entropy(counts: Counter[str]) -> float:
+    total = sum(counts.values())
+    if total <= 0:
+        return 0.0
+    return -sum((count / total) * math.log(count / total) for count in counts.values() if count > 0)
 
 
 def _apply_expected_distribution(
@@ -422,3 +481,13 @@ def _length_bucket(length: int) -> str:
 
 def _normalize_text(text: str) -> str:
     return WHITESPACE_RE.sub(" ", text.strip())
+
+
+def _source_metadata(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"sha256": None, "size_bytes": None}
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {"sha256": digest.hexdigest(), "size_bytes": path.stat().st_size}

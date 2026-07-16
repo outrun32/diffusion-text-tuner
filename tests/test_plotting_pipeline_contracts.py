@@ -59,7 +59,6 @@ def test_smooth_returns_moving_average_without_matplotlib() -> None:
     assert "matplotlib" not in sys.modules
 
 
-
 def test_summarize_metrics_returns_reward_and_grad_norm_stats() -> None:
     from src.plotting.training_metrics import TrainingMetrics, summarize_metrics
 

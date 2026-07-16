@@ -1,0 +1,12 @@
+{
+  "output_path": "data/prompts_simple.jsonl",
+  "output_sha256": "13f88a37e53b2592eae34456317b64f7b7269ef0d77f02622ad350febbbe5511",
+  "repository": "Outrun32/cyrillic-prompts-15k",
+  "requested_revision": "ecd8b2da9820b35afc65e2d56eaf37a662c37976",
+  "resolved_revision": "ecd8b2da9820b35afc65e2d56eaf37a662c37976",
+  "row_count": 15000,
+  "schema_version": "prompt-dataset-download/v1",
+  "source_file": "data/train-00000-of-00001.parquet",
+  "source_sha256": "a0a579e00520e13d83e1bcfca32529f77b8b33c865f8441ba569c800b49615b9",
+  "split": "train"
+}

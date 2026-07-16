@@ -18,19 +18,22 @@ from pathlib import Path
 import torch
 from accelerate import Accelerator
 from accelerate.utils import set_seed
-from peft import load_peft_weights, set_peft_model_state_dict
+from peft import LoraConfig as PeftLoraConfig
+from peft import get_peft_model, load_peft_weights, set_peft_model_state_dict
 from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from src.runtime import config_io
+
+from .checkpointing import checkpoint_dir, should_save_checkpoint
 from .config import MaskedSFTConfig, MultiRankLoraConfig
 from .dataset import MaskedSFTDataset, ResolutionBucketSampler, masked_sft_collate_fn
-from .flux2_utils import pack_latents, prepare_latent_ids, prepare_text_ids
+from .flux2_utils import decode_latents, pack_latents, prepare_latent_ids, prepare_text_ids
 from .losses import masked_flow_matching_loss
-from .sft_trainer import compute_sigma, decode_latents
 from .refl_trainer import FlowMatchScheduler
-from peft import LoraConfig as PeftLoraConfig, get_peft_model
-from src.runtime import config_io
+from .sampling import should_sample_step
+from .schedulers import compute_sigma
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,11 @@ logger = logging.getLogger(__name__)
 
 
 def load_transformer_multi_rank(
-    model_id: str, lora_cfg: MultiRankLoraConfig, device, dtype,
+    model_id: str,
+    model_revision: str | None,
+    lora_cfg: MultiRankLoraConfig,
+    device,
+    dtype,
 ):
     """Load FLUX transformer with three LoRA groups (attn / ffn / joint-attn).
 
@@ -48,7 +55,11 @@ def load_transformer_multi_rank(
     from diffusers import Flux2KleinPipeline
 
     logger.info("Loading pipeline: %s", model_id)
-    pipe = Flux2KleinPipeline.from_pretrained(model_id, torch_dtype=dtype)
+    pipe = Flux2KleinPipeline.from_pretrained(
+        model_id,
+        revision=model_revision,
+        torch_dtype=dtype,
+    )
 
     transformer = pipe.transformer
     vae = pipe.vae.to(device, dtype=dtype)
@@ -60,7 +71,9 @@ def load_transformer_multi_rank(
     # PEFT's `rank_pattern` / `alpha_pattern` (regex matched against full module
     # paths). Rank 0 disables a group. We validate suffix matches before PEFT so
     # a typo cannot silently turn an ablation into a different experiment.
-    module_names = [name for name, module in transformer.named_modules() if hasattr(module, "weight")]
+    module_names = [
+        name for name, module in transformer.named_modules() if hasattr(module, "weight")
+    ]
 
     def _matched(suffixes: list[str]) -> list[str]:
         return [name for name in module_names if any(name.endswith(s) for s in suffixes)]
@@ -68,7 +81,12 @@ def load_transformer_multi_rank(
     groups = [
         ("attn", lora_cfg.attn_r, lora_cfg.attn_alpha, list(lora_cfg.attn_modules)),
         ("ffn", lora_cfg.ffn_r, lora_cfg.ffn_alpha, list(lora_cfg.ffn_modules)),
-        ("joint", lora_cfg.joint_attn_r, lora_cfg.joint_attn_alpha, list(lora_cfg.joint_attn_modules)),
+        (
+            "joint",
+            lora_cfg.joint_attn_r,
+            lora_cfg.joint_attn_alpha,
+            list(lora_cfg.joint_attn_modules),
+        ),
     ]
     active_groups = []
     for group_name, rank, alpha, suffixes in groups:
@@ -78,7 +96,9 @@ def load_transformer_multi_rank(
         matches = _matched(suffixes)
         if not matches:
             raise ValueError(f"LoRA group {group_name} matched no modules: {suffixes}")
-        logger.info("LoRA group %s: r=%d alpha=%d modules=%d", group_name, rank, alpha, len(matches))
+        logger.info(
+            "LoRA group %s: r=%d alpha=%d modules=%d", group_name, rank, alpha, len(matches)
+        )
         active_groups.append((group_name, rank, alpha, suffixes))
     if not active_groups:
         raise ValueError("at least one LoRA group must have rank > 0")
@@ -120,8 +140,12 @@ def load_transformer_multi_rank(
     total = sum(p.numel() for p in transformer.parameters())
     logger.info(
         "LoRA: attn r=%d, ffn r=%d, joint r=%d → %d trainable / %d total (%.3f%%)",
-        lora_cfg.attn_r, lora_cfg.ffn_r, lora_cfg.joint_attn_r,
-        trainable, total, 100 * trainable / total,
+        lora_cfg.attn_r,
+        lora_cfg.ffn_r,
+        lora_cfg.joint_attn_r,
+        trainable,
+        total,
+        100 * trainable / total,
     )
 
     del pipe.text_encoder, pipe.tokenizer
@@ -133,8 +157,9 @@ def load_transformer_multi_rank(
 
 
 def make_lr_scheduler(cfg: MaskedSFTConfig, optimizer):
-    from torch.optim.lr_scheduler import LambdaLR
     import math
+
+    from torch.optim.lr_scheduler import LambdaLR
 
     base_lr = cfg.lr
     min_ratio = cfg.lr_min / base_lr if base_lr > 0 else 0.0
@@ -142,11 +167,13 @@ def make_lr_scheduler(cfg: MaskedSFTConfig, optimizer):
     warmup = max(0, cfg.warmup_steps)
 
     if cfg.lr_schedule == "constant":
+
         def lr_lambda(step: int) -> float:
             if step < warmup:
                 return float(step) / max(1, warmup)
             return 1.0
     elif cfg.lr_schedule == "cosine":
+
         def lr_lambda(step: int) -> float:
             if step < warmup:
                 return float(step) / max(1, warmup)
@@ -187,7 +214,9 @@ def _load_eval_suite(cfg: MaskedSFTConfig, device, dtype):
         return []
 
     # Encode prompts via Qwen3 once at startup.
-    import tempfile, shutil
+    import shutil
+    import tempfile
+
     tmp = tempfile.mkdtemp()
     try:
         prompts_file = os.path.join(tmp, "prompts.jsonl")
@@ -196,10 +225,12 @@ def _load_eval_suite(cfg: MaskedSFTConfig, device, dtype):
                 f.write(json.dumps({"prompt": it["prompt"]}, ensure_ascii=False) + "\n")
         embeds_dir = os.path.join(tmp, "embeds")
         from .flux2_utils import precompute_text_embeddings
+
         precompute_text_embeddings(
             prompts_path=prompts_file,
             output_dir=embeds_dir,
             model_id=cfg.model_id,
+            model_revision=cfg.model_revision,
             device=str(device),
         )
 
@@ -207,7 +238,8 @@ def _load_eval_suite(cfg: MaskedSFTConfig, device, dtype):
         for i, it in enumerate(items):
             embed = torch.load(
                 os.path.join(embeds_dir, f"{i:06d}.pt"),
-                map_location=device, weights_only=True,
+                map_location=device,
+                weights_only=True,
             )
             prompt_embeds = embed["prompt_embeds"].unsqueeze(0).to(dtype)  # (1,L,D)
             text_ids = prepare_text_ids(prompt_embeds).to(device)
@@ -216,18 +248,23 @@ def _load_eval_suite(cfg: MaskedSFTConfig, device, dtype):
             w = h
             gen = torch.Generator(device).manual_seed(int(it.get("seed", 1234 + i)))
             fixed_noise = torch.randn(
-                (1, 128, h, w), device=device, dtype=dtype, generator=gen,
+                (1, 128, h, w),
+                device=device,
+                dtype=dtype,
+                generator=gen,
             )
             latent_ids = prepare_latent_ids(fixed_noise).to(device)
-            out.append({
-                "name": it.get("name", f"item_{i:02d}"),
-                "resolution": res,
-                "prompt": it["prompt"],
-                "prompt_embeds": prompt_embeds,
-                "text_ids": text_ids,
-                "fixed_noise": pack_latents(fixed_noise),
-                "latent_ids": latent_ids,
-            })
+            out.append(
+                {
+                    "name": it.get("name", f"item_{i:02d}"),
+                    "resolution": res,
+                    "prompt": it["prompt"],
+                    "prompt_embeds": prompt_embeds,
+                    "text_ids": text_ids,
+                    "fixed_noise": pack_latents(fixed_noise),
+                    "latent_ids": latent_ids,
+                }
+            )
     finally:
         shutil.rmtree(tmp)
 
@@ -259,9 +296,7 @@ def _generate_for_item(transformer, vae, item, cfg: MaskedSFTConfig, device, dty
 
     latents = latents.to(vae.dtype)
     images = decode_latents(latents, item["latent_ids"], vae)
-    pil = Image.fromarray(
-        (images[0].cpu().clamp(0, 1) * 255).byte().permute(1, 2, 0).numpy()
-    )
+    pil = Image.fromarray((images[0].cpu().clamp(0, 1) * 255).byte().permute(1, 2, 0).numpy())
     transformer.train()
     return pil
 
@@ -271,7 +306,11 @@ def _generate_for_item(transformer, vae, item, cfg: MaskedSFTConfig, device, dty
 
 @torch.no_grad()
 def _run_validation(
-    transformer, val_loader, cfg: MaskedSFTConfig, device, dtype,
+    transformer,
+    val_loader,
+    cfg: MaskedSFTConfig,
+    device,
+    dtype,
 ):
     """Compute mean masked/global loss across val batches at fixed t-anchors."""
     transformer.eval()
@@ -311,7 +350,10 @@ def _run_validation(
             )[0]
             noise_pred = noise_pred[:, : x0_packed.shape[1]]
             loss, parts = masked_flow_matching_loss(
-                noise_pred, velocity_target, mask_seq, lam=cfg.masked_lambda,
+                noise_pred,
+                velocity_target,
+                mask_seq,
+                lam=cfg.masked_lambda,
             )
             sums["loss"] += loss.item()
             sums["masked"] += parts["masked"].item()
@@ -326,6 +368,12 @@ def _run_validation(
 
 
 def train(cfg: MaskedSFTConfig):
+    from src.runtime.capabilities import check_stage_support
+
+    support = check_stage_support("masked-sft", mixed_precision=cfg.mixed_precision)
+    if not support.ok:
+        raise RuntimeError("; ".join(support.errors))
+
     accelerator = Accelerator(
         mixed_precision=cfg.mixed_precision,
         gradient_accumulation_steps=cfg.gradient_accumulation_steps,
@@ -342,7 +390,13 @@ def train(cfg: MaskedSFTConfig):
     device = accelerator.device
 
     # ── Load model ──
-    transformer, vae = load_transformer_multi_rank(cfg.model_id, cfg.lora, device, dtype)
+    transformer, vae = load_transformer_multi_rank(
+        cfg.model_id,
+        cfg.model_revision,
+        cfg.lora,
+        device,
+        dtype,
+    )
     if cfg.resume_lora_path:
         logger.info("Loading LoRA weights from checkpoint: %s", cfg.resume_lora_path)
         peft_state = load_peft_weights(cfg.resume_lora_path, device="cpu")
@@ -497,8 +551,8 @@ def train(cfg: MaskedSFTConfig):
                 # Position IDs + packing.
                 latent_ids = prepare_latent_ids(x0).to(device)
                 text_ids = prepare_text_ids(prompt_embeds).to(device)
-                x0_packed = pack_latents(x0)                       # (B, S, C)
-                mask_seq = mask_lat.reshape(B, H * W)              # (B, S)
+                x0_packed = pack_latents(x0)  # (B, S, C)
+                mask_seq = mask_lat.reshape(B, H * W)  # (B, S)
 
                 # Sample timesteps and noisy latents.
                 t = torch.randint(0, cfg.num_train_timesteps, (B,), device=device)
@@ -522,7 +576,10 @@ def train(cfg: MaskedSFTConfig):
 
                 # Region-weighted flow-matching loss.
                 loss, loss_parts = masked_flow_matching_loss(
-                    noise_pred, velocity_target, mask_seq, lam=cfg.masked_lambda,
+                    noise_pred,
+                    velocity_target,
+                    mask_seq,
+                    lam=cfg.masked_lambda,
                 )
 
                 accelerator.backward(loss)
@@ -555,30 +612,36 @@ def train(cfg: MaskedSFTConfig):
                     with open(csv_path, "a", newline="") as f:
                         csv.DictWriter(f, csv_fields).writerow(row)
 
-                    accelerator.log({
-                        "loss": loss.item(),
-                        "loss_masked": loss_parts["masked"].item(),
-                        "loss_global": loss_parts["global"].item(),
-                        "grad_norm": grad_norm,
-                        "lr": lr_scheduler.get_last_lr()[0],
-                    }, step=global_step)
+                    accelerator.log(
+                        {
+                            "loss": loss.item(),
+                            "loss_masked": loss_parts["masked"].item(),
+                            "loss_global": loss_parts["global"].item(),
+                            "grad_norm": grad_norm,
+                            "lr": lr_scheduler.get_last_lr()[0],
+                        },
+                        step=global_step,
+                    )
 
                     logger.info(
                         "step %d | loss %.4f (masked %.4f, global %.4f) | grad_norm %.3f | lr %.2e",
-                        global_step, loss.item(),
-                        loss_parts["masked"].item(), loss_parts["global"].item(),
-                        grad_norm, lr_scheduler.get_last_lr()[0],
+                        global_step,
+                        loss.item(),
+                        loss_parts["masked"].item(),
+                        loss_parts["global"].item(),
+                        grad_norm,
+                        lr_scheduler.get_last_lr()[0],
                     )
 
-                if global_step % cfg.save_interval == 0:
-                    ckpt_dir = os.path.join(cfg.output_dir, "checkpoints", f"step_{global_step:06d}")
+                if should_save_checkpoint(global_step, cfg.save_interval):
+                    ckpt_dir = checkpoint_dir(cfg.output_dir, global_step)
                     accelerator.wait_for_everyone()
                     if accelerator.is_main_process:
                         unwrapped = accelerator.unwrap_model(transformer)
                         unwrapped.save_pretrained(ckpt_dir)
                         logger.info("Saved checkpoint: %s", ckpt_dir)
 
-                if cfg.validation_interval > 0 and global_step % cfg.validation_interval == 0:
+                if should_sample_step(global_step, cfg.validation_interval):
                     # ── Validation loss across fixed t-anchors ──
                     if val_loader is not None:
                         unwrapped = accelerator.unwrap_model(transformer)
@@ -593,20 +656,24 @@ def train(cfg: MaskedSFTConfig):
                                 )
                                 if new_file:
                                     w.writeheader()
-                                w.writerow({
-                                    "step": global_step,
-                                    "val_loss": f"{val_metrics['loss']:.6f}",
-                                    "val_loss_masked": f"{val_metrics['masked']:.6f}",
-                                    "val_loss_global": f"{val_metrics['global']:.6f}",
-                                })
+                                w.writerow(
+                                    {
+                                        "step": global_step,
+                                        "val_loss": f"{val_metrics['loss']:.6f}",
+                                        "val_loss_masked": f"{val_metrics['masked']:.6f}",
+                                        "val_loss_global": f"{val_metrics['global']:.6f}",
+                                    }
+                                )
                             accelerator.log(
                                 {f"val/{k}": v for k, v in val_metrics.items()},
                                 step=global_step,
                             )
                             logger.info(
                                 "step %d | val loss %.4f (masked %.4f, global %.4f)",
-                                global_step, val_metrics["loss"],
-                                val_metrics["masked"], val_metrics["global"],
+                                global_step,
+                                val_metrics["loss"],
+                                val_metrics["masked"],
+                                val_metrics["global"],
                             )
 
                     # ── Eval suite samples (rotate through items) ──

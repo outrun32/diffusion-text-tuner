@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -12,6 +11,7 @@ def _read_repo_file(path: str) -> str:
 
 def test_structure_guide_names_required_repository_homes_and_boundaries() -> None:
     guide = _read_repo_file("docs/structure_and_extension.md")
+    normalized_guide = " ".join(guide.split())
 
     required_strings = [
         "# Structure and Extension Guide",
@@ -20,18 +20,19 @@ def test_structure_guide_names_required_repository_homes_and_boundaries() -> Non
         "Thin CLI wrappers: `scripts/`",
         "Cluster launchers: `scripts/cluster/`",
         "Synthesis helpers: `scripts/synth/`",
-        "Thesis plotting helpers: `scripts/thesis_plots/`",
+        "Thesis plotting helpers: `scripts.plot_metrics` and `scripts.build_thesis_outputs`",
         "Configuration contracts: `configs/`",
         "Experiment config variants: `configs/experiments/`",
         "CPU-safe tests: `tests/`",
         "Historical experiments: `experiments/`",
         "Generated runtime outputs: ignored `outputs/`, `runs/`, and generated `data/` subtrees",
         "Thesis evidence artifacts: recorded manifests, reports, plots, contact sheets, and bundles",
-        "generated images, tensors, checkpoints, logs, reports, contact sheets, thesis bundles, and private run outputs remain runtime artifacts",
+        "generated images, tensors, checkpoints, logs, reports, contact sheets",
+        "thesis bundles, and private run outputs remain runtime artifacts",
         "Do not commit generated runtime outputs unless they are intentionally tiny reviewed fixtures or documentation assets.",
     ]
 
-    missing = [value for value in required_strings if value not in guide]
+    missing = [value for value in required_strings if value not in normalized_guide]
     assert missing == []
 
 
@@ -82,7 +83,7 @@ def test_readme_links_phase7_structure_extension_guide() -> None:
 
     required_strings = [
         "docs/structure_and_extension.md",
-        "Phase 7 structure/extension",
+        "Repository boundaries and extension rules",
         "structure_and_extension.md",
     ]
 

@@ -22,8 +22,8 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,8 @@ from src.evaluation.reward_interface import (
     build_score_metadata,
     compute_product_score,
 )
+from src.runtime.artifacts import PHASE6_REQUIRED_SCORE_FIELDS
+from src.runtime.capabilities import check_stage_support
 from src.training.rewards import (
     EvaluationQwenYesProbReward as QwenYesProbReward,
 )
@@ -87,8 +89,9 @@ def build_canonical_evaluation_record(
     version: int = 0,
     formula: ProductScoreFormula | None = None,
     manifest_path: str = "",
+    primary_score: str = "product",
 ) -> dict[str, Any]:
-    """Convert raw evaluation reward outputs into canonical Phase 6 JSONL fields."""
+    """Convert raw evaluation reward outputs into canonical score JSONL fields."""
 
     active_formula = formula or ProductScoreFormula()
     target_text = str(source_record.get("target_text") or "")
@@ -103,6 +106,16 @@ def build_canonical_evaluation_record(
     }
     product = compute_product_score(evidence, formula=active_formula)
     sample_id = _sample_id_from_record(source_record)
+    primary_values = {
+        "vlm": evidence["score_vlm"],
+        "ocr": evidence["score_ocr"],
+        "product": product.score,
+    }
+    if primary_score not in primary_values:
+        raise ValueError(f"unsupported primary_score: {primary_score}")
+    score = primary_values[primary_score]
+    if score is None:
+        score = 0.0
 
     return {
         **source_record,
@@ -111,7 +124,7 @@ def build_canonical_evaluation_record(
         "sample_id": sample_id,
         "version": version,
         "target_text": target_text,
-        "score": product.score,
+        "score": score,
         "product_score": product.score,
         "score_vlm": evidence["score_vlm"],
         "score_ocr": evidence["score_ocr"],
@@ -130,6 +143,7 @@ def build_canonical_evaluation_record(
         "scorer_metadata": {
             "formula_name": active_formula.name,
             "scorer_versions": dict(active_formula.scorer_versions),
+            "primary_score": primary_score,
         },
         "thresholds": dict(product.threshold_flags),
     }
@@ -141,46 +155,54 @@ def write_evaluation_score_metadata(
     formula: ProductScoreFormula | None = None,
     source_manifest_paths: list[str] | tuple[str, ...] = (),
     generated_at: str | None = None,
+    primary_score: str = "product",
+    expected_source_manifest_sha256: dict[str, str] | None = None,
 ) -> Path:
     """Write canonical JSONL score sidecar metadata."""
 
     path = Path(output_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"score output does not exist: {path}")
+    if not source_manifest_paths:
+        raise ValueError("at least one source manifest is required for evaluation scores")
+    _validate_source_manifests(tuple(source_manifest_paths))
     sidecar = path.with_suffix(".schema.json")
     metadata = build_score_metadata(
         formula=formula,
         source_manifest_paths=source_manifest_paths,
         generated_at=generated_at,
     )
+    source_hashes = _source_manifest_hashes(tuple(source_manifest_paths))
+    if (
+        expected_source_manifest_sha256 is not None
+        and source_hashes != expected_source_manifest_sha256
+    ):
+        raise ValueError("source manifest bytes changed during evaluation")
     metadata.update(
         {
             "score_file_schema_version": PHASE6_JSONL_SCHEMA_VERSION,
-            "required_phase6_fields": [
-                "sample_id",
-                "version",
-                "score",
-                "product_score",
-                "target_text",
-                "score_vlm",
-                "score_ocr",
-                "cer",
-                "entropy",
-                "detection_status",
-                "exact_text_match",
-                "char_accuracy",
-                "missing_components",
-                "formula_complete",
-                "manifest_path",
-            ],
+            "primary_score": primary_score,
+            "source_manifest_sha256": source_hashes,
+            "required_phase6_fields": sorted(PHASE6_REQUIRED_SCORE_FIELDS),
+            "execution": {
+                "status": "complete",
+                "scored_row_count": _count_jsonl(path),
+                "scores_sha256": _sha256(path),
+            },
         }
     )
-    sidecar.write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary_sidecar = sidecar.with_suffix(sidecar.suffix + ".tmp")
+    temporary_sidecar.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    temporary_sidecar.replace(sidecar)
     return sidecar
 
 
 # ── Main ────────────────────────────────────────────────────────────────────
 
 
-def parse_args():
+def parse_args(argv: list[str] | None = None):
     p = argparse.ArgumentParser(description="Evaluate rewards on generated images")
     p.add_argument(
         "--metadata", type=str, required=True, help="Path to metadata.jsonl from generate_baseline"
@@ -205,7 +227,22 @@ def parse_args():
         default="Qwen/Qwen3.5-9B",
         help="HuggingFace VLM model ID for yes-prob reward",
     )
-    p.add_argument("--start-idx", type=int, default=0, help="Resume from this index")
+    p.add_argument(
+        "--vlm-revision",
+        default=None,
+        help="Optional immutable Hugging Face commit hash for the VLM scorer",
+    )
+    p.add_argument(
+        "--start-idx",
+        type=int,
+        default=0,
+        help="Deprecated compatibility option; partial evaluation is rejected.",
+    )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Atomically replace an existing complete score file instead of appending to it.",
+    )
     p.add_argument(
         "--manifest-path",
         type=str,
@@ -218,31 +255,67 @@ def parse_args():
         default=[],
         help="Source manifest path to include in the JSONL schema sidecar",
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+
+    if args.start_idx != 0:
+        raise ValueError(
+            "partial --start-idx evaluation is not supported; rerun the complete input "
+            "with --overwrite"
+        )
 
     # Resolve rewards
     rewards_to_run = set(args.reward)
     if "all" in rewards_to_run:
         rewards_to_run = {"qwen_yes_prob", "paddleocr"}
 
-    # Load metadata
+    # Load and validate the complete input before model loading or output mutation.
     print(f"Loading metadata from {args.metadata} ...")
-    records = []
-    with open(args.metadata, encoding="utf-8") as f:
-        for line in f:
+    metadata_path = Path(args.metadata)
+    records: list[dict[str, Any]] = []
+    with metadata_path.open(encoding="utf-8") as f:
+        for line_number, line in enumerate(f, start=1):
             line = line.strip()
             if line:
-                records.append(json.loads(line))
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"metadata line {line_number} is not valid JSON: {metadata_path}"
+                    ) from exc
+                if not isinstance(record, dict):
+                    raise ValueError(f"metadata line {line_number} must be a JSON object")
+                records.append(record)
+    _validate_evaluation_records(records, metadata_path=metadata_path)
     print(f"  Total records: {len(records)}")
 
     # Output path
-    out_path = args.output
-    if out_path is None:
-        out_path = str(Path(args.metadata).parent / "scores.jsonl")
+    out_path = Path(args.output) if args.output else metadata_path.parent / "scores.jsonl"
+    sidecar_path = out_path.with_suffix(".schema.json")
+    if (out_path.exists() or sidecar_path.exists()) and not args.overwrite:
+        raise FileExistsError(
+            f"evaluation output already exists: {out_path}; pass --overwrite to replace it"
+        )
+
+    source_manifests = _source_manifests_from_args(
+        source_manifest_paths=args.source_manifest,
+        manifest_path=args.manifest_path,
+    )
+    _validate_source_manifests(source_manifests)
+    source_manifest_hashes = _source_manifest_hashes(source_manifests)
+    record_manifest_path = args.manifest_path or source_manifests[0]
+
+    scorer_kind = (
+        "both"
+        if rewards_to_run == {"qwen_yes_prob", "paddleocr"}
+        else ("vlm" if "qwen_yes_prob" in rewards_to_run else "ocr")
+    )
+    support = check_stage_support("score", scorer=scorer_kind, ocr_device="cpu")
+    if not support.ok:
+        raise RuntimeError("; ".join(support.errors))
 
     # Initialize reward models
     scorers = {}
@@ -250,60 +323,150 @@ def main():
         scorers["qwen_yes_prob"] = QwenYesProbReward(
             model_id=args.vlm_model,
             device="cuda",
+            revision=args.vlm_revision,
         )
     if "paddleocr" in rewards_to_run:
         scorers["paddleocr"] = PaddleOCRReward()
 
     scorer_versions = {}
     if "qwen_yes_prob" in rewards_to_run:
-        scorer_versions["vlm"] = args.vlm_model
+        scorer_versions["vlm"] = (
+            f"{args.vlm_model}@{args.vlm_revision}" if args.vlm_revision else args.vlm_model
+        )
     if "paddleocr" in rewards_to_run:
         scorer_versions["ocr"] = "paddleocr-PP-OCRv3-cyrillic"
-    formula = ProductScoreFormula(scorer_versions=scorer_versions)
+    formula = ProductScoreFormula(
+        name="legacy_vlm_char_accuracy_product_v1",
+        weights={"score_vlm": 1.0, "score_ocr": 1.0},
+        scorer_versions=scorer_versions,
+        aggregation="weighted_product",
+        require_all=True,
+    )
+    primary_score = (
+        "product"
+        if rewards_to_run == {"qwen_yes_prob", "paddleocr"}
+        else ("vlm" if "qwen_yes_prob" in rewards_to_run else "ocr")
+    )
 
-    # Score all records
-    out_file = open(out_path, "a", encoding="utf-8")
+    # Score into a temporary file so failed runs never publish partial JSONL.
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_output = out_path.with_suffix(out_path.suffix + ".tmp")
+    temporary_output.unlink(missing_ok=True)
     try:
-        for i, record in enumerate(tqdm(records[args.start_idx :], desc="Scoring", unit="img")):
-            image_path = record["image"]
-            target_text = record.get("target_text", "")
+        with temporary_output.open("x", encoding="utf-8") as out_file:
+            for record in tqdm(records, desc="Scoring", unit="img"):
+                image_path = str(record["image"])
+                target_text = str(record["target_text"])
+                reward_outputs: dict[str, Any] = {}
+                for scorer in scorers.values():
+                    result = scorer.score(image_path, target_text)
+                    if not isinstance(result, dict):
+                        raise TypeError("reward scorer must return a dictionary")
+                    reward_outputs.update(result)
 
-            if not os.path.exists(image_path):
-                print(f"  SKIP: {image_path} not found")
-                continue
-
-            reward_outputs = {}
-            for scorer in scorers.values():
-                result = scorer.score(image_path, target_text)
-                reward_outputs.update(result)
-
-            scored = build_canonical_evaluation_record(
-                source_record=record,
-                reward_outputs=reward_outputs,
-                version=int(record.get("version", 0) or 0),
-                formula=formula,
-                manifest_path=args.manifest_path,
-            )
-
-            out_file.write(json.dumps(scored, ensure_ascii=False) + "\n")
-
-            if (i + 1) % 50 == 0:
-                out_file.flush()
-    finally:
-        out_file.close()
+                scored = build_canonical_evaluation_record(
+                    source_record=record,
+                    reward_outputs=reward_outputs,
+                    version=int(record.get("version", 0) or 0),
+                    formula=formula,
+                    manifest_path=record_manifest_path,
+                    primary_score=primary_score,
+                )
+                out_file.write(json.dumps(scored, ensure_ascii=False) + "\n")
+            out_file.flush()
+        if _count_jsonl(temporary_output) != len(records):
+            raise RuntimeError("evaluation output row count does not match metadata input")
+        _validate_source_manifests(source_manifests)
+        if _source_manifest_hashes(source_manifests) != source_manifest_hashes:
+            raise ValueError("source manifest bytes changed during evaluation")
+        temporary_output.replace(out_path)
+    except BaseException:
+        temporary_output.unlink(missing_ok=True)
+        raise
 
     # Print summary statistics
-    source_manifests = tuple(
-        args.source_manifest or ([args.manifest_path] if args.manifest_path else [])
-    )
     sidecar = write_evaluation_score_metadata(
         out_path,
         formula=formula,
         source_manifest_paths=source_manifests,
+        primary_score=primary_score,
+        expected_source_manifest_sha256=source_manifest_hashes,
     )
     print(f"\nScores saved to: {out_path}")
     print(f"Score schema metadata saved to: {sidecar}")
-    _print_summary(out_path, rewards_to_run)
+    _print_summary(str(out_path), rewards_to_run)
+    return 0
+
+
+def _source_manifests_from_args(
+    *, source_manifest_paths: list[str], manifest_path: str
+) -> tuple[str, ...]:
+    paths = [*source_manifest_paths]
+    if manifest_path:
+        paths.append(manifest_path)
+    unique_paths = tuple(dict.fromkeys(paths))
+    if not unique_paths:
+        raise ValueError("evaluation requires --source-manifest or --manifest-path provenance")
+    return unique_paths
+
+
+def _validate_source_manifests(paths: tuple[str, ...]) -> None:
+    from src.runtime.manifests import ManifestError, validate_source_manifest
+
+    for raw_path in paths:
+        try:
+            validate_source_manifest(raw_path)
+        except ManifestError as exc:
+            raise ValueError(f"invalid source manifest {raw_path}: {exc}") from exc
+
+
+def _source_manifest_hashes(paths: tuple[str, ...]) -> dict[str, str]:
+    return {str(raw_path): _sha256(Path(raw_path)) for raw_path in paths}
+
+
+def _validate_evaluation_records(records: list[dict[str, Any]], *, metadata_path: Path) -> None:
+    if not records:
+        raise ValueError(f"metadata contains no scoreable records: {metadata_path}")
+    seen_keys: set[tuple[str, int]] = set()
+    for index, record in enumerate(records):
+        image_value = record.get("image")
+        if not isinstance(image_value, str) or not image_value:
+            raise ValueError(f"metadata record {index} lacks a non-empty image path")
+        if not Path(image_value).is_file():
+            raise FileNotFoundError(f"metadata image does not exist: {image_value}")
+        target_text = record.get("target_text")
+        if not isinstance(target_text, str) or not target_text:
+            raise ValueError(f"metadata record {index} lacks non-empty target_text")
+        raw_version = record.get("version", 0)
+        if isinstance(raw_version, bool) or not isinstance(raw_version, (int, str)):
+            raise ValueError(f"metadata record {index} has invalid version")
+        try:
+            version = int(raw_version or 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"metadata record {index} has invalid version") from exc
+        if version < 0 or (isinstance(raw_version, str) and str(version) != raw_version.strip()):
+            raise ValueError(f"metadata record {index} has invalid version")
+        record["version"] = version
+        sample_id = _sample_id_from_record(record)
+        if not sample_id or sample_id == "unknown":
+            raise ValueError(f"metadata record {index} lacks a stable sample identity")
+        key = (sample_id, version)
+        if key in seen_keys:
+            raise ValueError(f"metadata contains duplicate sample/version: {key}")
+        seen_keys.add(key)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _count_jsonl(path: Path) -> int:
+    with path.open(encoding="utf-8") as handle:
+        return sum(1 for line in handle if line.strip())
 
 
 def _print_summary(scores_path: str, reward_names: set):
@@ -357,4 +520,4 @@ def _print_summary(scores_path: str, reward_names: set):
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

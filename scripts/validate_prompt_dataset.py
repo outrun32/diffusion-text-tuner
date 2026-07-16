@@ -44,7 +44,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    thresholds = _thresholds_from_args(args)
+    try:
+        thresholds = _thresholds_from_args(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     input_path = Path(args.input)
     report = validate_prompt_dataset(input_path, thresholds=thresholds)
     report_payload = report.to_dict()
@@ -84,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _thresholds_from_args(args: argparse.Namespace) -> dict[str, Any]:
-    thresholds: dict[str, Any] = {}
+    thresholds = _thresholds_from_config(args.config)
     optional_values = {
         "min_target_length": args.min_target_length,
         "max_target_length": args.max_target_length,
@@ -98,6 +101,30 @@ def _thresholds_from_args(args: argparse.Namespace) -> dict[str, Any]:
         thresholds["required_rare_characters"] = _split_csv(args.required_rare_characters)
     if args.allowed_scripts:
         thresholds["allowed_scripts"] = _split_csv(args.allowed_scripts)
+    return thresholds
+
+
+def _thresholds_from_config(config_path: str | None) -> dict[str, Any]:
+    if config_path is None:
+        return {}
+    path = Path(config_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"cannot read prompt config {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"prompt config is malformed JSON: {path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"prompt config must contain a JSON object: {path}")
+    configured = payload.get("validation_thresholds", {})
+    if not isinstance(configured, dict):
+        raise ValueError(f"validation_thresholds must be an object: {path}")
+    thresholds = dict(configured)
+    if "min_rare_char_coverage" in thresholds:
+        thresholds.setdefault(
+            "min_rare_character_coverage",
+            thresholds.pop("min_rare_char_coverage"),
+        )
     return thresholds
 
 

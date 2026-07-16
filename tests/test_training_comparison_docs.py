@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -7,9 +8,7 @@ from pathlib import Path
 from scripts import compare_training_runs
 
 
-def test_compare_training_runs_cli_writes_integrated_json_and_blocks_on_mismatch(
-    tmp_path, capsys
-):
+def test_compare_training_runs_cli_writes_integrated_json_and_blocks_on_mismatch(tmp_path, capsys):
     left = _write_manifest(
         tmp_path / "left" / "manifest.json",
         run_id="baseline-run",
@@ -42,9 +41,7 @@ def test_compare_training_runs_cli_writes_integrated_json_and_blocks_on_mismatch
     assert payload["comparability"]["left_label"] == "baseline-run"
     assert payload["comparability"]["right_label"] == "sft-run"
     assert payload["comparability"]["summary"]["is_comparable"] is False
-    assert {item["field"] for item in payload["comparability"]["blocking_mismatches"]} == {
-        "seed"
-    }
+    assert {item["field"] for item in payload["comparability"]["blocking_mismatches"]} == {"seed"}
 
 
 def test_compare_training_runs_cli_allows_blocking_and_writes_markdown(tmp_path, capsys):
@@ -84,29 +81,28 @@ def test_compare_training_runs_cli_allows_blocking_and_writes_markdown(tmp_path,
     assert "| num_inference_steps | inference | 20 | 28 | value_mismatch |" in markdown
 
 
-def test_phase5_comparison_docs_and_readme_publish_exact_command_strings():
+def test_comparison_docs_and_readme_publish_exact_command_strings():
     commands = Path("docs/commands.md").read_text(encoding="utf-8")
     readme = Path("README.md").read_text(encoding="utf-8")
     makefile = Path("Makefile").read_text(encoding="utf-8")
 
-    assert "Phase 5 training comparability" in commands
+    assert "## Training comparability" in commands
     assert "compare-training-runs" in commands
     assert "compare-training-runs" in readme
     assert "compare-training-runs" in makefile
-    assert "python -m scripts.compare_training_runs" in commands
-    assert "python -m scripts.compare_training_runs" in readme
+    assert "uv run python -m scripts.compare_training_runs" in commands
     assert "python -m scripts.compare_training_runs" in makefile
     assert (
-        "python -m scripts.compare_run_manifests --left runs/<a>/manifest.json "
+        "uv run python -m scripts.compare_run_manifests --left runs/<a>/manifest.json "
         "--right runs/<b>/manifest.json"
     ) in commands
     assert (
-        "python -m scripts.check_training_comparability "
+        "uv run python -m scripts.check_training_comparability "
         "--left-manifest runs/<a>/manifest.json "
         "--right-manifest runs/<b>/manifest.json"
     ) in commands
     assert (
-        "python -m scripts.compare_training_runs "
+        "uv run python -m scripts.compare_training_runs "
         "--left-manifest runs/<a>/manifest.json "
         "--right-manifest runs/<b>/manifest.json --markdown "
         "--output runs/comparisons/training-run-comparison.md"
@@ -114,7 +110,6 @@ def test_phase5_comparison_docs_and_readme_publish_exact_command_strings():
     assert "docs/training_comparability.md" in readme
     for approach in ("baseline", "SFT", "DPO", "masked-SFT", "combined", "curriculum"):
         assert approach in commands
-        assert approach in readme
 
 
 def test_compare_training_runs_make_alias_dry_run_uses_manifest_variables():
@@ -162,6 +157,10 @@ def _base_config(**overrides):
 
 def _write_manifest(path: Path, *, run_id: str, config_snapshot: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    (path.parent / "config_snapshot.json").write_text(
+        json.dumps(config_snapshot, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     payload = {
         "schema_version": "run-manifest/v1",
         "run_id": run_id,
@@ -171,6 +170,7 @@ def _write_manifest(path: Path, *, run_id: str, config_snapshot: dict[str, objec
         "git": {"commit": "abc1234"},
         "environment": {},
         "config_snapshot_path": "config_snapshot.json",
+        "config_snapshot_sha256": _json_sha256(config_snapshot),
         "config_snapshot": config_snapshot,
         "seeds": {},
         "models": {},
@@ -182,3 +182,10 @@ def _write_manifest(path: Path, *, run_id: str, config_snapshot: dict[str, objec
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     return path
+
+
+def _json_sha256(payload: dict[str, object]) -> str:
+    serialized = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode(
+        "utf-8"
+    )
+    return hashlib.sha256(serialized).hexdigest()

@@ -31,6 +31,7 @@ def compute_dpo_objective(
     t: torch.Tensor,
     beta_conf: float,
     shift: float,
+    sample_weight: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Compute DPO sigmoid loss from precomputed per-sample MSE losses.
 
@@ -43,7 +44,16 @@ def compute_dpo_objective(
     reward_margin = w_log_ratio - l_log_ratio
     beta_t = time_dependent_beta(t, beta_conf=beta_conf, shift=shift).to(reward_margin.device)
     logits = beta_t * reward_margin
-    loss = -F.logsigmoid(logits).mean()
+    per_sample_loss = -F.logsigmoid(logits)
+    if sample_weight is None:
+        loss = per_sample_loss.mean()
+    else:
+        weight = sample_weight.to(device=per_sample_loss.device, dtype=per_sample_loss.dtype)
+        if weight.shape != per_sample_loss.shape:
+            raise ValueError("sample_weight must have the same shape as per-sample DPO logits")
+        if torch.any(weight < 0):
+            raise ValueError("sample_weight must be non-negative")
+        loss = (per_sample_loss * weight).mean()
 
     with torch.no_grad():
         metrics = {

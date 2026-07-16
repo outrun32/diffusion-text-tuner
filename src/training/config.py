@@ -4,14 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+DEFAULT_SAMPLE_PROMPT = (
+    "Фотография уютного кафе с тёплым ламповым освещением. Текст "
+    "'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+)
+
 
 @dataclass
 class LoraConfig:
     r: int = 64
     lora_alpha: int = 64
-    target_modules: list[str] = field(default_factory=lambda: [
-        "to_k", "to_q", "to_v", "to_out.0",
-    ])
+    target_modules: list[str] = field(
+        default_factory=lambda: [
+            "to_k",
+            "to_q",
+            "to_v",
+            "to_out.0",
+        ]
+    )
 
 
 # ── SFT config ──────────────────────────────────────────────────────────────
@@ -21,12 +31,13 @@ class LoraConfig:
 class SFTConfig:
     # Model
     model_id: str = "black-forest-labs/FLUX.2-klein-base-4B"
+    model_revision: str | None = None
 
     # Data — pre-encoded latents + text embeddings
-    latents_dir: str = "outputs/latents"          # {id}/v{version}.pt
-    text_embeds_dir: str = "outputs/text_embeds"   # {id}.pt
-    scores_csv: str = "outputs/scores.csv"         # id,version,score,target_text
-    score_threshold: float = 0.3                   # min reward to include in SFT
+    latents_dir: str = "outputs/latents"  # {id}/v{version}.pt
+    text_embeds_dir: str = "outputs/text_embeds"  # {id}.pt
+    scores_csv: str = "outputs/scores.csv"  # id,version,score,target_text
+    score_threshold: float = 0.3  # min reward to include in SFT
     selection_mode: str = "threshold"
     selected_samples_path: str | None = None
     score_column: str = "score"
@@ -56,9 +67,9 @@ class SFTConfig:
     lora: LoraConfig = field(default_factory=LoraConfig)
 
     # Sampling
-    sample_prompt: str = "Фотография уютного кафе с тёплым ламповым освещением. Текст 'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+    sample_prompt: str = DEFAULT_SAMPLE_PROMPT
     sample_target_text: str = "СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО"
-    sample_interval: int = 200          # generate sample every N steps (0 = disabled)
+    sample_interval: int = 200  # generate sample every N steps (0 = disabled)
     eval_suite_path: str | None = None
     eval_suite_n_per_step: int = 0
     num_inference_steps: int = 28
@@ -96,15 +107,29 @@ class MultiRankLoraConfig:
     joint_attn_alpha: int = 16
     dropout: float = 0.0
 
-    attn_modules: list[str] = field(default_factory=lambda: [
-        "to_q", "to_k", "to_v", "to_out.0",
-    ])
-    ffn_modules: list[str] = field(default_factory=lambda: [
-        "ff.linear_in", "ff.linear_out", "ff_context.linear_in", "ff_context.linear_out",
-    ])
-    joint_attn_modules: list[str] = field(default_factory=lambda: [
-        "add_q_proj", "add_k_proj", "add_v_proj",
-    ])
+    attn_modules: list[str] = field(
+        default_factory=lambda: [
+            "to_q",
+            "to_k",
+            "to_v",
+            "to_out.0",
+        ]
+    )
+    ffn_modules: list[str] = field(
+        default_factory=lambda: [
+            "ff.linear_in",
+            "ff.linear_out",
+            "ff_context.linear_in",
+            "ff_context.linear_out",
+        ]
+    )
+    joint_attn_modules: list[str] = field(
+        default_factory=lambda: [
+            "add_q_proj",
+            "add_k_proj",
+            "add_v_proj",
+        ]
+    )
 
 
 @dataclass
@@ -118,10 +143,11 @@ class MaskedSFTConfig:
 
     # Model
     model_id: str = "black-forest-labs/FLUX.2-klein-base-4B"
+    model_revision: str | None = None
 
     # Data
     data_dir: str = "data/synth_cyrillic/masked_sft"
-    val_n_samples: int = 200          # held-out tail of the dataset for val loss
+    val_n_samples: int = 200  # held-out tail of the dataset for val loss
 
     # Training
     num_training_steps: int = 5000
@@ -129,7 +155,7 @@ class MaskedSFTConfig:
     gradient_accumulation_steps: int = 2
     lr: float = 2e-5
     lr_min: float = 1e-6
-    lr_schedule: str = "cosine"        # "cosine" | "constant"
+    lr_schedule: str = "cosine"  # "cosine" | "constant"
     weight_decay: float = 0.0
     max_grad_norm: float = 1.0
     warmup_steps: int = 100
@@ -151,16 +177,16 @@ class MaskedSFTConfig:
     lora: MultiRankLoraConfig = field(default_factory=MultiRankLoraConfig)
 
     # Sampling (single legacy fixed prompt, kept for back-compat / smoke checks)
-    sample_prompt: str = "Фотография уютного кафе с тёплым ламповым освещением. Текст 'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+    sample_prompt: str = DEFAULT_SAMPLE_PROMPT
     sample_target_text: str = "СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО"
-    sample_interval: int = 0           # 0 = use eval_suite instead
+    sample_interval: int = 0  # 0 = use eval_suite instead
     num_inference_steps: int = 28
 
     # Validation + multi-prompt eval suite
-    validation_interval: int = 250     # run val loss + eval suite every N steps
+    validation_interval: int = 250  # run val loss + eval suite every N steps
     val_t_anchors: list[int] = field(default_factory=lambda: [100, 300, 500, 700, 900])
     eval_suite_path: str | None = None  # JSON file: {"items": [{"prompt": ..., "bg": ...}, ...]}
-    eval_suite_n_per_step: int = 4      # how many items to sample per validation step
+    eval_suite_n_per_step: int = 4  # how many items to sample per validation step
 
     # Logging & saving
     log_interval: int = 10
@@ -181,14 +207,15 @@ class MaskedSFTConfig:
 class DPOConfig:
     # Model
     model_id: str = "black-forest-labs/FLUX.2-klein-base-4B"
+    model_revision: str | None = None
     sft_lora_path: str | None = None  # Path to SFT LoRA checkpoint to init from
 
     # Data
     latents_dir: str = "outputs/latents"
     text_embeds_dir: str = "outputs/text_embeds"
     scores_csv: str = "outputs/scores.csv"
-    score_threshold: float = 0.5     # winner must be above this
-    score_diff_min: float = 0.1      # min score diff between winner and loser
+    score_threshold: float = 0.5  # winner must be above this
+    score_diff_min: float = 0.1  # min score diff between winner and loser
     pair_construction_mode: str = "best_vs_worst"
     preference_pairs_path: str | None = None
     score_column: str = "score"
@@ -206,7 +233,7 @@ class DPOConfig:
     seed: int = 42
 
     # DPO
-    beta: float = 5000.0             # DPO beta (time-dependent scaling applied)
+    beta: float = 5000.0  # DPO beta (time-dependent scaling applied)
 
     # Flow-matching
     num_train_timesteps: int = 1000
@@ -218,7 +245,7 @@ class DPOConfig:
     lora: LoraConfig = field(default_factory=LoraConfig)
 
     # Sampling
-    sample_prompt: str = "Фотография уютного кафе с тёплым ламповым освещением. Текст 'СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО', шрифт: futuristic, цвет: teal"
+    sample_prompt: str = DEFAULT_SAMPLE_PROMPT
     sample_target_text: str = "СООБЩИТЬ ВЫСЛУШАЕТ ЧЕМУ-ЛИБО"
     sample_interval: int = 200
     eval_suite_path: str | None = None
@@ -240,7 +267,9 @@ class DPOConfig:
 class ReflConfig:
     # Model
     model_id: str = "black-forest-labs/FLUX.2-klein-base-4B"
+    model_revision: str | None = None
     vlm_model_id: str = "Qwen/Qwen3.5-9B"
+    vlm_model_revision: str | None = None
     is_distilled: bool = False  # True for klein-4B, False for klein-4B-Base
 
     # Data
@@ -276,24 +305,42 @@ class ReflConfig:
 
     # Eval samples — fixed prompt/target pairs for visual monitoring across training.
     # Copy from training data or write your own; no dataset indices needed.
-    eval_prompts: list[dict] = field(default_factory=lambda: [
-        {
-            "prompt": "Концертный постер с абстрактными световыми лучами и дымкой на тёмном фоне. Небольшой текст 'ОТЪЕЗДОМ СЮРПРИЗЫ', оранжевым курсивным антиквенным шрифтом, с градиентом",
-            "target_text": "ОТЪЕЗДОМ СЮРПРИЗЫ",
-        },
-        {
-            "prompt": "An advertising poster with a background of bright geometric shapes and gradients with clearly readable text 'стэном чёрная', italic serif font, deep purple color, engraved",
-            "target_text": "стэном чёрная",
-        },
-        {
-            "prompt": "Тёмный фон с тонкими светящимися линиями и частицами. Надпись 'Превращаем ненависть в эстетику', цвет: orange, шрифт: calligraphic, с обводкой. Высокое качество",
-            "target_text": "Превращаем ненависть в эстетику",
-        },
-        {
-            "prompt": "A gradient background from dark blue to purple with tiny stars. Medium text 'Свобода радиостанции для мятежников' in red decorative font, watercolor style",
-            "target_text": "Свобода радиостанции для мятежников",
-        },
-    ])
+    eval_prompts: list[dict] = field(
+        default_factory=lambda: [
+            {
+                "prompt": (
+                    "Концертный постер с абстрактными световыми лучами и дымкой на "
+                    "тёмном фоне. Небольшой текст 'ОТЪЕЗДОМ СЮРПРИЗЫ', оранжевым "
+                    "курсивным антиквенным шрифтом, с градиентом"
+                ),
+                "target_text": "ОТЪЕЗДОМ СЮРПРИЗЫ",
+            },
+            {
+                "prompt": (
+                    "An advertising poster with a background of bright geometric shapes and "
+                    "gradients with clearly readable text 'стэном чёрная', italic serif font, "
+                    "deep purple color, engraved"
+                ),
+                "target_text": "стэном чёрная",
+            },
+            {
+                "prompt": (
+                    "Тёмный фон с тонкими светящимися линиями и частицами. Надпись "
+                    "'Превращаем ненависть в эстетику', цвет: orange, шрифт: "
+                    "calligraphic, с обводкой. Высокое качество"
+                ),
+                "target_text": "Превращаем ненависть в эстетику",
+            },
+            {
+                "prompt": (
+                    "A gradient background from dark blue to purple with tiny stars. Medium "
+                    "text 'Свобода радиостанции для мятежников' in red decorative font, "
+                    "watercolor style"
+                ),
+                "target_text": "Свобода радиостанции для мятежников",
+            },
+        ]
+    )
 
     # Logging & saving
     log_interval: int = 1

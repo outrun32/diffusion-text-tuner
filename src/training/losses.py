@@ -51,8 +51,8 @@ def masked_flow_matching_loss(
     mse_bs = (pred_f - target_f).pow(2).mean(dim=-1)
 
     # Masked term: per-sample mask-weighted average, then mean over batch.
-    masked_num = (mask_f * mse_bs).sum(dim=-1)            # (B,)
-    masked_den = mask_f.sum(dim=-1) + eps                  # (B,)
+    masked_num = (mask_f * mse_bs).sum(dim=-1)  # (B,)
+    masked_den = mask_f.sum(dim=-1) + eps  # (B,)
     l_masked = (masked_num / masked_den).mean()
 
     # Global term: standard flow-matching MSE.

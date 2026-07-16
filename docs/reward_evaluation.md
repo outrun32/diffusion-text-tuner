@@ -1,7 +1,7 @@
 # Reward Evaluation Contract
 
-Phase 6 uses `src.evaluation.reward_interface` as the canonical CPU-safe
-contract for reward records, product scores, score sidecars, diagnostics, and
+`src.evaluation.reward_interface` defines the CPU-safe contract for reward records, Product scores,
+score sidecars, diagnostics, and
 thesis reports. The module is import-safe: it does not import Qwen,
 PaddleOCR, OCR engines, CUDA, vLLM, MLX, Diffusers, Transformers, PIL, torch,
 or model weights.
@@ -10,7 +10,7 @@ This document describes evidence contracts only. It does not claim that any
 reward model proves visual text-rendering quality without held-out evaluation,
 diagnostics, and thesis validation.
 
-Related Phase 6 guides: [`docs/evaluation_harness.md`](evaluation_harness.md),
+Related guides: [`docs/evaluation_harness.md`](evaluation_harness.md),
 [`docs/evaluation_diagnostics.md`](evaluation_diagnostics.md),
 [`docs/thesis_outputs.md`](thesis_outputs.md), and the command catalog in
 [`docs/commands.md`](commands.md).
@@ -25,7 +25,7 @@ Canonical fields:
 
 | Field | Meaning |
 | --- | --- |
-| `sample_id` | Stable prompt/sample identifier. This replaces ad hoc `id` naming in new Phase 6 artifacts. |
+| `sample_id` | Stable prompt/sample identifier. This replaces ad hoc `id` naming in canonical evaluation artifacts. |
 | `version` | Generated candidate/checkpoint/version number for the same `sample_id`. |
 | `target_text` | Expected text the image should render. |
 | `score` | Primary scalar score for the row, normally the product score when available. |
@@ -55,8 +55,23 @@ and thesis reports on one canonical `RewardResult` / product-score contract.
 
 ## Product formula: `ProductScoreFormula`
 
-`ProductScoreFormula` records the product-score formula name, component weights,
-thresholds, scorer_versions, and entropy scaling:
+The thesis metric and the later diagnostic metric are separate formulas.
+`scripts.score_images --product_formula thesis` uses the reported thesis definition:
+
+```python
+thesis_product_formula(
+    scorer_versions={"vlm": "qwen@revision", "ocr": "paddleocr@revision"}
+)
+# name: thesis_vlm_ocr_product_v1
+# aggregation: weighted_product
+# weights: {"score_vlm": 1.0, "score_ocr": 1.0}
+# require_all: True
+```
+
+Its score is exactly `score_vlm * score_ocr`; a missing component produces score `0` and
+`formula_complete=false`.
+
+`--product_formula diagnostic` selects the later five-component geometric metric:
 
 ```python
 ProductScoreFormula(
@@ -71,6 +86,8 @@ ProductScoreFormula(
     thresholds={"score_vlm_min": 0.7, "score_ocr_min": 0.6, "cer_max": 0.2},
     scorer_versions={"vlm": "qwen@revision", "ocr": "paddleocr@revision"},
     entropy_scale=1.0,
+    aggregation="weighted_geometric_mean",
+    require_all=False,
 )
 ```
 
@@ -84,8 +101,7 @@ ProductScoreFormula(
 | `entropy_quality` | `entropy` | `exp(-entropy_scale * entropy)` for finite non-negative entropy. |
 | `exact_text_match` | `exact_text_match` | `1.0` for true/exact, `0.0` for false/mismatch. |
 
-The product score is a weighted geometric product over available normalized
-terms:
+For the diagnostic formula, the score is a weighted geometric mean over available normalized terms:
 
 ```text
 score = exp(sum(weight_i * ln(term_i)) / sum(available_weight_i))
@@ -107,10 +123,8 @@ so downstream comparisons can reject or flag incomplete rows.
 | `formula` | The `ProductScoreFormula` used for the computation. |
 | `formula_complete` | `True` only when all positive-weight formula components were present and valid. |
 
-Missing VLM/OCR evidence must never be silently treated as comparable. A row
-with `missing_components=["score_ocr"]` may still carry a numeric score for
-inspection, but reports and thesis tables should distinguish it from complete
-VLM+OCR+CER+entropy+exact-text evidence.
+Missing VLM/OCR evidence must never be silently treated as comparable. The diagnostic formula may
+carry a numeric partial score for inspection; the thesis formula requires both terms.
 
 ## Score metadata: `build_score_metadata`
 
@@ -121,7 +135,7 @@ reports:
 | --- | --- |
 | `schema_version` | Currently `reward-score-metadata/v1`. |
 | `generated_at` | Caller-supplied or injected UTC timestamp. Tests should inject this for determinism. |
-| `formula` | The formula name, weights, thresholds, scorer_versions, and `entropy_scale`. |
+| `formula` | Formula name, aggregation, weights, thresholds, scorer versions, entropy scale, and `require_all`. |
 | `source_manifest_paths` | Manifest links tying score rows back to exact runs/evaluation plans. |
 
 The helper stores manifest links as strings and never opens local files, cache
@@ -130,17 +144,17 @@ CPU-safe and secret-safe while preserving traceability to run manifests.
 
 ## Canonical score CSV/JSONL fields
 
-Phase 6 scoring outputs extend the original `id`, `version`, `score`, and
+Canonical scoring outputs extend the original `id`, `version`, `score`, and
 `target_text` columns rather than removing them. New score CSV files written by
-`python -m scripts.score_images` use `phase6-score-file/v1`; JSONL records
-written by `python -m src.evaluation.evaluate_rewards` use
+`uv run python -m scripts.score_images` use `phase6-score-file/v1`; JSONL records
+written by `uv run python -m src.evaluation.evaluate_rewards` use
 `phase6-score-jsonl/v1`. Both formats carry the same canonical evidence fields:
 
 | Field | Meaning |
 | --- | --- |
-| `id` / `sample_id` | Stable generated sample identifier. `id` remains for SFT/DPO compatibility; `sample_id` is the canonical Phase 6 name. |
+| `id` / `sample_id` | Stable generated sample identifier. `id` remains for SFT/DPO compatibility; `sample_id` is the canonical evaluation name. |
 | `version` | Generated candidate or evaluation version. |
-| `score` / `product_score` | Primary score and explicit product-score value from `compute_product_score`. |
+| `score` / `product_score` | `score` follows the selected scorer (`vlm`, `ocr`, or combined Product); `product_score` always stores the chosen product formula. |
 | `target_text` | Expected rendered text. |
 | `score_vlm` | VLM/Qwen yes-probability evidence when the VLM scorer ran. |
 | `score_ocr` | OCR reward evidence when the OCR scorer ran. |
@@ -170,18 +184,31 @@ sidecar uses `schema_version="reward-score-metadata/v1"` and includes:
 | Sidecar field | Meaning |
 | --- | --- |
 | `score_file_schema_version` | `phase6-score-file/v1` for CSV or `phase6-score-jsonl/v1` for JSONL. |
-| `formula.name` | Product formula name, normally `vlm_ocr_cer_entropy_exact_product_v1`. |
-| `formula.weights` | Product formula weights for VLM, OCR, CER quality, entropy quality, and exact match. |
+| `formula.name` | `thesis_vlm_ocr_product_v1` by default; `vlm_ocr_cer_entropy_exact_product_v1` only in diagnostic mode. |
+| `formula.weights` | Formula-specific weights. Thesis mode has one unnormalized factor for VLM and OCR. |
+| `formula.aggregation` | `weighted_product` for the thesis metric or `weighted_geometric_mean` for diagnostics. |
 | `formula.thresholds` | Thresholds such as `score_vlm_min`, `score_ocr_min`, or `cer_max`. |
 | `formula.scorer_versions` | Scorer identities/revisions such as Qwen model ID and OCR settings. |
 | `source_manifest_paths` | Source run/evaluation manifests that produced or contextualized score rows. |
 | `required_phase6_fields` | Canonical fields expected in rows for validator drift checks. |
+| `source_manifest_sha256` | Hashes of source manifests that existed when scoring started. |
+| `execution` | Shard index/count, discovered/expected/scored row counts, completion status, and final CSV SHA-256. |
+
+`--resume` requires an existing sidecar with the same formula, primary score, scorer revisions,
+source-manifest paths/hashes, and shard contract. It refuses to append rows under a new metric or
+model revision. Existing rows are recomputed from their stored evidence and checked against current
+sample identity/target text before reuse. Missing embeddings/target text and incomplete shard row
+counts are blocking errors, not silent skips.
+
+After the CSV header and after every persisted row, scoring atomically checkpoints the exact current
+row count and CSV SHA-256 in the sidecar. An `in-progress` CSV without that matching checkpoint is
+rejected rather than re-signed during resume.
 
 The score script accepts manifest links with `--manifest_path` for each row and
 one or more `--source_manifest` values for the sidecar:
 
 ```bash
-python -m scripts.score_images \
+uv run python -m scripts.score_images \
   --images_dir outputs/generated/images \
   --text_embeds_dir outputs/generated/text_embeds \
   --output_csv outputs/generated/scores.csv \
@@ -194,7 +221,7 @@ python -m scripts.score_images \
 The evaluation scoring path uses dash-style arguments for the same links:
 
 ```bash
-python -m src.evaluation.evaluate_rewards \
+uv run python -m src.evaluation.evaluate_rewards \
   --metadata outputs/baseline/metadata.jsonl \
   --output outputs/baseline/scores.jsonl \
   --reward all \
@@ -202,9 +229,16 @@ python -m src.evaluation.evaluate_rewards \
   --source-manifest runs/baseline/manifest.json
 ```
 
+This JSONL evaluator never appends or silently skips missing images. Existing outputs require an
+explicit `--overwrite`; partial `--start-idx` execution is rejected, and at least one real source
+manifest is mandatory before model initialization.
+
+Score provenance accepts only a strict `run-manifest/v1` or the current self-hashed
+`generation-manifest/v4`; arbitrary JSON and legacy generation manifests are rejected.
+
 ## Score validation command examples
 
-Phase 6 score validation is CPU-safe and shallow. It reads CSV/JSONL rows and
+Score validation is CPU-safe and shallow. It reads CSV/JSONL rows and
 their `.schema.json` sidecars, but it does not open generated images, tensors,
 CUDA devices, Qwen, PaddleOCR, or model weights.
 
@@ -228,8 +262,8 @@ Use `require_ready=True` only at blocking preflight gates when missing score fil
 or missing sidecars should fail immediately.
 
 Generated score files and `.schema.json` sidecars are runtime artifacts. Keep
-them out of git unless a later plan intentionally adds tiny fixtures for
-CPU-safe tests or documentation examples.
+them out of git, except for tiny fixtures required by CPU-safe tests or reviewed documentation
+examples.
 
 ## Threshold semantics
 
@@ -249,8 +283,8 @@ If a threshold references missing or invalid evidence, the corresponding
 Generated score files, score metadata sidecars, held-out evaluation outputs,
 diagnostic reports, contact sheets, thesis tables/plots, checkpoints, logs,
 tensors, generated images, and private run outputs remain runtime artifacts.
-They should stay out of git unless a later plan intentionally creates tiny
-fixtures for CPU-safe tests or documentation.
+Keep them out of git, except for tiny fixtures required by CPU-safe tests or reviewed
+documentation.
 
 This contract is safe to import in tests and report builders, but actual Qwen,
 PaddleOCR, OCR engine, CUDA, vLLM, MLX, or model-weight execution must remain in

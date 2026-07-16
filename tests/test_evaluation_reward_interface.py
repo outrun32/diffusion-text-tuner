@@ -133,6 +133,25 @@ def test_compute_product_score_combines_weighted_components_and_flags_thresholds
     assert product.formula.name == "thesis_product_v1"
 
 
+def test_thesis_formula_is_exact_vlm_times_ocr_and_requires_both() -> None:
+    from src.evaluation.reward_interface import compute_product_score, thesis_product_formula
+
+    formula = thesis_product_formula(scorer_versions={"vlm": "qwen", "ocr": "paddle"})
+
+    complete = compute_product_score(
+        {"score_vlm": 0.8, "score_ocr": 0.75, "exact_text_match": False},
+        formula=formula,
+    )
+    incomplete = compute_product_score({"score_vlm": 0.8}, formula=formula)
+
+    assert complete.score == pytest.approx(0.6)
+    assert complete.formula_complete is True
+    assert complete.formula.aggregation == "weighted_product"
+    assert incomplete.score == 0.0
+    assert incomplete.formula_complete is False
+    assert incomplete.missing_components == ("score_ocr",)
+
+
 def test_missing_or_invalid_evidence_is_reported_not_imputed() -> None:
     from src.evaluation.reward_interface import ProductScoreFormula, compute_product_score
 
@@ -180,6 +199,8 @@ def test_score_metadata_records_formula_versions_thresholds_and_manifests() -> N
             "thresholds": {"score_vlm_min": 0.5},
             "scorer_versions": {"ocr": "paddle-fake@2", "vlm": "qwen-fake@1"},
             "entropy_scale": 1.0,
+            "aggregation": "weighted_geometric_mean",
+            "require_all": False,
         },
         "source_manifest_paths": ["runs/baseline/manifest.json", "runs/lora/manifest.json"],
     }

@@ -1,0 +1,50 @@
+{
+  "benchmark_sha256": "6239b2cd942da3cd883961ed67c718df9f387717cbd5adfe73a905d579eba9b4",
+  "count_per_slice": 20,
+  "excluded_benchmark_matches": [
+    "ВЪЕЗД",
+    "ОБЪЕМ",
+    "ПОДЪЕМ",
+    "СЪЕЗД",
+    "СЪЕМКА",
+    "ШЕПОТ",
+    "ЩЕДРОСТЬ"
+  ],
+  "excluded_target_count": 13918,
+  "exclusion_source_manifest": {
+    "output_sha256": "13f88a37e53b2592eae34456317b64f7b7269ef0d77f02622ad350febbbe5511",
+    "path": "reports/final/prompt_dataset_source.manifest.json",
+    "repository": "Outrun32/cyrillic-prompts-15k",
+    "resolved_revision": "ecd8b2da9820b35afc65e2d56eaf37a662c37976",
+    "schema_version": "prompt-dataset-download/v1",
+    "source_sha256": "a0a579e00520e13d83e1bcfca32529f77b8b33c865f8441ba569c800b49615b9"
+  },
+  "hard_glyph_prompt_count": 82,
+  "mean_target_length": 8.141666666666667,
+  "output_path": "reports/final/benchmark_prompts_v2.jsonl",
+  "schema_version": "final-benchmark-prompts/v1",
+  "slice_counts": {
+    "complex_style": 20,
+    "easy_short": 20,
+    "hard_letters": 20,
+    "medium_long": 20,
+    "phrases": 20,
+    "signs_yo_yeru": 20
+  },
+  "target_disjoint": true,
+  "total_prompts": 120,
+  "training_target_hash_index": {
+    "hash_algorithm": "sha256",
+    "normalization": "strip-collapse-whitespace-unicode-uppercase/v1",
+    "path": "reports/final/prompt_training_target_hashes_v1.json",
+    "schema_version": "normalized-target-hash-index/v1",
+    "sha256": "34e3d261f754df378a3ff96320e58c9706e99f5028ab4db2dd5adf2a72d241c1",
+    "source_manifest_path": "reports/final/prompt_dataset_source.manifest.json",
+    "source_manifest_sha256": "1ac3e4599cfe50e8557a9cb27439b902a06bcfdc52762f820fd47de6b5e226b0",
+    "source_output_sha256": "13f88a37e53b2592eae34456317b64f7b7269ef0d77f02622ad350febbbe5511",
+    "unique_normalized_target_count": 13918
+  },
+  "training_target_overlap_count": 0,
+  "training_target_overlap_hashes": [],
+  "unique_target_count": 120
+}

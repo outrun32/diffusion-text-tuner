@@ -1,10 +1,11 @@
 """Extended PaddleOCR test with multiple configurations"""
 import os
+from pathlib import Path
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
 from paddleocr import PaddleOCR
 
-IMAGE_PATH = "/Users/udmurtpsycho/Dev/diffusion-text-tuner/bad_text.png"
+IMAGE_PATH = Path(__file__).resolve().parents[1] / "assets" / "bad_text.png"
 
 configs = [
     {
@@ -46,7 +47,7 @@ for cfg in configs:
     print("=" * 60)
     try:
         ocr = PaddleOCR(**cfg["kwargs"])
-        result = ocr.predict(IMAGE_PATH)
+        result = ocr.predict(str(IMAGE_PATH))
         for res in result:
             d = res.to_dict() if hasattr(res, 'to_dict') else {}
             if d:

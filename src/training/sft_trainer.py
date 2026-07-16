@@ -20,9 +20,7 @@ import argparse
 import csv
 import json
 import logging
-import math
 import os
-import random
 import time
 from pathlib import Path
 
@@ -32,6 +30,8 @@ from accelerate import Accelerator
 from accelerate.utils import set_seed
 from peft import (
     LoraConfig as PeftLoraConfig,
+)
+from peft import (
     get_peft_model,
     load_peft_weights,
     set_peft_model_state_dict,
@@ -40,44 +40,43 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from .config import SFTConfig, LoraConfig
-from .dataset import SFTDataset, sft_collate_fn
+from src.runtime import config_io
+
+from .checkpointing import checkpoint_dir, should_save_checkpoint
+from .config import LoraConfig, SFTConfig
+from .dataset import SFTDataset, require_drop_last_batch, sft_collate_fn
 from .flux2_utils import (
     decode_latents,
     pack_latents,
     prepare_latent_ids,
     prepare_text_ids,
-    bn_normalize,
-    patchify_latents,
 )
 from .refl_trainer import FlowMatchScheduler
-from src.runtime import config_io
+from .sampling import normalize_eval_suite_items, should_sample_step
+from .schedulers import compute_sigma
 
 logger = logging.getLogger(__name__)
-
-
-# ── Flow-matching schedule helpers ──────────────────────────────────────────
-
-
-def compute_sigma(t: torch.Tensor, shift: float = 3.0) -> torch.Tensor:
-    """Compute shifted sigma from timestep t ∈ [0, 1000).
-
-    sigma = shift * (t/1000) / (1 + (shift - 1) * (t/1000))
-    """
-    t_norm = t.float() / 1000.0
-    sigma = shift * t_norm / (1.0 + (shift - 1.0) * t_norm)
-    return sigma
 
 
 # ── Model loading ───────────────────────────────────────────────────────────
 
 
-def load_transformer(model_id: str, lora_cfg: LoraConfig, device, dtype):
+def load_transformer(
+    model_id: str,
+    model_revision: str | None,
+    lora_cfg: LoraConfig,
+    device,
+    dtype,
+):
     """Load FLUX transformer with LoRA, return (model, vae)."""
     from diffusers import Flux2KleinPipeline
 
     logger.info("Loading pipeline: %s", model_id)
-    pipe = Flux2KleinPipeline.from_pretrained(model_id, torch_dtype=dtype)
+    pipe = Flux2KleinPipeline.from_pretrained(
+        model_id,
+        revision=model_revision,
+        torch_dtype=dtype,
+    )
 
     transformer = pipe.transformer
     vae = pipe.vae.to(device, dtype=dtype)
@@ -115,7 +114,7 @@ def _sample_items(cfg) -> list[dict]:
         payload = json.loads(suite_path.read_text(encoding="utf-8"))
         items = payload.get("items", [])
         limit = cfg.eval_suite_n_per_step or len(items)
-        return items[:limit]
+        return normalize_eval_suite_items(items, limit=limit)
     if not cfg.sample_prompt:
         return []
     return [
@@ -135,8 +134,10 @@ def setup_sample_states(cfg, device, dtype):
     if not items:
         return []
 
+    import shutil
+    import tempfile
+
     from .flux2_utils import precompute_text_embeddings
-    import tempfile, shutil
 
     # Write a temp JSONL for precompute_text_embeddings
     tmpdir = tempfile.mkdtemp()
@@ -160,6 +161,7 @@ def setup_sample_states(cfg, device, dtype):
             prompts_path=prompts_file,
             output_dir=embeds_dir,
             model_id=cfg.model_id,
+            model_revision=cfg.model_revision,
             device=str(device),
         )
         embed_data = [
@@ -231,14 +233,12 @@ def generate_sample(transformer, vae, sample_state, cfg, device, dtype):
             img_ids=latent_ids,
             return_dict=False,
         )[0]
-        pred = pred[:, :latents.size(1)]
+        pred = pred[:, : latents.size(1)]
         latents = scheduler.step(pred, latents)
 
     latents = latents.to(vae.dtype)
     images = decode_latents(latents, latent_ids, vae)
-    pil_img = Image.fromarray(
-        (images[0].cpu().clamp(0, 1) * 255).byte().permute(1, 2, 0).numpy()
-    )
+    pil_img = Image.fromarray((images[0].cpu().clamp(0, 1) * 255).byte().permute(1, 2, 0).numpy())
 
     transformer.train()
     return pil_img
@@ -278,6 +278,25 @@ def save_samples(transformer, vae, sample_states, cfg, device, dtype, samples_di
 
 
 def train(cfg: SFTConfig):
+    from src.runtime.capabilities import check_stage_support
+
+    support = check_stage_support("sft", mixed_precision=cfg.mixed_precision)
+    if not support.ok:
+        raise RuntimeError("; ".join(support.errors))
+
+    dataset = SFTDataset(
+        latents_dir=cfg.latents_dir,
+        text_embeds_dir=cfg.text_embeds_dir,
+        scores_csv=cfg.scores_csv,
+        score_threshold=cfg.score_threshold,
+        selection_mode=cfg.selection_mode,
+        selected_samples_path=cfg.selected_samples_path,
+        score_column=cfg.score_column,
+        hard_negative_threshold=cfg.hard_negative_threshold,
+        sample_weighting=cfg.sample_weighting,
+    )
+    require_drop_last_batch(len(dataset), cfg.batch_size, stage="sft")
+
     accelerator = Accelerator(
         mixed_precision=cfg.mixed_precision,
         gradient_accumulation_steps=cfg.gradient_accumulation_steps,
@@ -294,7 +313,13 @@ def train(cfg: SFTConfig):
     device = accelerator.device
 
     # ── Load model ──
-    transformer, vae = load_transformer(cfg.model_id, cfg.lora, device, dtype)
+    transformer, vae = load_transformer(
+        cfg.model_id,
+        cfg.model_revision,
+        cfg.lora,
+        device,
+        dtype,
+    )
     if cfg.resume_lora_path:
         logger.info("Loading LoRA weights from checkpoint: %s", cfg.resume_lora_path)
         peft_state = load_peft_weights(cfg.resume_lora_path, device="cpu")
@@ -330,14 +355,6 @@ def train(cfg: SFTConfig):
 
             base.register_forward_hook(_make_inputs_require_grad)
 
-    # ── Dataset ──
-    dataset = SFTDataset(
-        latents_dir=cfg.latents_dir,
-        text_embeds_dir=cfg.text_embeds_dir,
-        scores_csv=cfg.scores_csv,
-        score_threshold=cfg.score_threshold,
-    )
-
     dataloader = DataLoader(
         dataset,
         batch_size=cfg.batch_size,
@@ -359,6 +376,7 @@ def train(cfg: SFTConfig):
     )
 
     from transformers import get_constant_schedule_with_warmup
+
     lr_scheduler = get_constant_schedule_with_warmup(optimizer, num_warmup_steps=cfg.warmup_steps)
 
     # ── Prepare with accelerate ──
@@ -378,12 +396,6 @@ def train(cfg: SFTConfig):
             samples_dir,
             "step_000000",
         )
-
-    # ── Latent geometry ──
-    vae_scale_factor = 8
-    patch_factor = 2
-    latent_h = cfg.resolution // vae_scale_factor // patch_factor
-    latent_w = latent_h
 
     # ── Training loop ──
     global_step = 0
@@ -449,10 +461,19 @@ def train(cfg: SFTConfig):
                     img_ids=latent_ids,
                     return_dict=False,
                 )[0]
-                noise_pred = noise_pred[:, :x0_packed.shape[1]]
+                noise_pred = noise_pred[:, : x0_packed.shape[1]]
 
-                # Flow-matching MSE loss
-                loss = F.mse_loss(noise_pred.float(), velocity_target.float())
+                # Flow-matching MSE loss with optional materialized sample weights.
+                per_sample_loss = F.mse_loss(
+                    noise_pred.float(),
+                    velocity_target.float(),
+                    reduction="none",
+                ).mean(dim=(1, 2))
+                sample_weight = batch["sample_weight"].to(
+                    device=per_sample_loss.device,
+                    dtype=per_sample_loss.dtype,
+                )
+                loss = (per_sample_loss * sample_weight).mean()
 
                 accelerator.backward(loss)
 
@@ -483,28 +504,33 @@ def train(cfg: SFTConfig):
                     with open(csv_path, "a", newline="") as f:
                         csv.DictWriter(f, csv_fields).writerow(row)
 
-                    accelerator.log({
-                        "loss": loss.item(),
-                        "grad_norm": grad_norm,
-                        "lr": lr_scheduler.get_last_lr()[0],
-                    }, step=global_step)
+                    accelerator.log(
+                        {
+                            "loss": loss.item(),
+                            "grad_norm": grad_norm,
+                            "lr": lr_scheduler.get_last_lr()[0],
+                        },
+                        step=global_step,
+                    )
 
                     logger.info(
                         "step %d | loss %.4f | grad_norm %.3f | lr %.2e",
-                        global_step, loss.item(), grad_norm,
+                        global_step,
+                        loss.item(),
+                        grad_norm,
                         lr_scheduler.get_last_lr()[0],
                     )
 
                 # Checkpointing + sampling
-                if global_step % cfg.save_interval == 0:
-                    ckpt_dir = os.path.join(cfg.output_dir, "checkpoints", f"step_{global_step:06d}")
+                if should_save_checkpoint(global_step, cfg.save_interval):
+                    ckpt_dir = checkpoint_dir(cfg.output_dir, global_step)
                     accelerator.wait_for_everyone()
                     if accelerator.is_main_process:
                         unwrapped = accelerator.unwrap_model(transformer)
                         unwrapped.save_pretrained(ckpt_dir)
                         logger.info("Saved checkpoint: %s", ckpt_dir)
 
-                if global_step % cfg.sample_interval == 0 and cfg.sample_interval > 0:
+                if should_sample_step(global_step, cfg.sample_interval):
                     if accelerator.is_main_process and sample_states:
                         unwrapped = accelerator.unwrap_model(transformer)
                         save_samples(

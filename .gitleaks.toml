@@ -1,0 +1,14 @@
+title = "Diffusion Text Tuner secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic credential-shaped strings used only to test redaction"
+paths = [
+  '''\.git/''',
+  '''\.venv/''',
+  '''__pycache__/''',
+  '''\.pyc$''',
+  '''data/prompts_simple\.jsonl'''
+]

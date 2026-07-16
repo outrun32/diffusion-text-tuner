@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -85,6 +86,11 @@ def test_loads_frozen_prompt_generation_config_without_heavy_imports(tmp_path):
             "curriculum_stages",
             [{"name": "bad", "family": "short_words", "weight": 1, "scripts": ["emoji"]}],
             "script",
+        ),
+        (
+            "curriculum_stages",
+            [{"name": "bad", "family": "single_letters", "weight": 1, "scripts": ["mixed"]}],
+            "cannot use mixed",
         ),
         ("generation", {"n": -1, "no_llm": True}, "n"),
         ("output_path", "~/private/prompts.jsonl", "output_path"),
@@ -249,6 +255,99 @@ def test_generate_dataset_tags_records_with_config_stage_provenance(tmp_path):
     assert {record["prompt_mode"] for record in records} == {"simple"}
     assert {record["curriculum_stage"] for record in records} <= {"single_letters", "short_words"}
     assert all(
-        record["curriculum_family"] in {"single_letters", "short_words"}
-        for record in records
+        record["curriculum_family"] in {"single_letters", "short_words"} for record in records
     )
+
+
+def test_single_letter_curriculum_never_uses_numeric_dedup_suffixes(tmp_path):
+    config_path = _write_config(
+        tmp_path / "single_letters.json",
+        generation={
+            "n": 100,
+            "no_llm": True,
+            "model": "unused",
+            "backend": "transformers",
+            "batch_size": 1,
+            "temperature": 0.0,
+            "expand_scenes": 0,
+        },
+        curriculum_stages=[
+            {
+                "name": "letters",
+                "family": "single_letters",
+                "weight": 1,
+                "scripts": ["cyrillic"],
+                "content_types": ["typography"],
+                "tiers": [1],
+                "cases": ["upper", "lower"],
+                "languages": ["ru"],
+            }
+        ],
+    )
+    config = load_prompt_generation_config(config_path)
+    output = tmp_path / "letters.jsonl"
+
+    generate.generate_dataset(
+        n=100,
+        output_path=str(output),
+        llm=None,
+        seed=config.seed,
+        prompt_config=config,
+    )
+
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 100
+    assert all(re.fullmatch(r"[А-ЯЁа-яё]", record["target_text"]) for record in records)
+    assert {record["target_script"] for record in records} == {"cyrillic"}
+
+
+@pytest.mark.parametrize(
+    ("script", "target_pattern"),
+    [
+        ("latin", r"(?=.*[A-Za-z])[^А-ЯЁа-яё]+"),
+        ("mixed", r"(?=.*[A-Za-z])(?=.*[А-ЯЁа-яё]).+"),
+    ],
+)
+def test_curriculum_honors_configured_target_script(
+    tmp_path,
+    script,
+    target_pattern,
+):
+    config_path = _write_config(
+        tmp_path / f"{script}.json",
+        generation={
+            "n": 20,
+            "no_llm": True,
+            "model": "unused",
+            "backend": "transformers",
+            "batch_size": 1,
+            "temperature": 0.0,
+            "expand_scenes": 0,
+        },
+        curriculum_stages=[
+            {
+                "name": f"{script}_words",
+                "family": "short_words",
+                "weight": 1,
+                "scripts": [script],
+                "content_types": ["typography"],
+                "tiers": [2],
+                "cases": ["lower"],
+                "languages": ["ru"],
+            }
+        ],
+    )
+    config = load_prompt_generation_config(config_path)
+    output = tmp_path / f"{script}.jsonl"
+
+    generate.generate_dataset(
+        n=20,
+        output_path=str(output),
+        llm=None,
+        seed=config.seed,
+        prompt_config=config,
+    )
+
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert all(record["target_script"] == script for record in records)
+    assert all(re.fullmatch(target_pattern, record["target_text"]) for record in records)

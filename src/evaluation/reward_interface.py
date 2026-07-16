@@ -13,11 +13,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 SCHEMA_VERSION = "reward-result/v1"
 METADATA_SCHEMA_VERSION = "reward-score-metadata/v1"
 DEFAULT_PRODUCT_FORMULA_NAME = "vlm_ocr_cer_entropy_exact_product_v1"
+THESIS_PRODUCT_FORMULA_NAME = "thesis_vlm_ocr_product_v1"
 
 DEFAULT_PRODUCT_WEIGHTS: dict[str, float] = {
     "score_vlm": 0.35,
@@ -99,6 +100,8 @@ class ProductScoreFormula:
     thresholds: Mapping[str, float] = field(default_factory=dict)
     scorer_versions: Mapping[str, str] = field(default_factory=dict)
     entropy_scale: float = 1.0
+    aggregation: Literal["weighted_geometric_mean", "weighted_product"] = "weighted_geometric_mean"
+    require_all: bool = False
 
     def __post_init__(self) -> None:
         weights = {key: _coerce_finite_float(value) for key, value in self.weights.items()}
@@ -118,6 +121,8 @@ class ProductScoreFormula:
         entropy_scale = _coerce_finite_float(self.entropy_scale)
         if entropy_scale is None or entropy_scale < 0:
             raise ValueError("entropy_scale must be a finite non-negative number")
+        if self.aggregation not in {"weighted_geometric_mean", "weighted_product"}:
+            raise ValueError(f"Unsupported product aggregation: {self.aggregation}")
 
         object.__setattr__(self, "weights", _freeze_mapping(weights))
         object.__setattr__(self, "thresholds", _freeze_mapping(thresholds))
@@ -132,7 +137,24 @@ class ProductScoreFormula:
             "thresholds": dict(sorted(self.thresholds.items())),
             "scorer_versions": dict(sorted(self.scorer_versions.items())),
             "entropy_scale": self.entropy_scale,
+            "aggregation": self.aggregation,
+            "require_all": self.require_all,
         }
+
+
+def thesis_product_formula(
+    *,
+    scorer_versions: Mapping[str, str] | None = None,
+) -> ProductScoreFormula:
+    """Return the exact ``VLM × OCR`` formula used by the reported thesis runs."""
+
+    return ProductScoreFormula(
+        name=THESIS_PRODUCT_FORMULA_NAME,
+        weights={"score_vlm": 1.0, "score_ocr": 1.0},
+        scorer_versions=scorer_versions or {},
+        aggregation="weighted_product",
+        require_all=True,
+    )
 
 
 @dataclass(frozen=True)
@@ -249,12 +271,17 @@ def compute_product_score(
         elif not math.isinf(weighted_log_sum):
             weighted_log_sum += weight * math.log(value)
 
-    if available_weight <= 0:
+    if active_formula.require_all and missing_components:
+        score = 0.0
+    elif available_weight <= 0:
         score = 0.0
     elif math.isinf(weighted_log_sum):
         score = 0.0
     else:
-        score = math.exp(weighted_log_sum / available_weight)
+        exponent_denominator = (
+            available_weight if active_formula.aggregation == "weighted_geometric_mean" else 1.0
+        )
+        score = math.exp(weighted_log_sum / exponent_denominator)
 
     threshold_flags = _compute_threshold_flags(
         raw_evidence,
