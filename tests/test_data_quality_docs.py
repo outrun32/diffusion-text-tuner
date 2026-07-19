@@ -219,22 +219,29 @@ def test_makefile_exposes_phase3_cpu_safe_aliases() -> None:
     assert missing == []
 
 
-def test_readme_links_phase3_data_quality_docs_and_artifact_safety() -> None:
+def test_command_catalog_links_data_quality_docs_and_readme_keeps_artifact_boundary() -> None:
     readme = _read_repo_file("README.md")
+    commands = _read_repo_file("docs/commands.md")
 
-    required_strings = [
+    required_command_links = [
         "docs/data_curriculum.md",
         "docs/dataset_quality.md",
         "docs/synthetic_quality.md",
         "docs/data_selection.md",
         "docs/data_source_comparison.md",
-        "Prompt curriculum and data checks",
-        "Generated artifacts, including reports, images, tensors, contact sheets, selections",
-        "remain out of git",
     ]
+    missing_command_links = [value for value in required_command_links if value not in commands]
+    assert missing_command_links == []
 
-    missing = [value for value in required_strings if value not in readme]
-    assert missing == []
+    readme_required = [
+        "docs/commands.md",
+        "reports/final/README.md",
+        "reports/final/prompt_dataset_source.manifest.json",
+        "reports/final/benchmark_prompts_v2.jsonl",
+        "Generated images, score files, tensors, checkpoints, private manifests, and logs remain outside Git",
+    ]
+    missing_from_readme = [value for value in readme_required if value not in readme]
+    assert missing_from_readme == []
 
 
 def test_runtime_contracts_document_phase3_artifact_matrix() -> None:

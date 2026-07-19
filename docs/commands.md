@@ -117,6 +117,9 @@ manifest/config JSON only; they do not launch training, CUDA, FLUX, Qwen,
 PaddleOCR, OCR, model downloads, or generated image/tensor/checkpoint loading.
 Write comparison outputs under ignored runtime roots such as `runs/comparisons/`.
 
+Read [`docs/training_comparability.md`](training_comparability.md) before interpreting differences
+between runs.
+
 Materialize comparison-grade selections before launching SFT or DPO runs:
 
 ```bash
@@ -288,6 +291,11 @@ run them from a checkout or job workspace, keep paths repository-relative, and w
 ignored runtime roots such as `runs/`, `outputs/`, or generated `data/` subtrees.
 OCR/model-heavy checks are opt-in; default report, manifest, selection, and comparison commands do
 not launch FLUX, Qwen, PaddleOCR, CUDA, SynthTIGER, OCR, or model inference.
+
+The supporting guides are [`docs/data_curriculum.md`](data_curriculum.md),
+[`docs/dataset_quality.md`](dataset_quality.md), [`docs/synthetic_quality.md`](synthetic_quality.md),
+[`docs/data_selection.md`](data_selection.md), and
+[`docs/data_source_comparison.md`](data_source_comparison.md).
 
 Generate prompt datasets from explicit configs instead of monkey-patching prompt constants:
 

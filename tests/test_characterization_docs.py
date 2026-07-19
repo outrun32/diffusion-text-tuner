@@ -36,13 +36,15 @@ def test_docs_publish_cpu_safe_characterization_command_surface() -> None:
     assert missing_from_docs == []
 
     readme_required = [
-        "## CPU-safe quality gates",
-        "make characterization-test",
+        "## Quick start",
+        "make check",
         "docs/commands.md",
         "docs/runtime_contracts.md",
     ]
     missing_from_readme = [value for value in readme_required if value not in readme]
     assert missing_from_readme == []
+    assert "## CPU-safe quality gates" not in readme
+    assert "make characterization-test" not in readme
 
 
 def test_makefile_exposes_focused_characterization_aliases() -> None:

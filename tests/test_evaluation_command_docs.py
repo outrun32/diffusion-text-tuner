@@ -34,17 +34,14 @@ def test_command_catalog_publishes_exact_cpu_safe_and_explicit_runtime_commands(
     assert missing == []
 
 
-def test_readme_links_reward_evaluation_docs() -> None:
+def test_readme_summarizes_reward_and_links_detailed_evaluation_docs() -> None:
     readme = _read_repo_file("README.md")
 
     required_strings = [
-        "Reward and evaluation validity",
         "docs/reward_evaluation.md",
-        "docs/evaluation_harness.md",
-        "docs/evaluation_diagnostics.md",
-        "docs/thesis_outputs.md",
-        "CPU-safe quality gates",
-        "GPU, model, OCR",
+        "thesis_vlm_ocr_product_v1 = score_vlm × score_ocr",
+        "## Quick start",
+        "docs/commands.md",
     ]
 
     missing = [value for value in required_strings if value not in readme]

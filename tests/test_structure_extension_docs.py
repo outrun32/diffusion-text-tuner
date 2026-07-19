@@ -83,7 +83,7 @@ def test_readme_links_phase7_structure_extension_guide() -> None:
 
     required_strings = [
         "docs/structure_and_extension.md",
-        "Repository boundaries and extension rules",
+        "repository boundaries",
         "structure_and_extension.md",
     ]
 

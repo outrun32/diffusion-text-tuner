@@ -60,49 +60,39 @@ def test_makefile_exposes_cpu_safe_runtime_aliases() -> None:
     assert missing == []
 
 
-def test_readme_links_runtime_contracts_before_expensive_work() -> None:
+def test_readme_links_runtime_contracts_without_copying_the_gpu_runbook() -> None:
     readme = read_repo_file("README.md")
-    readme_lower = readme.casefold()
 
     required_strings = [
+        "docs/commands.md",
         "docs/runtime_contracts.md",
-        "configs/README.md",
-        "preflight",
-        "manifest",
-        "before long-running GPU/model work",
-        "generated artifacts",
-        "outputs/",
-        "runs/",
+        "Linux/CUDA host",
+        "Generated images, score files, tensors, checkpoints, private manifests, and logs remain outside Git",
     ]
 
-    missing = [value for value in required_strings if value.casefold() not in readme_lower]
+    missing = [value for value in required_strings if value not in readme]
     assert missing == []
+    assert "uv run python -m scripts.generate_images" not in readme
+    assert "MLX" not in readme
+    assert "MPS" not in readme
 
 
-def test_readme_cuda_clean_run_materializes_selection_before_sft() -> None:
+def test_command_catalog_materializes_selection_before_sft() -> None:
     readme = read_repo_file("README.md")
+    commands = read_repo_file("docs/commands.md")
     required_strings = [
-        "uv run python -m scripts.download_dataset",
-        "--revision ecd8b2da9820b35afc65e2d56eaf37a662c37976",
         "uv run python -m scripts.generate_images",
         "uv run python -m scripts.score_images",
         "--product_formula thesis",
         "uv run python -m scripts.materialize_training_data",
-        "--output outputs/generated/selected_samples.jsonl",
         "uv run accelerate launch --config_file configs/accelerate/single_gpu.yaml",
-        "--config configs/experiments/sft/sft_product_rerun_v2.json",
         "LEFT_MANIFEST=",
         "RIGHT_MANIFEST=",
     ]
-    missing = [value for value in required_strings if value not in readme]
+    missing = [value for value in required_strings if value not in commands]
     assert missing == []
 
-    ordered_commands = [
-        "uv run python -m scripts.download_dataset",
-        "uv run python -m scripts.generate_images",
-        "uv run python -m scripts.score_images",
-        "uv run python -m scripts.materialize_training_data",
-        "uv run accelerate launch --config_file configs/accelerate/single_gpu.yaml",
-    ]
-    positions = [readme.index(command) for command in ordered_commands]
-    assert positions == sorted(positions)
+    assert commands.index("uv run python -m scripts.materialize_training_data") < commands.index(
+        "uv run accelerate launch --config_file configs/accelerate/single_gpu.yaml"
+    )
+    assert "docs/commands.md" in readme

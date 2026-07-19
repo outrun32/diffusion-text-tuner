@@ -88,7 +88,7 @@ def test_comparison_docs_and_readme_publish_exact_command_strings():
 
     assert "## Training comparability" in commands
     assert "compare-training-runs" in commands
-    assert "compare-training-runs" in readme
+    assert "compare-training-runs" not in readme
     assert "compare-training-runs" in makefile
     assert "uv run python -m scripts.compare_training_runs" in commands
     assert "python -m scripts.compare_training_runs" in makefile
@@ -107,7 +107,8 @@ def test_comparison_docs_and_readme_publish_exact_command_strings():
         "--right-manifest runs/<b>/manifest.json --markdown "
         "--output runs/comparisons/training-run-comparison.md"
     ) in commands
-    assert "docs/training_comparability.md" in readme
+    assert "docs/training_comparability.md" in commands
+    assert "docs/commands.md" in readme
     for approach in ("baseline", "SFT", "DPO", "masked-SFT", "combined", "curriculum"):
         assert approach in commands
 
