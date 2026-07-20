@@ -195,7 +195,7 @@ Canonical score files use `phase6-score-file/v1` or `phase6-score-jsonl/v1` rows
 complete scoring command is explicit runtime work:
 
 ```bash
-uv run python -m scripts.score_images --images_dir outputs/generated/images --text_embeds_dir outputs/generated/text_embeds --output_csv outputs/generated/scores.csv --scorer both --ocr_device cpu --product_formula thesis --manifest_path runs/scoring/manifest.json --source_manifest runs/generation/manifest.json --source_manifest runs/scoring/manifest.json
+uv run python -m scripts.score_images --images_dir outputs/generated/images --text_embeds_dir outputs/generated/text_embeds --output_csv outputs/generated/scores.csv --scorer both --ocr_device cpu --product_formula product --manifest_path runs/scoring/manifest.json --source_manifest runs/generation/manifest.json --source_manifest runs/scoring/manifest.json
 ```
 
 Validate recorded score rows and sidecars CPU-safely before diagnostics or thesis output generation:

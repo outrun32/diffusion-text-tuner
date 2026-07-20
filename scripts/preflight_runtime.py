@@ -16,7 +16,7 @@ from src.runtime.config_io import RuntimeConfigError, load_stage_config
 from src.runtime.manifests import ManifestError, load_run_manifest
 from src.runtime.paths import resolve_stage_paths
 
-THESIS_PRODUCT_FORMULA_NAME = "thesis_vlm_ocr_product_v1"
+VLM_OCR_PRODUCT_FORMULA_NAME = "vlm_ocr_product_v1"
 
 CLI_STAGES = (
     "generate",
@@ -272,7 +272,7 @@ def _check_artifacts(
     else:
         report = validate_artifacts(HELPER_STAGES.get(stage, stage), paths)
     payload = _artifact_report_to_json(report)
-    if stage in {"sft", "dpo"} and config is not None and _requires_thesis_product(config, paths):
+    if stage in {"sft", "dpo"} and config is not None and _requires_vlm_ocr_product(config, paths):
         product_report = validate_artifacts(
             "evaluation_scores",
             {"scores_csv": paths["scores_csv"]},
@@ -296,7 +296,7 @@ def _check_artifacts(
     return payload
 
 
-def _requires_thesis_product(config: Any, paths: dict[str, Path]) -> bool:
+def _requires_vlm_ocr_product(config: Any, paths: dict[str, Path]) -> bool:
     experiment_name = str(getattr(config, "experiment_name", "")).casefold()
     scores_name = Path(str(getattr(config, "scores_csv", ""))).stem.casefold()
     score_column = str(getattr(config, "score_column", "")).casefold()
@@ -383,8 +383,8 @@ def _product_formula_errors(scores_csv: Path) -> list[str]:
     errors: list[str] = []
     if payload.get("primary_score") != "product":
         errors.append("Product training requires primary_score='product'")
-    if not isinstance(formula, dict) or formula.get("name") != THESIS_PRODUCT_FORMULA_NAME:
-        errors.append(f"Product training requires formula {THESIS_PRODUCT_FORMULA_NAME!r}")
+    if not isinstance(formula, dict) or formula.get("name") != VLM_OCR_PRODUCT_FORMULA_NAME:
+        errors.append(f"Product training requires formula {VLM_OCR_PRODUCT_FORMULA_NAME!r}")
         return errors
     if formula.get("aggregation") != "weighted_product":
         errors.append("Product training requires weighted_product aggregation")

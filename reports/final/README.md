@@ -32,8 +32,8 @@ Product DPO. These rows are aggregate-only evidence. The original per-sample sco
 manifests, and checkpoint hashes are not present in the repository, so the table cannot be
 independently recomputed from this checkout.
 
-The reported Product score used the thesis formula `VLM × OCR`. The current scoring command now
-records that formula as `thesis_vlm_ocr_product_v1`; the later five-component diagnostic formula has
+The reported Product score used the formula `VLM × OCR`. The current scoring command records that
+formula as `vlm_ocr_product_v1`; the later five-component diagnostic formula has
 a different name and must be selected explicitly.
 
 The machine-readable selection-bias record preserves one other defense aggregate: median target

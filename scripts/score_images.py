@@ -90,10 +90,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--product_formula",
-        choices=("thesis", "diagnostic"),
-        default="thesis",
+        choices=("product", "diagnostic"),
+        default="product",
         help=(
-            "Product formula: thesis is the reported VLM×OCR score; diagnostic uses the "
+            "Product formula: product is the VLM×OCR selection score; diagnostic uses the "
             "later five-component geometric formula."
         ),
     )

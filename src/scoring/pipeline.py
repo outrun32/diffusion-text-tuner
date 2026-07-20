@@ -27,7 +27,7 @@ from src.evaluation.reward_interface import (
     ProductScoreFormula,
     build_score_metadata,
     compute_product_score,
-    thesis_product_formula,
+    vlm_ocr_product_formula,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class ScoringConfig:
     vlm_model_revision: str | None = None
     vlm_device: Literal["cuda"] = "cuda"
     ocr_device: Literal["cpu", "gpu"] = "cpu"
-    product_formula: Literal["thesis", "diagnostic"] = "thesis"
+    product_formula: Literal["product", "diagnostic"] = "product"
     entropy_lambda: float = 1.0
     batch_size: int = 1
     resume: bool = False
@@ -481,8 +481,8 @@ def _formula_for_config(config: ScoringConfig) -> tuple[ProductScoreFormula, str
     if config.scorer in {"ocr", "both"}:
         scorer_versions["ocr"] = f"paddleocr-ru-entropy-lambda-{config.entropy_lambda}"
     formula = (
-        thesis_product_formula(scorer_versions=scorer_versions)
-        if config.product_formula == "thesis"
+        vlm_ocr_product_formula(scorer_versions=scorer_versions)
+        if config.product_formula == "product"
         else ProductScoreFormula(scorer_versions=scorer_versions)
     )
     primary_score = {"vlm": "vlm", "ocr": "ocr", "both": "product"}[config.scorer]

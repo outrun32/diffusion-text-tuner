@@ -7,7 +7,7 @@ import hashlib
 
 import pytest
 
-from src.evaluation.reward_interface import thesis_product_formula
+from src.evaluation.reward_interface import vlm_ocr_product_formula
 from src.scoring.pipeline import CANONICAL_SCORE_COLUMNS, write_score_schema_sidecar
 
 
@@ -39,7 +39,7 @@ def _write_shard(
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     write_score_schema_sidecar(
         path,
-        formula=thesis_product_formula(),
+        formula=vlm_ocr_product_formula(),
         source_manifest_paths=("runs/generation/manifest.json",),
         primary_score="product",
         execution_metadata={

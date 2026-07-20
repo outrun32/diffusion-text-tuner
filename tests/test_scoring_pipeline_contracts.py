@@ -72,11 +72,11 @@ def test_pipeline_builds_canonical_row_with_product_missing_and_legacy_fields():
 
 
 def test_pipeline_primary_score_tracks_selected_reward() -> None:
-    from src.evaluation.reward_interface import thesis_product_formula
+    from src.evaluation.reward_interface import vlm_ocr_product_formula
     from src.scoring.pipeline import build_canonical_score_row
 
     evidence = {"score_vlm": 0.8, "score_ocr": 0.75, "ocr_detected": "ТЕСТ"}
-    formula = thesis_product_formula()
+    formula = vlm_ocr_product_formula()
 
     vlm_row = build_canonical_score_row(
         sample_id="p",
@@ -264,7 +264,7 @@ def test_score_images_main_builds_config_and_delegates_to_pipeline(monkeypatch, 
             vlm_model_revision=None,
             vlm_device="cuda",
             ocr_device="cpu",
-            product_formula="thesis",
+            product_formula="product",
             entropy_lambda=1.5,
             batch_size=1,
             resume=True,
@@ -304,12 +304,12 @@ def test_scoring_config_rejects_noop_batching_and_invalid_shards(tmp_path):
 
 
 def test_resume_rejects_formula_or_source_manifest_drift(tmp_path):
-    from src.evaluation.reward_interface import thesis_product_formula
+    from src.evaluation.reward_interface import vlm_ocr_product_formula
     from src.scoring.pipeline import _validate_resume_sidecar, write_score_schema_sidecar
 
     output = tmp_path / "scores.csv"
     output.write_text("id\n", encoding="utf-8")
-    formula = thesis_product_formula(scorer_versions={"vlm": "qwen@a"})
+    formula = vlm_ocr_product_formula(scorer_versions={"vlm": "qwen@a"})
     write_score_schema_sidecar(
         output,
         formula=formula,
@@ -321,7 +321,7 @@ def test_resume_rejects_formula_or_source_manifest_drift(tmp_path):
     with pytest.raises(ValueError, match="does not match"):
         _validate_resume_sidecar(
             output,
-            formula=thesis_product_formula(scorer_versions={"vlm": "qwen@b"}),
+            formula=vlm_ocr_product_formula(scorer_versions={"vlm": "qwen@b"}),
             primary_score="product",
             source_manifest_paths=("runs/a/manifest.json",),
             shard_idx=0,

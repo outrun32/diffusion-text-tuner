@@ -134,9 +134,9 @@ def test_compute_product_score_combines_weighted_components_and_flags_thresholds
 
 
 def test_thesis_formula_is_exact_vlm_times_ocr_and_requires_both() -> None:
-    from src.evaluation.reward_interface import compute_product_score, thesis_product_formula
+    from src.evaluation.reward_interface import compute_product_score, vlm_ocr_product_formula
 
-    formula = thesis_product_formula(scorer_versions={"vlm": "qwen", "ocr": "paddle"})
+    formula = vlm_ocr_product_formula(scorer_versions={"vlm": "qwen", "ocr": "paddle"})
 
     complete = compute_product_score(
         {"score_vlm": 0.8, "score_ocr": 0.75, "exact_text_match": False},

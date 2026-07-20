@@ -382,7 +382,7 @@ def test_product_training_preflight_requires_canonical_thesis_formula(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from scripts import preflight_runtime
-    from src.evaluation.reward_interface import ProductScoreFormula, thesis_product_formula
+    from src.evaluation.reward_interface import ProductScoreFormula, vlm_ocr_product_formula
     from src.runtime.manifests import create_run_manifest
     from src.scoring.pipeline import CANONICAL_SCORE_COLUMNS, write_score_schema_sidecar
 
@@ -443,7 +443,7 @@ def test_product_training_preflight_requires_canonical_thesis_formula(
     }
     write_score_schema_sidecar(
         scores,
-        formula=thesis_product_formula(),
+        formula=vlm_ocr_product_formula(),
         source_manifest_paths=(str(source_manifest.manifest_path),),
         primary_score="product",
         execution_metadata=execution,
@@ -471,7 +471,7 @@ def test_product_training_preflight_requires_canonical_thesis_formula(
     blocked = preflight_runtime.build_preflight_report(args)
 
     assert blocked["artifacts"]["ok"] is False
-    assert any("thesis_vlm_ocr_product_v1" in error for error in blocked["blocking_errors"])
+    assert any("vlm_ocr_product_v1" in error for error in blocked["blocking_errors"])
 
     neutral_scores = scores.with_name("scores.csv")
     scores.replace(neutral_scores)
@@ -489,11 +489,11 @@ def test_product_training_preflight_requires_canonical_thesis_formula(
     neutral_blocked = preflight_runtime.build_preflight_report(neutral_args)
 
     assert neutral_blocked["artifacts"]["ok"] is False
-    assert any("thesis_vlm_ocr_product_v1" in error for error in neutral_blocked["blocking_errors"])
+    assert any("vlm_ocr_product_v1" in error for error in neutral_blocked["blocking_errors"])
 
 
 def test_product_detection_reads_materialized_artifact_metadata(tmp_path: Path) -> None:
-    from scripts.preflight_runtime import _requires_thesis_product
+    from scripts.preflight_runtime import _requires_vlm_ocr_product
 
     scores = tmp_path / "outputs" / "generated" / "scores.csv"
     selected = tmp_path / "outputs" / "generated" / "selected_samples.jsonl"
@@ -518,7 +518,7 @@ def test_product_detection_reads_materialized_artifact_metadata(tmp_path: Path) 
         score_column="score",
     )
 
-    assert _requires_thesis_product(
+    assert _requires_vlm_ocr_product(
         config,
         {"scores_csv": scores, "selected_samples": selected},
     )
@@ -528,13 +528,13 @@ def test_product_detection_reads_materialized_artifact_metadata(tmp_path: Path) 
         json.dumps(
             {
                 "primary_score": "vlm",
-                "formula": {"name": "thesis_vlm_ocr_product_v1"},
+                "formula": {"name": "vlm_ocr_product_v1"},
             }
         ),
         encoding="utf-8",
     )
 
-    assert not _requires_thesis_product(config, {"scores_csv": scores})
+    assert not _requires_vlm_ocr_product(config, {"scores_csv": scores})
 
 
 @pytest.mark.parametrize("stage", ["sft", "dpo"])

@@ -542,7 +542,7 @@ def _write_canonical_scores(
         "schema_version": "reward-score-metadata/v1",
         "score_file_schema_version": "phase6-score-jsonl/v1",
         "formula": {
-            "name": "thesis_vlm_ocr_product_v1",
+            "name": "vlm_ocr_product_v1",
             "weights": {"score_vlm": 1.0, "score_ocr": 1.0},
             "thresholds": {},
             "scorer_versions": {"vlm": "test@revision", "ocr": "test@revision"},

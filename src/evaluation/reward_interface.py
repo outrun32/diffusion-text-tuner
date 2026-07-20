@@ -18,7 +18,7 @@ from typing import Any, Literal
 SCHEMA_VERSION = "reward-result/v1"
 METADATA_SCHEMA_VERSION = "reward-score-metadata/v1"
 DEFAULT_PRODUCT_FORMULA_NAME = "vlm_ocr_cer_entropy_exact_product_v1"
-THESIS_PRODUCT_FORMULA_NAME = "thesis_vlm_ocr_product_v1"
+VLM_OCR_PRODUCT_FORMULA_NAME = "vlm_ocr_product_v1"
 
 DEFAULT_PRODUCT_WEIGHTS: dict[str, float] = {
     "score_vlm": 0.35,
@@ -142,14 +142,14 @@ class ProductScoreFormula:
         }
 
 
-def thesis_product_formula(
+def vlm_ocr_product_formula(
     *,
     scorer_versions: Mapping[str, str] | None = None,
 ) -> ProductScoreFormula:
-    """Return the exact ``VLM × OCR`` formula used by the reported thesis runs."""
+    """Return the exact ``VLM × OCR`` formula used for Product selection."""
 
     return ProductScoreFormula(
-        name=THESIS_PRODUCT_FORMULA_NAME,
+        name=VLM_OCR_PRODUCT_FORMULA_NAME,
         weights={"score_vlm": 1.0, "score_ocr": 1.0},
         scorer_versions=scorer_versions or {},
         aggregation="weighted_product",

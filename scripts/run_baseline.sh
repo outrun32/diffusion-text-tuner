@@ -46,7 +46,7 @@ python -m scripts.score_images \
     --scorer both \
     --vlm_model_revision "$VLM_REVISION" \
     --ocr_device "$OCR_DEVICE" \
-    --product_formula thesis \
+    --product_formula product \
     --source_manifest "$OUTPUT_DIR/generation.manifest.json"
 
 echo "Baseline scores: $OUTPUT_DIR/scores.csv"

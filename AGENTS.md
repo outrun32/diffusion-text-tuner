@@ -32,7 +32,7 @@ unsupported host.
 
 ## Scientific invariants
 
-- `thesis_vlm_ocr_product_v1` means exactly `score_vlm * score_ocr`.
+- `vlm_ocr_product_v1` means exactly `score_vlm * score_ocr`.
 - The five-component geometric formula is a separate diagnostic metric.
 - VLM-only score files use VLM as `score`; OCR-only files use OCR; combined files use Product.
 - Training loss and DPO accuracy are internal signals, not evidence of rendered-text quality.

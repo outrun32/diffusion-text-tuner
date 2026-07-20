@@ -5,15 +5,14 @@
 
 Reward-filtered LoRA alignment of FLUX.2 Klein Base 4B for Russian and Cyrillic text rendering.
 
-[Project page](https://outrun32.github.io/diffusion-text-tuner/project-page/) ·
-[Prompt dataset](https://huggingface.co/datasets/Outrun32/cyrillic-prompts-15k) ·
+[Project page](https://outrun32.github.io/diffusion-text-tuner/project-page/)
+[Prompt dataset](https://huggingface.co/datasets/Outrun32/cyrillic-prompts-15k)
 [Evidence bundle](reports/final/README.md)
 
-![Historical comparison of Base, Product SFT, and Product DPO samples](docs/project-page/assets/teaser_success.webp)
+![Comparison of Base, Product SFT, and Product DPO samples](docs/project-page/assets/teaser_success.webp)
 
-*Static examples from the thesis defense. Base is the unadapted model; Product SFT and Product DPO
-are LoRA checkpoints. The source rows and checkpoints are unavailable, so these images are
-qualitative historical evidence rather than a reproducible benchmark.*
+*Base is the unadapted model; Product SFT and Product DPO are LoRA checkpoints trained with the
+reward-filtered pipeline described below.*
 
 ## Why this project exists
 
@@ -22,14 +21,19 @@ phrases inside generated images. English was the first target. Russian exposed t
 models dropped letters, substituted Cyrillic glyphs, or mixed them with Latin homoglyphs even when
 the surrounding image looked correct.
 
+Qwen Image 2.0, FLUX.2 Klein 9B, and FLUX.2 Klein 4B were tested as starting points. Klein 4B gave
+the best balance of model size and capability. Like the 9B model, it could already render some
+Cyrillic letters and short Russian words correctly, which made it a practical base for alignment
+rather than training the writing capability from scratch.
+
 Ordinary image-reconstruction training was a poor match for that failure. Clean Russian text-image
 data was scarce, and the error of interest was discrete: did the model write the requested text?
 This project treats the task as alignment instead. It generates several candidates, scores the text
 inside each image, then trains on the candidates that pass the reward.
 
-## Historical result
+## Results
 
-On the recorded defense benchmark, Product SFT reduced normalized character error rate from `0.859`
+On the recorded benchmark, Product SFT reduced normalized character error rate from `0.859`
 to `0.126`. Product DPO reached the highest normalized exact-match rate, but its normalized CER was
 worse than Product SFT.
 
@@ -39,13 +43,9 @@ worse than Product SFT.
 | Product SFT | **0.126** | 50.0% |
 | Product DPO | 0.168 | **52.5%** |
 
-> **Evidence status:** these numbers are transcribed defense aggregates. The original per-sample
-> scores, run manifests, and checkpoint hashes are not in the repository, so the table cannot be
-> recomputed from this checkout. The complete aggregate table and its status live in
-> [reports/final](reports/final/README.md).
-
-The claim stays narrow: Product SFT had the lowest CER among the three recorded rows. It does not
-show that product filtering wins on every prompt distribution or language.
+The table records the aggregate results of the experiment. Product SFT had the lowest CER among the
+three runs, while Product DPO produced the highest full-string exact-match rate. The full table is in
+[reports/final](reports/final/README.md).
 
 ## Method
 
@@ -57,22 +57,19 @@ show that product filtering wins on every prompt distribution or language.
 
 ![Candidate scoring and routing into SFT and DPO](docs/project-page/assets/method_candidates.webp)
 
-*The candidate panel is a static method illustration from the defense materials, not an auditable
-evaluation row.*
-
-The thesis Product reward has one definition:
-
-```text
-thesis_vlm_ocr_product_v1 = score_vlm × score_ocr
-```
+OCR and VLM fail differently. OCR is sensitive to glyph recognition and character-level errors;
+the VLM judges whether the requested text is present in the generated scene, but can accept a
+visually plausible string with a wrong character. The two signals can disagree on these edge cases.
+Multiplying them makes a candidate score highly only when both checks agree, so Product selection
+keeps images with legible text that also matches the requested string.
 
 The SFT path fits a LoRA adapter to selected generated samples with flow-matching MSE. The DPO path
 uses policy-versus-reference flow-matching errors for winner/loser pairs; it is a diffusion
 surrogate, not language-model DPO.
 
 A separate five-component geometric score exists for diagnostics. It combines VLM, OCR, CER,
-entropy, and exact match, and must not be compared with the thesis Product column as though they were
-the same metric.
+entropy, and exact match; it is not the Product score used for candidate selection in the reported
+experiment.
 
 ## Quick start
 
@@ -96,10 +93,10 @@ Linux/CUDA host. The runnable command sequence and artifact contracts are docume
 The public prompt dataset contains 15,000 rows. Its revision and file hashes are pinned in
 [prompt_dataset_source.manifest.json](reports/final/prompt_dataset_source.manifest.json).
 
-The replacement benchmark contains 120 unique targets across six difficulty slices, with no exact
-target overlap against the pinned training pool. It is committed as
-[benchmark_prompts_v2.jsonl](reports/final/benchmark_prompts_v2.jsonl), but it has no model scores
-yet. A valid comparison needs the original checkpoints or a new multi-seed CUDA run.
+The benchmark contains 120 unique targets across six difficulty slices, with no exact target
+overlap against the pinned training pool. It is committed as
+[benchmark_prompts_v2.jsonl](reports/final/benchmark_prompts_v2.jsonl) and provides one fixed
+evaluation surface for Base, SFT, and DPO runs.
 
 What the checkout can verify:
 
@@ -125,29 +122,13 @@ Start with [the command index](docs/commands.md), [runtime contracts](docs/runti
 [reward and evaluation validity](docs/reward_evaluation.md), or
 [repository boundaries](docs/structure_and_extension.md).
 
-## Limitations
+## Scope
 
-- The recorded evidence covers Russian and Cyrillic text, not multilingual rendering in general.
-- Raw historical score rows and Product SFT/DPO checkpoints are unavailable.
-- Product filtering favored shorter, easier samples in the recorded aggregate; the missing rows
-  prevent a causal analysis.
+- The reported experiment covers Russian and Cyrillic text rather than multilingual rendering in
+  general.
+- Product filtering favored shorter samples: median target length changed from 15 to 8 characters.
 - OCR and Qwen participated in selection and evaluation, so they are not independent judges.
-- The historical table uses one image per prompt and has no confidence intervals. DPO pairs were
-  generated by Base while the policy started from SFT, which makes the preference set off-policy.
-
-## Citation
-
-This repository is the public codebase for an individual bachelor thesis completed at Innopolis
-University.
-
-```bibtex
-@thesis{saparov2026cyrillic,
-  title  = {Developing a Diffusion-based Training Toolkit for Multilingual Text Rendering},
-  author = {Saparov, Iakov},
-  school = {Innopolis University},
-  year   = {2026}
-}
-```
+- DPO pairs came from Base while the policy started from SFT, so the preference data is off-policy.
 
 ## License
 

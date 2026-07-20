@@ -1,10 +1,10 @@
 {
   "artifacts": [
     {
-      "bytes": 3490,
+      "bytes": 3472,
       "evidence_class": "public-source",
       "path": "reports/final/README.md",
-      "sha256": "61546626378aa205a6b609aaf9cf1d5d077122edbeb885e7255ebbb2f91c7999"
+      "sha256": "365ea41eaa4abbab84b81ec10d0aed1618ea6d2d78254c428223bcad4e7dafb1"
     },
     {
       "bytes": 553,
@@ -55,10 +55,10 @@
       "sha256": "e0d52453022b091fd9f5c660918ff89b213a2a8463c59bda14a5325f5f08d03d"
     },
     {
-      "bytes": 82090,
+      "bytes": 72738,
       "evidence_class": "static-defense-figure",
       "path": "docs/project-page/assets/teaser_success.webp",
-      "sha256": "5c08f79b9ac9dde4edf44336c09e7400aa0f9d040bade087554415e9ddefeec6"
+      "sha256": "20a11105b5402f0a2e5d2d47ccfd95d0c1142aafdb9484ae2102e48126c45f2c"
     },
     {
       "bytes": 74278,

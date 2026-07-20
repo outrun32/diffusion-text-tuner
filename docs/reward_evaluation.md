@@ -55,14 +55,14 @@ and thesis reports on one canonical `RewardResult` / product-score contract.
 
 ## Product formula: `ProductScoreFormula`
 
-The thesis metric and the later diagnostic metric are separate formulas.
-`scripts.score_images --product_formula thesis` uses the reported thesis definition:
+The Product metric and the later diagnostic metric are separate formulas.
+`scripts.score_images --product_formula product` uses the Product definition:
 
 ```python
-thesis_product_formula(
+vlm_ocr_product_formula(
     scorer_versions={"vlm": "qwen@revision", "ocr": "paddleocr@revision"}
 )
-# name: thesis_vlm_ocr_product_v1
+# name: vlm_ocr_product_v1
 # aggregation: weighted_product
 # weights: {"score_vlm": 1.0, "score_ocr": 1.0}
 # require_all: True
@@ -124,7 +124,7 @@ so downstream comparisons can reject or flag incomplete rows.
 | `formula_complete` | `True` only when all positive-weight formula components were present and valid. |
 
 Missing VLM/OCR evidence must never be silently treated as comparable. The diagnostic formula may
-carry a numeric partial score for inspection; the thesis formula requires both terms.
+carry a numeric partial score for inspection; the Product formula requires both terms.
 
 ## Score metadata: `build_score_metadata`
 
@@ -184,9 +184,9 @@ sidecar uses `schema_version="reward-score-metadata/v1"` and includes:
 | Sidecar field | Meaning |
 | --- | --- |
 | `score_file_schema_version` | `phase6-score-file/v1` for CSV or `phase6-score-jsonl/v1` for JSONL. |
-| `formula.name` | `thesis_vlm_ocr_product_v1` by default; `vlm_ocr_cer_entropy_exact_product_v1` only in diagnostic mode. |
-| `formula.weights` | Formula-specific weights. Thesis mode has one unnormalized factor for VLM and OCR. |
-| `formula.aggregation` | `weighted_product` for the thesis metric or `weighted_geometric_mean` for diagnostics. |
+| `formula.name` | `vlm_ocr_product_v1` by default; `vlm_ocr_cer_entropy_exact_product_v1` only in diagnostic mode. |
+| `formula.weights` | Formula-specific weights. Product mode has one unnormalized factor for VLM and OCR. |
+| `formula.aggregation` | `weighted_product` for the Product metric or `weighted_geometric_mean` for diagnostics. |
 | `formula.thresholds` | Thresholds such as `score_vlm_min`, `score_ocr_min`, or `cer_max`. |
 | `formula.scorer_versions` | Scorer identities/revisions such as Qwen model ID and OCR settings. |
 | `source_manifest_paths` | Source run/evaluation manifests that produced or contextualized score rows. |

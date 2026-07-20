@@ -18,7 +18,7 @@ def test_command_catalog_publishes_exact_cpu_safe_and_explicit_runtime_commands(
         "CPU-safe evaluation verification",
         "uv run pytest tests/test_evaluation_command_docs.py tests/test_evaluation_reward_interface.py tests/test_heldout_evaluation_harness.py tests/test_evaluation_slices_gold.py tests/test_evaluation_scoring_outputs.py tests/test_reward_diagnostics.py tests/test_thesis_outputs.py -q",
         "uv run python -m scripts.run_heldout_evaluation --config <heldout-config.json> --output-plan runs/evaluation/heldout-001/plan.json --markdown-summary runs/evaluation/heldout-001/plan.md",
-        "uv run python -m scripts.score_images --images_dir outputs/generated/images --text_embeds_dir outputs/generated/text_embeds --output_csv outputs/generated/scores.csv --scorer both --ocr_device cpu --product_formula thesis --manifest_path runs/scoring/manifest.json --source_manifest runs/generation/manifest.json --source_manifest runs/scoring/manifest.json",
+        "uv run python -m scripts.score_images --images_dir outputs/generated/images --text_embeds_dir outputs/generated/text_embeds --output_csv outputs/generated/scores.csv --scorer both --ocr_device cpu --product_formula product --manifest_path runs/scoring/manifest.json --source_manifest runs/generation/manifest.json --source_manifest runs/scoring/manifest.json",
         "phase6-score-file/v1",
         ".schema.json",
         "uv run python -c \"from src.runtime.artifacts import validate_artifacts; report = validate_artifacts('evaluation_scores', {'scores_csv': 'outputs/generated/scores.csv'}); raise SystemExit(0 if report.ok else 1)\"",
@@ -39,7 +39,7 @@ def test_readme_summarizes_reward_and_links_detailed_evaluation_docs() -> None:
 
     required_strings = [
         "docs/reward_evaluation.md",
-        "thesis_vlm_ocr_product_v1 = score_vlm × score_ocr",
+        "Multiplying them makes a candidate score highly only when both checks agree",
         "## Quick start",
         "docs/commands.md",
     ]

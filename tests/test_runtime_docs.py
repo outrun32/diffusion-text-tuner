@@ -83,7 +83,7 @@ def test_command_catalog_materializes_selection_before_sft() -> None:
     required_strings = [
         "uv run python -m scripts.generate_images",
         "uv run python -m scripts.score_images",
-        "--product_formula thesis",
+        "--product_formula product",
         "uv run python -m scripts.materialize_training_data",
         "uv run accelerate launch --config_file configs/accelerate/single_gpu.yaml",
         "LEFT_MANIFEST=",
