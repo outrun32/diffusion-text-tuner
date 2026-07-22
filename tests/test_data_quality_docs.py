@@ -236,7 +236,7 @@ def test_command_catalog_links_data_quality_docs_and_readme_keeps_artifact_bound
     readme_required = [
         "docs/commands.md",
         "reports/final/README.md",
-        "reports/final/prompt_dataset_source.manifest.json",
+        "configs/prompts/curriculum.json",
         "reports/final/benchmark_prompts_v2.jsonl",
         "Generated images, score files, tensors, checkpoints, private manifests, and logs remain outside Git",
     ]

@@ -60,15 +60,21 @@ three runs, while Product DPO produced the highest full-string exact-match rate.
 OCR and VLM fail differently. OCR is sensitive to glyph recognition and character-level errors;
 the VLM judges whether the requested text is present in the generated scene, but can accept a
 visually plausible string with a wrong character. The two signals can disagree on these edge cases.
-Multiplying them makes a candidate score highly only when both checks agree, so Product selection
-keeps images with legible text that also matches the requested string.
+The selection score is therefore:
+
+```text
+score_product = score_vlm × score_ocr
+```
+
+A candidate receives a high `score_product` only when both checks agree. This keeps images with
+legible text that also matches the requested string.
 
 The SFT path fits a LoRA adapter to selected generated samples with flow-matching MSE. The DPO path
 uses policy-versus-reference flow-matching errors for winner/loser pairs; it is a diffusion
 surrogate, not language-model DPO.
 
 A separate five-component geometric score exists for diagnostics. It combines VLM, OCR, CER,
-entropy, and exact match; it is not the Product score used for candidate selection in the reported
+entropy, and exact match; it is not the `score_product` used for candidate selection in the reported
 experiment.
 
 ## Quick start
@@ -88,10 +94,16 @@ FLUX image generation, PyTorch VLM scoring, latent baking, SFT, DPO, masked-SFT,
 Linux/CUDA host. The runnable command sequence and artifact contracts are documented in
 [docs/commands.md](docs/commands.md) and [docs/runtime_contracts.md](docs/runtime_contracts.md).
 
-## Data and evidence
+## Prompt generation and evaluation
 
-The public prompt dataset contains 15,000 rows. Its revision and file hashes are pinned in
-[prompt_dataset_source.manifest.json](reports/final/prompt_dataset_source.manifest.json).
+The repository includes a config-driven prompt dataset generator. Its curriculum starts with single
+letters and short words, then adds phrases, digits, punctuation, mixed case, multiline text, styles,
+and scenes. Sampling weights increase coverage of Cyrillic glyphs that the base model renders poorly;
+dataset validation tracks the rare letters `щ`, `ъ`, `ё`, `э`, `ю`, `ф`, and `ц` explicitly.
+
+```bash
+uv run python -m src.prompt_pipeline.generate --config configs/prompts/curriculum.json
+```
 
 The benchmark contains 120 unique targets across six difficulty slices, with no exact target
 overlap against the pinned training pool. It is committed as
@@ -126,9 +138,17 @@ Start with [the command index](docs/commands.md), [runtime contracts](docs/runti
 
 - The reported experiment covers Russian and Cyrillic text rather than multilingual rendering in
   general.
-- Product filtering favored shorter samples: median target length changed from 15 to 8 characters.
+- Filtering by `score_product` favored shorter samples: median target length changed from 15 to 8
+  characters.
 - OCR and Qwen participated in selection and evaluation, so they are not independent judges.
 - DPO pairs came from Base while the policy started from SFT, so the preference data is off-policy.
+
+## Next direction
+
+Reward alignment improves many near-correct generations, but it is weaker when the base model does
+not know a glyph at all. The next stage adds direct glyph supervision for those characters, using
+targeted synthetic examples and text-region masks alongside the alignment pipeline. The same data
+curriculum and evaluation scheme can then be extended beyond Cyrillic to other writing systems.
 
 ## License
 

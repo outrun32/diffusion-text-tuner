@@ -39,7 +39,7 @@ def test_readme_summarizes_reward_and_links_detailed_evaluation_docs() -> None:
 
     required_strings = [
         "docs/reward_evaluation.md",
-        "Multiplying them makes a candidate score highly only when both checks agree",
+        "score_product = score_vlm × score_ocr",
         "## Quick start",
         "docs/commands.md",
     ]
